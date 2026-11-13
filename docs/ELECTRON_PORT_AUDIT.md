@@ -24,14 +24,14 @@ This is not a completed, validated desktop release. The native llama.cpp inferen
 | Tasks and Notes | Implemented in source | CRUD, filtering, sorting, context selection. |
 | File Library | Implemented in source | File picker, SHA-256, duplicate detection, relink, non-destructive registry removal, 512 MiB ceiling. |
 | GGUF registry | Implemented in source; tests added | Bounded GGUF header/metadata parser, architecture/name/quantization extraction, SHA-256, duplicate relinking, default model, non-destructive registry removal. |
-| Runtime resource estimate | Implemented as informational estimate | Uses the existing 2,048 context / 128 batch defaults and reads the saved RAM-limiter preference. It does not enforce a memory ceiling. |
+| Runtime resource estimate | Implemented as informational estimate | Uses GGUF metadata to estimate KV-cache and scratch memory with the existing 2,048 context / 128 batch defaults and reads the saved RAM-limiter preference. It does not enforce a memory ceiling. |
 | llama.cpp inference worker | Not implemented | Needs a reproducible Windows-compatible native runtime, child-process protocol, streaming, cancellation, telemetry, and recovery. |
 | Windows Job Object memory cap | Not implemented | Must not be claimed until the Electron worker is running and verified under a Windows Job Object. |
 | Electron launch / installer | Not validated | Electron binary download and packaging have not been attempted in this pass. |
 
 ## Command coverage
 
-The frontend exposes 44 commands. The Electron main process now has handlers for the full command-name set:
+The frontend exposes 44 commands. A contract test now extracts the command names from `src/services/nativeBridge.ts` and compares them with the Electron main-process handler allowlist. All 44 names currently match exactly:
 - 3 host/startup commands
 - 12 chat/message/backup/settings commands
 - 4 model registry/import commands
@@ -70,3 +70,9 @@ After pulling the latest branch on Windows:
 ## Validation boundary
 
 The successful earlier `npm run build` is evidence for the renderer only. The new Electron main-process and SQLite files were committed remotely in this pass and have **not** been executed in the user's local Windows environment. The added automated tests are ready to run, but their success is not yet known. Do not describe the desktop application, inference, or installer as finished until those checks pass.
+
+
+## Added validation guardrails
+
+- `electron/contract.test.cjs` verifies every frontend IPC command has exactly one corresponding main-process handler and checks key Electron isolation/lifecycle protections remain present.
+- `.github/workflows/electron-ci.yml` runs the persistence, GGUF parser, IPC contract tests, TypeScript check, and Vite production build on Windows with Node 24. This validates the source and built-in Node SQLite API under the CI Node runtime; it does not replace testing inside the packaged Electron runtime.
