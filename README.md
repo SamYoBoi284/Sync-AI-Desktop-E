@@ -29,14 +29,14 @@ The test command uses Node's built-in test runner and temporary SQLite databases
 - Local SQLite schema migrations matching the original desktop schema through version 4.
 - Chat history, message diagnostics, queued assistant insertion, settings, and version-1 chat backup import/export.
 - Workspace artifacts, selected context, Tasks, Notes, and File Library metadata persistence.
-- Non-destructive GGUF registry management: file picker, GGUF magic/version header validation, SHA-256 fingerprinting, duplicate relinking, default selection, and registry-only removal.
+- Non-destructive GGUF registry management: bounded metadata-table parser, architecture/name/quantization extraction, SHA-256 fingerprinting, duplicate relinking, default selection, and registry-only removal.
+- Informational model resource estimates using the existing desktop defaults and saved RAM-limiter preferences; these estimates do not enforce a memory ceiling.
 - File Library import/relink with SHA-256 fingerprinting and a 512 MiB size ceiling.
 - Automated persistence and backup tests.
 
 ## Known incomplete work
 - **Native inference is not ported.** GGUF registration does not mean a model can be loaded or used. The original isolated llama.cpp worker, streaming generation, cancellation, telemetry, and Windows Job Object memory ceiling still need a compatible packaged runtime and Windows validation. The relevant IPC commands currently return explicit unsupported errors rather than pretending inference works.
-- Model metadata extraction is not yet implemented beyond checking the GGUF header/version. Architecture and quantization remain blank until the full parser is ported.
-- Resource estimation is not yet implemented.
+- GGUF tensor payloads are not loaded by the metadata parser; it reads only the bounded header and metadata table. The resource estimate is informational and does not enforce a memory ceiling.
 - Electron launch, tray behavior, native SQLite availability in the exact Electron runtime, and installer packaging still require local Windows validation. A successful Vite build alone does not prove those runtime paths.
 - No installer or Electron binary was downloaded as part of this source-only port work.
 
