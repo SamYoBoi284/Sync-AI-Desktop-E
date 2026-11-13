@@ -41,7 +41,7 @@ function readGgufMetadata(filePath){
     const values=new Map();
     for(let i=0;i<count;i++){
       const key=r.str(),type=r.u32();
-      const capture=key==="general.architecture"||key==="general.name"||key==="general.file_type"||/\\.(block_count|attention\\.head_count|attention\\.head_count_kv|embedding_length|attention\\.key_length|attention\\.value_length|context_length)$/.test(key);
+      const capture=key==="general.architecture"||key==="general.name"||key==="general.file_type"||[".block_count",".attention.head_count",".attention.head_count_kv",".embedding_length",".attention.key_length",".attention.value_length",".context_length"].some(s=>key.endsWith(s));
       const value=readValue(r,type,capture);if(capture&&value!==null)values.set(key,value);
     }
     const architecture=values.get("general.architecture");
