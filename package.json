@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "start": "electron .",
     "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "test": "node --test electron/*.test.cjs"
   },
   "dependencies": {
     "react": "^19.1.0",
