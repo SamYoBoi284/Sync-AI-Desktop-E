@@ -1,101 +1,72 @@
-# Electron Port Audit
+# Electron Port Audit and Implementation Status
 
 **Repository:** Sync-AI-Desktop-E  
-**Audit date:** 2026-11-13  
-**Baseline:** frontend production build passes locally (TypeScript + Vite). Electron runtime launch has not yet been validated because the Electron binary has not been downloaded on the development machine.
+**Updated:** 2026-11-13
 
 ## Executive summary
 
-The React UI is compiling under the Electron/Vite toolchain. The renderer has been moved behind an Electron preload bridge, and the repository has no `src-tauri` directory or `@tauri-apps` dependency in `package.json`. The frontend service file is now a compatibility boundary named `nativeBridge.ts`, but its API is still the complete desktop service contract originally implemented by Tauri.
+The React renderer already passes a local TypeScript + Vite production build. The Electron port now has a real local persistence layer and desktop shell implementation. The renderer's 44-command service contract is routed through a main-process allowlist. Most non-inference application features have source implementations, but the Electron app has not yet been launched or tested locally because the Electron runtime download was deferred to protect the user's limited data plan.
 
-The current Electron main process implements only three of the 44 commands used by the frontend service layer:
+This is not a completed, validated desktop release. The native llama.cpp inference worker is the major remaining product feature, and Windows runtime validation is still required.
 
-- `get_app_info`
-- `consume_startup_splash`
-- `get_host_ram_info`
+## Implementation status
 
-The other 41 commands are currently rejected by the main-process default branch. As a result, most pages can render, but persistence, model management, runtime operations, and generation are not functional yet.
-
-## Current state
-
-| Area | Status | Notes |
+| Area | Current status | Details |
 | --- | --- | --- |
-| React + TypeScript renderer | Implemented / build passed | Local production build completed with `tsc && vite build`. |
-| Vite production assets | Implemented / build passed | Output generated under `dist/`. |
-| Electron main process | Initial scaffold | Creates a BrowserWindow and loads Vite or packaged assets. |
-| Preload bridge | Initial scaffold | Uses context isolation, disabled renderer Node integration, and a narrow exposed API. |
-| App metadata / splash / host RAM | Implemented in Electron | Three IPC commands are handled. |
-| Chat persistence and backups | Not ported | 10 chat/settings/message commands remain unimplemented. |
-| Model registry and GGUF import | Not ported | 4 model commands remain unimplemented. |
-| Inference runtime and generation | Not ported | 6 runtime/generation commands remain unimplemented; no worker is connected. |
-| Workspace artifacts | Not ported | 6 commands remain unimplemented. |
-| Tasks and Notes | Not ported | 9 commands remain unimplemented. |
-| File Library | Not ported | 4 commands remain unimplemented. |
-| Tray / single-instance / hide-on-close | Not ported | These behaviors exist in the Tauri host and need deliberate Electron equivalents. |
-| Native inference dependency | Not ported | The original Tauri implementation uses a dedicated llama.cpp worker and Windows Job Objects for the optional hard memory ceiling. |
-| Electron launch / packaging | Not yet validated | Electron binary download was deferred due network/data constraints. |
+| React + TypeScript renderer | Build passed locally | `npm run build` completed with `tsc && vite build`. |
+| Electron main/preload | Implemented in source | Context isolation, sandbox, disabled renderer Node integration, narrow IPC API. |
+| IPC security | Implemented in source | Command allowlist, object argument check, trusted sender URL check, popup denial, local navigation restriction. |
+| App lifecycle | Implemented in source | Single-instance lock, tray Open/Hide/Exit, close-to-tray, restore/focus behavior. |
+| SQLite | Implemented in source; tests added | Built-in `node:sqlite`, WAL, foreign keys, schema migrations 1-4. Must be validated against Electron 39's bundled Node runtime. |
+| Chats and settings | Implemented in source | CRUD, message persistence, diagnostics, queued assistant insertion, settings. |
+| Chat backups | Implemented in source | Version-1 export/import, bounded backup size/counts, duplicate chat skipping. |
+| Workspace | Implemented in source | CRUD, search, bounded selected context. |
+| Tasks and Notes | Implemented in source | CRUD, filtering, sorting, context selection. |
+| File Library | Implemented in source | File picker, SHA-256, duplicate detection, relink, non-destructive registry removal, 512 MiB ceiling. |
+| GGUF registry | Partially implemented | File picker, GGUF magic/version check, SHA-256, duplicate relinking, default model, non-destructive registry removal. Metadata parser is not yet ported. |
+| Runtime resource estimate | Not implemented | Requires GGUF metadata parser and runtime-specific memory model. |
+| llama.cpp inference worker | Not implemented | Needs a reproducible Windows-compatible native runtime, child-process protocol, streaming, cancellation, telemetry, and recovery. |
+| Windows Job Object memory cap | Not implemented | Must not be claimed until the Electron worker is running and verified under a Windows Job Object. |
+| Electron launch / installer | Not validated | Electron binary download and packaging have not been attempted in this pass. |
 
-## Frontend command contract
+## Command coverage
 
-The current `src/services/nativeBridge.ts` exposes 44 command names. Three are implemented in `electron/main.cjs`; 41 remain.
+The frontend exposes 44 commands. The Electron main process now has handlers for the full command-name set:
+- 3 host/startup commands
+- 12 chat/message/backup/settings commands
+- 4 model registry/import commands
+- 6 runtime/generation commands (three return explicit unsupported errors for inference-dependent operations)
+- 6 Workspace commands
+- 4 Task commands
+- 5 Note commands
+- 4 File Library commands
 
-### Implemented (3)
+A registered handler is not the same as a fully implemented feature. In particular, `estimate_model_resources`, `load_model`, and `generate_chat` intentionally fail with clear messages until the native inference layer is ported. `get_runtime_status` reports the unavailable backend rather than fabricating a loaded model.
 
-- `get_app_info`
-- `consume_startup_splash`
-- `get_host_ram_info`
+## Architecture decisions
 
-### Not yet implemented (41)
+### SQLite without a native addon
+The port uses Node's built-in `node:sqlite` `DatabaseSync` API instead of a native npm addon such as better-sqlite3. This avoids requiring a local C++ toolchain solely to compile the SQLite binding. The module is experimental in Node, so the bundled Node version and API availability must be verified inside Electron itself before production packaging.
 
-- Chats and settings: `list_chats`, `create_chat`, `get_chat`, `rename_chat`, `delete_chat`, `export_chat_backup`, `import_chat_backup`, `get_setting`, `set_setting`, `append_message`, `update_message_diagnostics`, `append_assistant_message_after`
-- Models: `list_models`, `import_gguf`, `set_default_model`, `remove_model`
-- Runtime and generation: `get_runtime_status`, `estimate_model_resources`, `load_model`, `unload_model`, `generate_chat`, `cancel_generation`
-- Workspace: `list_workspace_artifacts`, `get_workspace_artifact`, `create_workspace_artifact`, `update_workspace_artifact`, `delete_workspace_artifact`, `list_workspace_context`
-- Tasks: `list_tasks`, `create_task`, `update_task`, `delete_task`
-- Notes: `list_notes`, `get_note`, `create_note`, `update_note`, `delete_note`
-- File Library: `list_library_files`, `import_library_file`, `relink_library_file`, `remove_library_file`
+### Data compatibility
+The database schema preserves the original Tauri schema migrations through version 4 and the existing chat backup version-1 JSON shape. GGUF and File Library entries store canonical original file paths. Removing a registry row never deletes a user's original file.
 
-## Tauri-specific findings
+### Inference isolation
+Do not move llama.cpp into the Electron main process or renderer. The intended design remains a dedicated child worker, outside the UI process memory budget, with a bounded protocol and streamed generation events. The existing Tauri worker and Job Object implementation are the behavioral reference, not code that can simply be copied into Electron unchanged.
 
-- No Tauri package dependency is declared in the Electron `package.json`.
-- The Electron repository does not contain the original `src-tauri` host directory.
-- The renderer uses `window.syncAI.invoke` rather than calling Tauri directly.
-- A stale comment in `src/App.tsx` still describes the browser preview as having no “Tauri IPC host”; update wording to “Electron IPC host” or “desktop IPC host” during the next renderer cleanup.
-- The original Tauri host also implements tray integration, single-instance activation, and hide-on-close behavior. These are product behaviors, not merely framework details, and should be carried over intentionally.
+## Local validation sequence
 
-## Recommended port order
+After pulling the latest branch on Windows:
 
-### Stage A — Desktop shell hardening
-1. Add an explicit IPC command allowlist and validate payload shapes at the main-process boundary.
-2. Add application lifecycle behavior: tray menu, single-instance lock, hide-on-close policy, and safe window restoration.
-3. Improve IPC error normalization so renderer errors are stable and useful.
-4. Keep renderer privileges restricted; do not expose raw filesystem, process, or shell APIs.
+1. `npm run build` — renderer type-check and Vite production build.
+2. `npm test` — SQLite migration, chat, backup, workspace, task, note, and validation tests.
+3. `npm run dev` — requires the Electron binary to be present; this is the first full shell/IPC smoke test.
+4. Exercise chat creation, message persistence, close-to-tray, tray restore, and second-instance activation.
+5. Exercise Workspace, Tasks, Notes, settings, and backup export/import.
+6. Exercise GGUF registration with a small valid GGUF file; verify that registry removal does not delete the source file.
+7. Only after the native worker is integrated, test model load/unload, streaming, cancellation, worker failure, memory telemetry, and hard memory limits.
+8. Run `npm run pack` and `npm run dist` only after development launch and runtime tests pass.
 
-### Stage B — Local data foundation
-1. Select and validate a SQLite strategy that works inside the Electron runtime without forcing the user to install Visual Studio Build Tools.
-2. Port schema migrations and storage contracts from the Tauri implementation.
-3. Port chat history, message diagnostics, settings, and versioned chat backup import/export.
-4. Port Workspace, Tasks, Notes, and File Library storage after the shared database foundation is tested.
+## Validation boundary
 
-### Stage C — Model management
-1. Port host RAM and model resource estimates.
-2. Implement safe GGUF file selection, metadata inspection, hashing, duplicate detection, relinking, and non-destructive registry removal.
-3. Preserve canonical original model paths; do not silently copy or delete user model files.
-
-### Stage D — Inference worker
-1. Choose a Windows-compatible llama.cpp integration that can be built and distributed reproducibly.
-2. Keep inference in a dedicated child process, separate from the Electron main and renderer processes.
-3. Preserve streaming, cancellation, sequential generation, diagnostics, and worker failure recovery.
-4. Recreate the optional Windows Job Object memory ceiling only after the basic worker lifecycle is stable.
-5. Do not claim the hard memory ceiling is supported until it is tested on Windows.
-
-### Stage E — Validation and packaging
-1. Validate clean install, development launch, production launch, and packaged installer.
-2. Test SQLite migrations and backup round trips.
-3. Test real GGUF load/unload/generation and worker termination.
-4. Test tray, single-instance, and close behavior.
-5. Run a security review of IPC and file handling.
-
-## Important validation boundary
-
-A successful `npm run build` confirms TypeScript compilation and Vite asset generation. It does **not** confirm that Electron launches, that IPC commands work, that SQLite persists data, that GGUF inference works, or that a Windows installer can be produced. Each of those needs its own runtime validation.
+The successful earlier `npm run build` is evidence for the renderer only. The new Electron main-process and SQLite files were committed remotely in this pass and have **not** been executed in the user's local Windows environment. The added automated tests are ready to run, but their success is not yet known. Do not describe the desktop application, inference, or installer as finished until those checks pass.
