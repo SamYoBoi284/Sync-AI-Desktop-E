@@ -13,6 +13,7 @@ public static class SyncInferenceJob {
     const uint PROCESS_TERMINATE = 0x0001;
     const uint PROCESS_SET_QUOTA = 0x0100;
     const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    const uint PROCESS_SYNCHRONIZE = 0x00100000;
     const uint JobObjectExtendedLimitInformation = 9;
     const uint WAIT_OBJECT_0 = 0;
     [StructLayout(LayoutKind.Sequential)]
@@ -70,7 +71,7 @@ public static class SyncInferenceJob {
             error = "Windows could not configure the inference worker memory ceiling (Win32 " + Marshal.GetLastWin32Error() + ").";
             CloseHandle(jobHandle); jobHandle = IntPtr.Zero; return 2;
         }
-        processHandle = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+        processHandle = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE, false, pid);
         if (processHandle == IntPtr.Zero) {
             error = "Windows could not open the inference worker for Job Object assignment (Win32 " + Marshal.GetLastWin32Error() + ").";
             CloseHandle(jobHandle); jobHandle = IntPtr.Zero; return 3;
