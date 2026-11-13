@@ -354,7 +354,6 @@ export function NewChatPage({ initialChatId, onNavigate, onNewChat }: NewChatPag
   }
 
   return (
-    <section className="shell-chat-stage">
       <section className="shell-chat-stage" data-chat-id={chatId ?? undefined}>
       <header className="shell-chat-toolbar">
         <div className="shell-chat-heading">
