@@ -1,12 +1,12 @@
 name: Electron CI
-
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
-
+permissions:
+  contents: write
 jobs:
   windows-source-validation:
     runs-on: windows-latest
@@ -18,8 +18,17 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies and update the npm lockfile
+        shell: bash
+        run: |
+          npm install --no-audit --no-fund
+          if ! git diff --quiet -- package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "chore: sync npm lockfile for native inference"
+            git push
+          fi
       - name: Run persistence, GGUF, and IPC contract tests
         run: npm test
       - name: Type-check and build renderer
