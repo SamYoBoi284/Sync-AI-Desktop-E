@@ -27,7 +27,7 @@ The other 41 commands are currently rejected by the main-process default branch.
 | App metadata / splash / host RAM | Implemented in Electron | Three IPC commands are handled. |
 | Chat persistence and backups | Not ported | 10 chat/settings/message commands remain unimplemented. |
 | Model registry and GGUF import | Not ported | 4 model commands remain unimplemented. |
-| Inference runtime and generation | Not ported | 8 runtime/generation commands remain unimplemented; no worker is connected. |
+| Inference runtime and generation | Not ported | 6 runtime/generation commands remain unimplemented; no worker is connected. |
 | Workspace artifacts | Not ported | 6 commands remain unimplemented. |
 | Tasks and Notes | Not ported | 9 commands remain unimplemented. |
 | File Library | Not ported | 4 commands remain unimplemented. |
