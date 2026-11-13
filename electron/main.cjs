@@ -89,13 +89,20 @@ const handlers = {
   set_setting: args => database.set_setting(args),
   list_models: () => database.list_models(),
   import_gguf: () => importGguf(),
-  set_default_model: args => database.set_default_model(args),
+  set_default_model: ({ modelId }) => {
+    const model = database.list_models().find(item => item.id === modelId);
+    if (!model) throw new Error("Model was not found in the local registry.");
+    if (!model.isAvailable) throw new Error("The original GGUF file is missing. Re-register it from its current location.");
+    readGgufMetadata(model.filePath);
+    return database.set_default_model({ modelId });
+  },
   remove_model: args => database.remove_model(args),
   get_runtime_status: () => runtimeStatus(),
   estimate_model_resources: ({ modelId }) => {
     const model = database.list_models().find(item => item.id === modelId);
     if (!model) throw new Error("Model was not found in the local registry.");
     if (!model.isAvailable) throw new Error("The original GGUF file is missing. Re-register it from its current location.");
+    readGgufMetadata(model.filePath);
     const saved = database.get_setting({ key: "ram_limiter" });
     let config = { enabled: false, limitGb: 1 };
     if (saved != null) {
