@@ -39,7 +39,7 @@ function App({ showStartupSplash }: AppProps) {
         }
       })
       .catch(() => {
-        // Browser preview has no Tauri IPC host. Do not imply that the native bridge is connected.
+        // Browser preview has no Electron IPC host. Do not imply that the desktop bridge is connected.
         if (active) setBridgeKind("preview");
       });
 
