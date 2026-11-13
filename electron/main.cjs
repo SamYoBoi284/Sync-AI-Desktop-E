@@ -4,6 +4,7 @@ const os = require("node:os");
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const crypto = require("node:crypto");
+const { pathToFileURL } = require("node:url");
 const { SyncDatabase } = require("./database.cjs");
 
 let splashAvailable = true;
@@ -167,6 +168,12 @@ async function createWindow() {
     }
   });
   mainWindow.once("ready-to-show", () => mainWindow?.show());
+  const trustedFileUrl = pathToFileURL(path.join(__dirname, "..", "dist", "index.html")).href;
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  mainWindow.webContents.on("will-navigate", (event, targetUrl) => {
+    const trusted = app.isPackaged ? targetUrl === trustedFileUrl : targetUrl.startsWith("http://127.0.0.1:5173/");
+    if (!trusted) event.preventDefault();
+  });
   mainWindow.on("close", event => {
     if (!isQuitting) { event.preventDefault(); mainWindow?.hide(); }
   });
