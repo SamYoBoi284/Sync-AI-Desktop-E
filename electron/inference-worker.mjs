@@ -60,32 +60,47 @@ async function generate(data) {
   const controller = new AbortController();
   const startedAt = new Date().toISOString();
   const clock = process.hrtime.bigint();
+  const promptTokens = model.tokenize(data.prompt, true).length;
+  let generatedTokens = 0;
+  let promptEvalMs = null;
   activeGeneration = { generationId, controller };
   let output = "";
   try {
     const result = await completion.generateCompletionWithMeta(data.prompt, {
-      maxTokens: 512, temperature: 0.7, signal: controller.signal, stopOnAbortSignal: true,
+      maxTokens: 512,
+      temperature: 0.7,
+      signal: controller.signal,
+      stopOnAbortSignal: true,
+      onToken(tokens) {
+        generatedTokens += tokens.length;
+      },
       onTextChunk(chunk) {
         if (!chunk) return;
+        if (promptEvalMs == null) {
+          promptEvalMs = Number(process.hrtime.bigint() - clock) / 1e6;
+        }
         output += chunk;
         send("GENERATION_EVENT", { event: { event: "token", generationId, token: chunk } });
       }
     });
-    const generationMs = Number(process.hrtime.bigint() - clock) / 1e6;
+    const totalMs = Number(process.hrtime.bigint() - clock) / 1e6;
+    const generationMs = Math.max(0, totalMs - (promptEvalMs ?? 0));
+    const tokensPerSecond = generationMs > 0 ? generatedTokens / (generationMs / 1000) : null;
     const cancelled = result.metadata.stopReason === "abort";
     const diagnostics = {
       generationId, modelId: loaded.modelId, modelLabel: loaded.modelName,
       backend: "llama.cpp", backendVersion: "node-llama-cpp 3.22.3",
       status: cancelled ? "cancelled" : "completed",
-      promptTokens: null, generatedTokens: null, promptEvalMs: null,
-      generationMs, tokensPerSecond: null, contextSize: context.contextSize,
-      maxContextSize: loaded.contextLength, temperature: 0.7,
+      promptTokens, generatedTokens, promptEvalMs, generationMs, tokensPerSecond,
+      contextSize: context.contextSize, maxContextSize: loaded.contextLength, temperature: 0.7,
       stopReason: result.metadata.stopReason, errorCode: null, errorMessage: null,
       startedAt, finishedAt: new Date().toISOString()
     };
     send("GENERATION_RESULT", { generationId, result: { text: result.response, diagnostics } });
   } catch (error) {
-    const generationMs = Number(process.hrtime.bigint() - clock) / 1e6;
+    const totalMs = Number(process.hrtime.bigint() - clock) / 1e6;
+    const generationMs = Math.max(0, totalMs - (promptEvalMs ?? 0));
+    const tokensPerSecond = generationMs > 0 ? generatedTokens / (generationMs / 1000) : null;
     const cancelled = controller.signal.aborted;
     const message = error instanceof Error ? error.message : String(error);
     send("GENERATION_RESULT", {
@@ -95,7 +110,8 @@ async function generate(data) {
         diagnostics: {
           generationId, modelId: loaded?.modelId ?? null, modelLabel: loaded?.modelName ?? null,
           backend: "llama.cpp", backendVersion: "node-llama-cpp 3.22.3",
-          status: cancelled ? "cancelled" : "error", generationMs,
+          status: cancelled ? "cancelled" : "error",
+          promptTokens, generatedTokens, promptEvalMs, generationMs, tokensPerSecond,
           contextSize: context?.contextSize ?? null, maxContextSize: loaded?.contextLength ?? null,
           stopReason: cancelled ? "cancelled" : null, errorCode: cancelled ? null : "generation_failed",
           errorMessage: cancelled ? null : message, startedAt, finishedAt: new Date().toISOString()
