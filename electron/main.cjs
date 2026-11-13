@@ -6,7 +6,7 @@ const fsp = require("node:fs/promises");
 const crypto = require("node:crypto");
 const { pathToFileURL } = require("node:url");
 const { SyncDatabase } = require("./database.cjs");
-const { readGgufMetadata } = require("./gguf.cjs");
+const { readGgufMetadata, estimatePeakBytes } = require("./gguf.cjs");
 
 let splashAvailable = true;
 let mainWindow = null;
@@ -102,7 +102,7 @@ const handlers = {
     const model = database.list_models().find(item => item.id === modelId);
     if (!model) throw new Error("Model was not found in the local registry.");
     if (!model.isAvailable) throw new Error("The original GGUF file is missing. Re-register it from its current location.");
-    readGgufMetadata(model.filePath);
+    const metadata = readGgufMetadata(model.filePath);
     const saved = database.get_setting({ key: "ram_limiter" });
     let config = { enabled: false, limitGb: 1 };
     if (saved != null) {
@@ -110,7 +110,7 @@ const handlers = {
       if (typeof config.enabled !== "boolean" || !Number.isFinite(config.limitGb) || config.limitGb < 1 || config.limitGb > 1024) throw new Error("Saved RAM limiter settings are outside the supported range.");
     }
     const modelSizeBytes = model.sizeBytes;
-    const estimatedPeakBytes = modelSizeBytes + Math.floor(modelSizeBytes / 10) + 2048 * 64 * 1024 + 128 * 2 * 1024 * 1024 + 128 * 1024 * 1024;
+    const estimatedPeakBytes = estimatePeakBytes(metadata, modelSizeBytes);
     return { modelSizeBytes, estimatedPeakBytes, availableRamBytes: os.freemem(), configuredLimitBytes: config.enabled ? Math.floor(config.limitGb * 1024 ** 3) : null, contextLength: 2048, batchSize: 128, estimateKind: "Informational GGUF-size/session estimate only. No hard memory ceiling is active in the Electron edition." };
   },
   load_model: () => { throw new Error("GGUF model loading is not available yet. The isolated llama.cpp worker is still being ported."); },
