@@ -100,7 +100,7 @@ function App({ showStartupSplash }: AppProps) {
             )}
             <footer className="shell-page-footer">
               <span>SYNC AI DESKTOP · WINDOWS FOUNDATION</span>
-              <span>LOCAL INFERENCE · ISOLATED WORKER</span>
+              <span>LOCAL DATA · NATIVE RUNTIME IN PROGRESS</span>
             </footer>
           </div>
         </main>
