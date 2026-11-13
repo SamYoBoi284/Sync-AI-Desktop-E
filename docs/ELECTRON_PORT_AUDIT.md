@@ -23,8 +23,8 @@ This is not a completed, validated desktop release. The native llama.cpp inferen
 | Workspace | Implemented in source | CRUD, search, bounded selected context. |
 | Tasks and Notes | Implemented in source | CRUD, filtering, sorting, context selection. |
 | File Library | Implemented in source | File picker, SHA-256, duplicate detection, relink, non-destructive registry removal, 512 MiB ceiling. |
-| GGUF registry | Partially implemented | File picker, GGUF magic/version check, SHA-256, duplicate relinking, default model, non-destructive registry removal. Metadata parser is not yet ported. |
-| Runtime resource estimate | Not implemented | Requires GGUF metadata parser and runtime-specific memory model. |
+| GGUF registry | Implemented in source; tests added | Bounded GGUF header/metadata parser, architecture/name/quantization extraction, SHA-256, duplicate relinking, default model, non-destructive registry removal. |
+| Runtime resource estimate | Implemented as informational estimate | Uses the existing 2,048 context / 128 batch defaults and reads the saved RAM-limiter preference. It does not enforce a memory ceiling. |
 | llama.cpp inference worker | Not implemented | Needs a reproducible Windows-compatible native runtime, child-process protocol, streaming, cancellation, telemetry, and recovery. |
 | Windows Job Object memory cap | Not implemented | Must not be claimed until the Electron worker is running and verified under a Windows Job Object. |
 | Electron launch / installer | Not validated | Electron binary download and packaging have not been attempted in this pass. |
@@ -35,13 +35,13 @@ The frontend exposes 44 commands. The Electron main process now has handlers for
 - 3 host/startup commands
 - 12 chat/message/backup/settings commands
 - 4 model registry/import commands
-- 6 runtime/generation commands (three return explicit unsupported errors for inference-dependent operations)
+- 6 runtime/generation commands (two return explicit unsupported errors for inference-dependent operations)
 - 6 Workspace commands
 - 4 Task commands
 - 5 Note commands
 - 4 File Library commands
 
-A registered handler is not the same as a fully implemented feature. In particular, `estimate_model_resources`, `load_model`, and `generate_chat` intentionally fail with clear messages until the native inference layer is ported. `get_runtime_status` reports the unavailable backend rather than fabricating a loaded model.
+A registered handler is not the same as a fully implemented feature. In particular, `load_model` and `generate_chat` intentionally fail with clear messages until the native inference layer is ported. `estimate_model_resources` is an informational estimate only; it does not enforce a cap. `get_runtime_status` reports the unavailable backend rather than fabricating a loaded model.
 
 ## Architecture decisions
 
