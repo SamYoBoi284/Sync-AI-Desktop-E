@@ -13,11 +13,14 @@ let activeGeneration = null;
 let loaded = null;
 
 function send(type, data = {}) { parentPort.postMessage({ type, ...data }); }
-function disposeModel() {
+async function disposeModel() {
   try { completion?.dispose(); } catch {}
-  try { context?.dispose(); } catch {}
-  try { model?.dispose(); } catch {}
-  completion = null; context = null; model = null; loaded = null;
+  completion = null;
+  try { await context?.dispose(); } catch {}
+  context = null;
+  try { await model?.dispose(); } catch {}
+  model = null;
+  loaded = null;
 }
 
 async function loadModel(data) {
@@ -104,7 +107,7 @@ async function generate(data) {
 
 async function shutdown() {
   if (activeGeneration) activeGeneration.controller.abort();
-  disposeModel();
+  await disposeModel();
   try { await llama?.dispose(); } catch {}
   llama = null;
   send("STOPPED");
