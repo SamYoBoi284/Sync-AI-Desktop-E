@@ -308,7 +308,12 @@ const handlers = {
     readGgufMetadata(model.filePath);
     return database.set_default_model({ modelId });
   },
-  remove_model: args => database.remove_model(args),
+  remove_model: ({ modelId }) => {
+    if (runtimeState.loadedModelId === modelId || runtimeState.loadingModelId === modelId) {
+      throw new Error("Unload this model before removing it from the local registry.");
+    }
+    return database.remove_model({ modelId });
+  },
   get_runtime_status: () => runtimeStatus(),
   estimate_model_resources: ({ modelId }) => {
     const model = database.list_models().find(item => item.id === modelId);
