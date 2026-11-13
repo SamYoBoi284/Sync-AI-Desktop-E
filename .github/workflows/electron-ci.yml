@@ -29,7 +29,16 @@ jobs:
             git commit -m "chore: sync npm lockfile for native inference"
             git push
           fi
-      - name: Run persistence, GGUF, and IPC contract tests
+      - name: Check Electron main-process source syntax
+        shell: bash
+        run: |
+          node --check electron/main.cjs
+          node --check electron/preload.cjs
+          node --check electron/inference-worker.mjs
+          node --check electron/inference-runtime-smoke-host.cjs
+      - name: Run persistence, GGUF, IPC contract and memory guard tests
         run: npm test
+      - name: Verify prebuilt llama.cpp native runtime inside Electron
+        run: npm run test:inference-runtime
       - name: Type-check and build renderer
         run: npm run build
