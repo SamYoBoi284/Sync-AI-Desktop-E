@@ -6,6 +6,7 @@ const fsp = require("node:fs/promises");
 const crypto = require("node:crypto");
 const { pathToFileURL } = require("node:url");
 const { SyncDatabase } = require("./database.cjs");
+const { readGgufMetadata } = require("./gguf.cjs");
 
 let splashAvailable = true;
 let mainWindow = null;
@@ -45,19 +46,15 @@ async function importGguf() {
   if (picked.canceled || !picked.filePaths[0]) return null;
   const filePath = await fsp.realpath(picked.filePaths[0]);
   const stat = await fsp.stat(filePath);
-  if (!stat.isFile() || stat.size < 8) throw new Error("Selected file is empty or too small to be a GGUF model.");
-  const handle = await fsp.open(filePath, "r");
-  try {
-    const header = Buffer.alloc(8);
-    await handle.read(header, 0, 8, 0);
-    if (header.toString("ascii", 0, 4) !== "GGUF") throw new Error("The selected file does not have a GGUF header.");
-    const version = header.readUInt32LE(4);
-    if (version < 1 || version > 3) throw new Error("Unsupported GGUF version: " + version);
-  } finally { await handle.close(); }
+  if (!stat.isFile() || stat.size < 24) throw new Error("Selected file is too small to contain a GGUF header.");
+  const metadata = readGgufMetadata(filePath);
   const info = await hashFile(filePath);
   const fileName = path.basename(filePath);
-  const name = path.basename(fileName, path.extname(fileName)).replace(/[._-]+/g, " ").trim() || "GGUF model";
-  return database.register_model({ filePath, fileName, sizeBytes: info.sizeBytes, sha256: info.sha256, name });
+  const name = metadata.modelName || path.basename(fileName, path.extname(fileName)).replace(/[._-]+/g, " ").trim() || "GGUF model";
+  return database.register_model({
+    filePath, fileName, sizeBytes: info.sizeBytes, sha256: info.sha256, name,
+    architecture: metadata.architecture, quantization: metadata.quantization
+  });
 }
 
 async function importLibraryFile() {
@@ -95,7 +92,20 @@ const handlers = {
   set_default_model: args => database.set_default_model(args),
   remove_model: args => database.remove_model(args),
   get_runtime_status: () => runtimeStatus(),
-  estimate_model_resources: () => { throw new Error("Model resource estimation requires the native inference runtime, which is not yet ported."); },
+  estimate_model_resources: ({ modelId }) => {
+    const model = database.list_models().find(item => item.id === modelId);
+    if (!model) throw new Error("Model was not found in the local registry.");
+    if (!model.isAvailable) throw new Error("The original GGUF file is missing. Re-register it from its current location.");
+    const saved = database.get_setting({ key: "ram_limiter" });
+    let config = { enabled: false, limitGb: 1 };
+    if (saved != null) {
+      try { config = JSON.parse(saved); } catch { throw new Error("Saved RAM limiter settings are invalid JSON. Open Settings and save them again."); }
+      if (typeof config.enabled !== "boolean" || !Number.isFinite(config.limitGb) || config.limitGb < 1 || config.limitGb > 1024) throw new Error("Saved RAM limiter settings are outside the supported range.");
+    }
+    const modelSizeBytes = model.sizeBytes;
+    const estimatedPeakBytes = modelSizeBytes + Math.floor(modelSizeBytes / 10) + 2048 * 64 * 1024 + 128 * 2 * 1024 * 1024 + 128 * 1024 * 1024;
+    return { modelSizeBytes, estimatedPeakBytes, availableRamBytes: os.freemem(), configuredLimitBytes: config.enabled ? Math.floor(config.limitGb * 1024 ** 3) : null, contextLength: 2048, batchSize: 128, estimateKind: "Informational GGUF-size/session estimate only. No hard memory ceiling is active in the Electron edition." };
+  },
   load_model: () => { throw new Error("GGUF model loading is not available yet. The isolated llama.cpp worker is still being ported."); },
   unload_model: () => runtimeStatus(),
   generate_chat: ({ generationId }) => { generationState = { isGenerating: false, generationId, lastError: "Native GGUF inference is not yet available in the Electron edition." }; throw new Error(generationState.lastError); },
