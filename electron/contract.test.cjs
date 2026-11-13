@@ -27,3 +27,21 @@ test("Electron renderer isolation and navigation protections remain enabled", ()
   assert.match(preload, /contextBridge\.exposeInMainWorld/);
   assert.doesNotMatch(preload, /require\s*\(\s*["']node:/);
 });
+
+
+test("the real inference runtime and Windows process memory guard are wired in", () => {
+  const worker = fs.readFileSync(path.join(__dirname, "inference-worker.mjs"), "utf8");
+  const job = fs.readFileSync(path.join(__dirname, "inference-memory-job.ps1"), "utf8");
+  assert.match(main, /utilityProcess\\.fork\\(workerPath/);
+  assert.match(main, /attachWindowsJob\\(worker\\.pid, memoryLimitBytes\\)/);
+  assert.match(main, /type: "LOAD_MODEL"/);
+  assert.match(main, /type: "GENERATE"/);
+  assert.match(main, /type: "CANCEL_GENERATION"/);
+  assert.match(worker, /from "node-llama-cpp"/);
+  assert.match(worker, /new LlamaCompletion/);
+  assert.match(worker, /setRamCap\\(memoryLimitBytes\\)/);
+  assert.match(worker, /generateCompletionWithMeta/);
+  assert.match(job, /JOB_OBJECT_LIMIT_PROCESS_MEMORY/);
+  assert.match(job, /AssignProcessToJobObject/);
+  assert.match(job, /GetProcessMemoryInfo/);
+});
