@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "node-llama-cpp": "3.22.3"
   },
   "devDependencies": {
     "@types/react": "^19.1.8",
@@ -48,6 +49,17 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
-    }
+    },
+    "asarUnpack": [
+      "node_modules/node-llama-cpp/llama/**/*",
+      "node_modules/node-llama-cpp/bins/**/*",
+      "node_modules/@node-llama-cpp/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "electron/inference-memory-job.ps1",
+        "to": "electron/inference-memory-job.ps1"
+      }
+    ]
   }
 }
