@@ -42,3 +42,12 @@ jobs:
         run: npm run test:inference-runtime
       - name: Type-check and build renderer
         run: npm run build
+      - name: Package Windows installer
+        run: npm run dist
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sync-AI-Desktop-E-Windows-Installer
+          path: release/Sync-AI-Desktop-E-Setup-0.1.0.exe
+          if-no-files-found: error
+          retention-days: 14
