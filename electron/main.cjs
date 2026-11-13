@@ -168,7 +168,7 @@ function savedMemoryLimitBytes() {
 
 async function startInferenceWorker(memoryLimitBytes) {
   const workerPath = path.join(__dirname, "inference-worker.mjs");
-  const worker = utilityProcess.fork(workerPath, [], { stdio: "pipe" });
+  const worker = utilityProcess.fork(workerPath, [], { stdio: ["ignore", "pipe", "pipe", "pipe"] });
   inferenceWorker = worker;
   worker.on("message", event => handleInferenceMessage(worker, event));
   worker.stderr?.on("data", chunk => {
@@ -348,13 +348,16 @@ const handlers = {
       const worker = await startInferenceWorker(memoryLimitBytes);
       runtimeState.estimatedMemoryBytes = estimatePeakBytes(metadata, model.sizeBytes);
       const loadedPromise = new Promise((resolve, reject) => {
-        pendingLoad = { resolve, reject };
-        setTimeout(() => {
+        const timeout = setTimeout(() => {
           if (pendingLoad) {
             pendingLoad = null;
             reject(new Error("The inference worker did not finish loading the model within 180 seconds."));
           }
         }, 180000);
+        pendingLoad = {
+          resolve: value => { clearTimeout(timeout); resolve(value); },
+          reject: error => { clearTimeout(timeout); reject(error); }
+        };
       });
       worker.postMessage({
         type: "LOAD_MODEL",
