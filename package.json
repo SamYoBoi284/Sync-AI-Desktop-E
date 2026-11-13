@@ -39,7 +39,13 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "package.json"
+      "package.json",
+      "!node_modules/node-llama-cpp/bins/**/*",
+      "node_modules/node-llama-cpp/bins/win-x64*/**/*",
+      "!node_modules/node-llama-cpp/llama/localBuilds/**/*",
+      "node_modules/node-llama-cpp/llama/localBuilds/win-x64*/**/*",
+      "!node_modules/@node-llama-cpp/*/bins/**/*",
+      "node_modules/@node-llama-cpp/win-x64*/bins/**/*"
     ],
     "win": {
       "target": [
@@ -52,9 +58,9 @@
       "allowToChangeInstallationDirectory": true
     },
     "asarUnpack": [
-      "node_modules/node-llama-cpp/llama/**/*",
-      "node_modules/node-llama-cpp/bins/**/*",
-      "node_modules/@node-llama-cpp/**/*"
+      "node_modules/node-llama-cpp/bins",
+      "node_modules/node-llama-cpp/llama/localBuilds",
+      "node_modules/@node-llama-cpp/*"
     ],
     "extraResources": [
       {
@@ -62,5 +68,10 @@
         "to": "electron/inference-memory-job.ps1"
       }
     ]
+  },
+  "allowScripts": {
+    "electron": true,
+    "electron-winstaller": true,
+    "node-llama-cpp": true
   }
 }
