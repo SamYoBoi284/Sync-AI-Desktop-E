@@ -5,30 +5,22 @@
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
-    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on tcp:5173 && electron .\"",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
+    "dev": "electron .",
     "start": "electron .",
+    "check:renderer": "node --check renderer/api.js && node --check renderer/shared.js && node --check renderer/app.js && node --check renderer/pages/chat.js && node --check renderer/pages/history.js && node --check renderer/pages/models.js && node --check renderer/pages/workspace.js && node --check renderer/pages/tasks.js && node --check renderer/pages/library.js && node --check renderer/pages/runtime.js && node --check renderer/pages/settings.js && node --check renderer/pages/preview.js",
+    "build": "npm run check:renderer",
     "pack": "npm run build && electron-builder --dir --publish never",
     "dist": "npm run build && electron-builder --publish never",
     "test": "node --test electron/*.test.cjs",
-    "test:inference-runtime": "electron electron/inference-runtime-smoke-host.cjs"
+    "test:inference-runtime": "electron electron/inference-runtime-smoke-host.cjs",
+    "test:startup": "node electron/startup-smoke.cjs"
   },
   "dependencies": {
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
     "node-llama-cpp": "3.22.3"
   },
   "devDependencies": {
-    "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6",
-    "@vitejs/plugin-react": "^6.0.2",
-    "concurrently": "^9.2.1",
-    "electron": "^39.2.7",
-    "electron-builder": "^26.0.12",
-    "typescript": "~6.0.3",
-    "vite": "^8.0.16",
-    "wait-on": "^8.0.4"
+    "electron": "^39.8.10",
+    "electron-builder": "^26.0.12"
   },
   "build": {
     "appId": "com.syncnullverox.syncai",
@@ -37,9 +29,13 @@
       "output": "release"
     },
     "files": [
-      "dist/**/*",
+      "index.html",
+      "renderer/**/*",
+      "src/*.css",
       "electron/**/*",
       "package.json",
+      "!electron/*.test.cjs",
+      "!electron/startup-smoke.cjs",
       "!node_modules/node-llama-cpp/bins/**/*",
       "node_modules/node-llama-cpp/bins/win-x64*/**/*",
       "!node_modules/node-llama-cpp/llama/localBuilds/**/*",

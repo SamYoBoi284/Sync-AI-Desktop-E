@@ -26,21 +26,25 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add package-lock.json
-            git commit -m "chore: sync npm lockfile for native inference"
+            git commit -m "chore: sync npm lockfile after vanilla renderer migration"
             git push
           fi
-      - name: Check Electron main-process source syntax
+      - name: Check Electron and vanilla renderer source syntax
         shell: bash
         run: |
           node --check electron/main.cjs
           node --check electron/preload.cjs
           node --check electron/inference-worker.mjs
           node --check electron/inference-runtime-smoke-host.cjs
+          node --check electron/startup-smoke.cjs
+          for file in renderer/*.js renderer/pages/*.js; do node --check "$file"; done
       - name: Run persistence, GGUF, IPC contract and memory guard tests
         run: npm test
       - name: Verify prebuilt llama.cpp native runtime inside Electron
         run: npm run test:inference-runtime
-      - name: Type-check and build renderer
+      - name: Launch the complete Electron app and wait for renderer readiness
+        run: npm run test:startup
+      - name: Validate vanilla renderer
         run: npm run build
       - name: Package Windows installer
         run: npm run dist

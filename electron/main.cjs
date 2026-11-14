@@ -19,6 +19,8 @@ function logStartup(message) {
 try {
   fs.writeFileSync(startupLogPath, `[${new Date().toISOString()}] Electron main process module loaded.\r\n`, "utf8");
 } catch {}
+process.on("uncaughtException", error => logStartup("Uncaught exception: " + (error?.stack || error)));
+process.on("unhandledRejection", error => logStartup("Unhandled rejection: " + (error?.stack || error)));
 
 let splashAvailable = true;
 let mainWindow = null;
@@ -444,9 +446,18 @@ const handlers = {
 };
 
 function registerIpc() {
+  ipcMain.on("sync:renderer-ready", event => {
+    const senderUrl = event.senderFrame?.url || "";
+    const trustedFileUrl = pathToFileURL(path.join(__dirname, "..", "index.html")).href;
+    if (senderUrl !== trustedFileUrl) return;
+    logStartup("Renderer signalled readiness after loading its native modules.");
+    console.log("[Sync AI] Renderer ready.");
+    if (process.env.SYNC_AI_STARTUP_SMOKE === "1") setTimeout(() => app.quit(), 250);
+  });
   ipcMain.handle("sync:invoke", async (event, command, args = {}) => {
     const senderUrl = event.senderFrame?.url || "";
-    const allowed = isDevelopment ? senderUrl.startsWith("http://127.0.0.1:5173/") : senderUrl.startsWith("file://");
+    const trustedFileUrl = pathToFileURL(path.join(__dirname, "..", "index.html")).href;
+    const allowed = senderUrl === trustedFileUrl;
     if (!allowed) throw new Error("Rejected IPC request from an untrusted renderer.");
     if (typeof command !== "string" || !Object.prototype.hasOwnProperty.call(handlers, command)) {
       throw new Error("Unsupported desktop command.");
@@ -490,18 +501,22 @@ async function createWindow() {
     }
   });
   mainWindow.once("ready-to-show", () => mainWindow?.show());
-  const trustedFileUrl = pathToFileURL(path.join(__dirname, "..", "dist", "index.html")).href;
+  const appHtmlPath = path.join(__dirname, "..", "index.html");
+  const trustedFileUrl = pathToFileURL(appHtmlPath).href;
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   mainWindow.webContents.on("will-navigate", (event, targetUrl) => {
-    const trusted = isDevelopment ? targetUrl.startsWith("http://127.0.0.1:5173/") : targetUrl === trustedFileUrl;
+    const trusted = targetUrl === trustedFileUrl;
     if (!trusted) event.preventDefault();
   });
   mainWindow.on("close", event => {
     if (!isQuitting) { event.preventDefault(); mainWindow?.hide(); }
   });
   mainWindow.on("closed", () => { mainWindow = null; });
-  if (isDevelopment) await mainWindow.loadURL("http://127.0.0.1:5173");
-  else await mainWindow.loadFile(path.join(__dirname, "..", "dist", "index.html"));
+  mainWindow.webContents.on("did-fail-load", (_event, code, description, failedUrl, isMainFrame) => {
+    if (isMainFrame) logStartup(`Renderer failed to load (code=${code}, description=${description}, url=${failedUrl}).`);
+  });
+  await mainWindow.loadFile(appHtmlPath);
+  logStartup(`Renderer document loaded from ${appHtmlPath}.`);
   return mainWindow;
 }
 
@@ -519,10 +534,10 @@ app.whenReady().then(async () => {
       database = new SyncDatabase(path.join(dataDir, "sync-ai-desktop.sqlite3"));
       logStartup("SQLite database initialized.");
       registerIpc();
-      await createTray();
-      logStartup("System tray initialized.");
       await createWindow();
       logStartup("Main window creation completed.");
+      await createTray();
+      logStartup("System tray initialized.");
       app.on("activate", () => { void restoreMainWindow(); });
     } catch (error) {
       const detail = error instanceof Error ? error.stack || error.message : String(error);
