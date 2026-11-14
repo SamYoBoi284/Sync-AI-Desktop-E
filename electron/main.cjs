@@ -505,31 +505,13 @@ async function createWindow() {
   return mainWindow;
 }
 
-// The single-instance mutex is useful for installed builds, but it can make
-// local development exit silently when a stale or shared Electron lock exists.
-// Dev sessions therefore do not acquire the mutex; packaged builds still do.
-process.on("exit", code => logStartup(`Node process exit event (code=${code}).`));
-process.on("uncaughtException", error => logStartup(`Uncaught exception: ${error?.stack || error}`));
-process.on("unhandledRejection", error => logStartup(`Unhandled rejection: ${error?.stack || error}`));
-
-const enforceSingleInstance = !isDevelopment;
-logStartup(`Startup reached lock check (isDevelopment=${isDevelopment}, isPackaged=${app.isPackaged}, argv=${JSON.stringify(process.argv)}).`);
-const gotLock = !enforceSingleInstance || app.requestSingleInstanceLock();
-logStartup(`Instance lock result: ${gotLock} (lock enforced=${enforceSingleInstance}).`);
+// Single-instance locking is intentionally disabled during active development and testing.
 
 app.on("will-quit", () => logStartup("Electron emitted will-quit."));
 app.on("quit", (_event, exitCode) => logStartup(`Electron emitted quit (code=${exitCode}).`));
 app.on("before-quit", () => logStartup("Electron emitted before-quit."));
 
-if (!gotLock) {
-  logStartup("A second packaged instance owns the application lock; this instance is exiting.");
-  app.quit();
-} else {
-  if (enforceSingleInstance) {
-    app.on("second-instance", () => { void restoreMainWindow(); });
-  }
-
-  logStartup("Registering app.whenReady handler.");
+logStartup("Single-instance locking is disabled. Registering app.whenReady handler.");
   app.whenReady().then(async () => {
     logStartup(`Electron ready (development=${isDevelopment}, packaged=${app.isPackaged}, platform=${process.platform}, arch=${process.arch}).`);
     try {
@@ -557,14 +539,13 @@ if (!gotLock) {
     app.quit();
   });
 
-  app.on("before-quit", () => {
-    isQuitting = true;
-    logStartup("Application is quitting.");
-    try { inferenceWorker?.kill(); } catch {}
-    try { memoryJobProcess?.stdin.write("STOP\n"); } catch {}
-    try { database?.close(); } catch {}
-  });
-  app.on("window-all-closed", () => {
-    // Keep the process alive while the tray icon is available.
-  });
-}
+app.on("before-quit", () => {
+  isQuitting = true;
+  logStartup("Application is quitting.");
+  try { inferenceWorker?.kill(); } catch {}
+  try { memoryJobProcess?.stdin.write("STOP\\n"); } catch {}
+  try { database?.close(); } catch {}
+});
+app.on("window-all-closed", () => {
+  // Keep the process alive while the tray icon is available.
+});
