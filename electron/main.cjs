@@ -509,10 +509,8 @@ async function createWindow() {
 
 app.on("will-quit", () => logStartup("Electron emitted will-quit."));
 app.on("quit", (_event, exitCode) => logStartup(`Electron emitted quit (code=${exitCode}).`));
-app.on("before-quit", () => logStartup("Electron emitted before-quit."));
-
 logStartup("Single-instance locking is disabled. Registering app.whenReady handler.");
-  app.whenReady().then(async () => {
+app.whenReady().then(async () => {
     logStartup(`Electron ready (development=${isDevelopment}, packaged=${app.isPackaged}, platform=${process.platform}, arch=${process.arch}).`);
     try {
       const dataDir = app.getPath("userData");
@@ -532,7 +530,7 @@ logStartup("Single-instance locking is disabled. Registering app.whenReady handl
       dialog.showErrorBox("Sync AI Desktop could not start", error instanceof Error ? error.message : String(error));
       app.quit();
     }
-  }).catch(error => {
+}).catch(error => {
     const detail = error instanceof Error ? error.stack || error.message : String(error);
     logStartup(`Electron ready handler rejected: ${detail}`);
     dialog.showErrorBox("Sync AI Desktop could not start", error instanceof Error ? error.message : String(error));
@@ -543,7 +541,7 @@ app.on("before-quit", () => {
   isQuitting = true;
   logStartup("Application is quitting.");
   try { inferenceWorker?.kill(); } catch {}
-  try { memoryJobProcess?.stdin.write("STOP\\n"); } catch {}
+  try { memoryJobProcess?.stdin.write("STOP\n"); } catch {}
   try { database?.close(); } catch {}
 });
 app.on("window-all-closed", () => {
