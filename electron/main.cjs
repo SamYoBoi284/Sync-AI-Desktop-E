@@ -549,7 +549,7 @@ if (!gotLock) {
     isQuitting = true;
     logStartup("Application is quitting.");
     try { inferenceWorker?.kill(); } catch {}
-    try { memoryJobProcess?.stdin.write("STOP\\n"); } catch {}
+    try { memoryJobProcess?.stdin.write("STOP\n"); } catch {}
     try { database?.close(); } catch {}
   });
   app.on("window-all-closed", () => {
