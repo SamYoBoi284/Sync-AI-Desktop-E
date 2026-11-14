@@ -9,6 +9,16 @@ const { pathToFileURL } = require("node:url");
 const { SyncDatabase } = require("./database.cjs");
 const { readGgufMetadata, estimatePeakBytes } = require("./gguf.cjs");
 
+const startupLogPath = path.join(os.tmpdir(), "sync-ai-desktop-startup.log");
+function logStartup(message) {
+  try {
+    fs.appendFileSync(startupLogPath, `[${new Date().toISOString()}] ${message}\r\n`, "utf8");
+  } catch {}
+}
+try {
+  fs.writeFileSync(startupLogPath, `[${new Date().toISOString()}] Electron main process module loaded.\r\n`, "utf8");
+} catch {}
+
 let splashAvailable = true;
 let mainWindow = null;
 let tray = null;
@@ -494,29 +504,52 @@ async function createWindow() {
   return mainWindow;
 }
 
-const gotLock = app.requestSingleInstanceLock();
+// The single-instance mutex is useful for installed builds, but it can make
+// local development exit silently when a stale or shared Electron lock exists.
+// Dev sessions therefore do not acquire the mutex; packaged builds still do.
+const enforceSingleInstance = app.isPackaged;
+const gotLock = !enforceSingleInstance || app.requestSingleInstanceLock();
+
 if (!gotLock) {
+  logStartup("A second packaged instance owns the application lock; this instance is exiting.");
   app.quit();
 } else {
-  app.on("second-instance", () => { void restoreMainWindow(); });
+  if (enforceSingleInstance) {
+    app.on("second-instance", () => { void restoreMainWindow(); });
+  }
+
   app.whenReady().then(async () => {
+    logStartup(`Electron ready (packaged=${app.isPackaged}, platform=${process.platform}, arch=${process.arch}).`);
     try {
       const dataDir = app.getPath("userData");
+      logStartup(`Using user data directory: ${dataDir}`);
       await fsp.mkdir(dataDir, { recursive: true });
       database = new SyncDatabase(path.join(dataDir, "sync-ai-desktop.sqlite3"));
+      logStartup("SQLite database initialized.");
       registerIpc();
       await createTray();
+      logStartup("System tray initialized.");
       await createWindow();
+      logStartup("Main window creation completed.");
       app.on("activate", () => { void restoreMainWindow(); });
     } catch (error) {
+      const detail = error instanceof Error ? error.stack || error.message : String(error);
+      logStartup(`Startup failed: ${detail}`);
       dialog.showErrorBox("Sync AI Desktop could not start", error instanceof Error ? error.message : String(error));
       app.quit();
     }
+  }).catch(error => {
+    const detail = error instanceof Error ? error.stack || error.message : String(error);
+    logStartup(`Electron ready handler rejected: ${detail}`);
+    dialog.showErrorBox("Sync AI Desktop could not start", error instanceof Error ? error.message : String(error));
+    app.quit();
   });
+
   app.on("before-quit", () => {
     isQuitting = true;
+    logStartup("Application is quitting.");
     try { inferenceWorker?.kill(); } catch {}
-    try { memoryJobProcess?.stdin.write("STOP\n"); } catch {}
+    try { memoryJobProcess?.stdin.write("STOP\\n"); } catch {}
     try { database?.close(); } catch {}
   });
   app.on("window-all-closed", () => {
