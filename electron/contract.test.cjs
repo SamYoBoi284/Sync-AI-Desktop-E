@@ -22,9 +22,9 @@ test("Electron renderer isolation and navigation protections remain enabled", ()
   assert.match(main, /sandbox:\s*true/);
   assert.match(main, /setWindowOpenHandler/);
   assert.match(main, /will-navigate/);
-  assert.match(main, /const enforceSingleInstance = app\\.isPackaged;/);
-  assert.match(main, /const gotLock = !enforceSingleInstance \\|\\| app\\.requestSingleInstanceLock\\(\\);/);
-  assert.match(main, /sync-ai-desktop-startup\\.log/);
+  assert.match(main, /const enforceSingleInstance = app\.isPackaged;/);
+  assert.match(main, /const gotLock = !enforceSingleInstance \|\| app\.requestSingleInstanceLock\(\);/);
+  assert.match(main, /sync-ai-desktop-startup\.log/);
   assert.match(main, /new Tray/);
   assert.match(preload, /contextBridge\.exposeInMainWorld/);
   assert.doesNotMatch(preload, /require\s*\(\s*["']node:/);
