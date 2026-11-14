@@ -9,6 +9,7 @@ const { pathToFileURL } = require("node:url");
 const { SyncDatabase } = require("./database.cjs");
 const { readGgufMetadata, estimatePeakBytes } = require("./gguf.cjs");
 
+const isDevelopment = process.argv.slice(1).some(arg => arg === "." || arg === "./") || process.env.SYNC_AI_DEV === "1";
 const startupLogPath = path.join(os.tmpdir(), "sync-ai-desktop-startup.log");
 function logStartup(message) {
   try {
@@ -94,7 +95,7 @@ function handleInferenceMessage(worker, event) {
 
 function attachWindowsJob(workerPid, memoryLimitBytes) {
   if (process.platform !== "win32") return Promise.resolve(false);
-  const scriptPath = app.isPackaged
+  const scriptPath = !isDevelopment
     ? path.join(process.resourcesPath, "electron", "inference-memory-job.ps1")
     : path.join(__dirname, "inference-memory-job.ps1");
   if (!fs.existsSync(scriptPath)) return Promise.reject(new Error("The Windows inference memory-guard script is missing."));
@@ -445,7 +446,7 @@ const handlers = {
 function registerIpc() {
   ipcMain.handle("sync:invoke", async (event, command, args = {}) => {
     const senderUrl = event.senderFrame?.url || "";
-    const allowed = app.isPackaged ? senderUrl.startsWith("file://") : senderUrl.startsWith("http://127.0.0.1:5173/");
+    const allowed = isDevelopment ? senderUrl.startsWith("http://127.0.0.1:5173/") : senderUrl.startsWith("file://");
     if (!allowed) throw new Error("Rejected IPC request from an untrusted renderer.");
     if (typeof command !== "string" || !Object.prototype.hasOwnProperty.call(handlers, command)) {
       throw new Error("Unsupported desktop command.");
@@ -492,14 +493,14 @@ async function createWindow() {
   const trustedFileUrl = pathToFileURL(path.join(__dirname, "..", "dist", "index.html")).href;
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   mainWindow.webContents.on("will-navigate", (event, targetUrl) => {
-    const trusted = app.isPackaged ? targetUrl === trustedFileUrl : targetUrl.startsWith("http://127.0.0.1:5173/");
+    const trusted = isDevelopment ? targetUrl.startsWith("http://127.0.0.1:5173/") : targetUrl === trustedFileUrl;
     if (!trusted) event.preventDefault();
   });
   mainWindow.on("close", event => {
     if (!isQuitting) { event.preventDefault(); mainWindow?.hide(); }
   });
   mainWindow.on("closed", () => { mainWindow = null; });
-  if (!app.isPackaged) await mainWindow.loadURL("http://127.0.0.1:5173");
+  if (isDevelopment) await mainWindow.loadURL("http://127.0.0.1:5173");
   else await mainWindow.loadFile(path.join(__dirname, "..", "dist", "index.html"));
   return mainWindow;
 }
@@ -511,8 +512,8 @@ process.on("exit", code => logStartup(`Node process exit event (code=${code}).`)
 process.on("uncaughtException", error => logStartup(`Uncaught exception: ${error?.stack || error}`));
 process.on("unhandledRejection", error => logStartup(`Unhandled rejection: ${error?.stack || error}`));
 
-const enforceSingleInstance = app.isPackaged;
-logStartup(`Startup reached lock check (isPackaged=${app.isPackaged}, argv=${JSON.stringify(process.argv)}).`);
+const enforceSingleInstance = !isDevelopment;
+logStartup(`Startup reached lock check (isDevelopment=${isDevelopment}, isPackaged=${app.isPackaged}, argv=${JSON.stringify(process.argv)}).`);
 const gotLock = !enforceSingleInstance || app.requestSingleInstanceLock();
 logStartup(`Instance lock result: ${gotLock} (lock enforced=${enforceSingleInstance}).`);
 
@@ -530,7 +531,7 @@ if (!gotLock) {
 
   logStartup("Registering app.whenReady handler.");
   app.whenReady().then(async () => {
-    logStartup(`Electron ready (packaged=${app.isPackaged}, platform=${process.platform}, arch=${process.arch}).`);
+    logStartup(`Electron ready (development=${isDevelopment}, packaged=${app.isPackaged}, platform=${process.platform}, arch=${process.arch}).`);
     try {
       const dataDir = app.getPath("userData");
       logStartup(`Using user data directory: ${dataDir}`);
