@@ -227,6 +227,7 @@ async function mountChat(root, context, initialChatId = null) {
                 <div class="shell-chat-message-label">${message.role === "user" ? "YOU" : "SYNC AI"}<time>${esc(fmtDate(message.createdAt))}</time></div>
                 <p style="white-space:pre-wrap">${esc(cleanModelText(message.body))}</p>
                 ${message.role === "assistant" && message.diagnostics ? '<div class="shell-chat-message-meta">' + esc(message.diagnostics.status || "saved") + (message.diagnostics.tokensPerSecond != null ? " · " + Number(message.diagnostics.tokensPerSecond).toFixed(1) + " tok/s" : "") + (message.diagnostics.generationMs != null ? " · " + elapsed(message.diagnostics.generationMs) : "") + "</div>" : ""}
+                ${message.role === "user" ? '<div class="shell-chat-message-tools"><button type="button" data-chat-action="edit-message" data-message-id="' + esc(message.id) + '" ' + (generating || queuedCount ? "disabled" : "") + '>Edit &amp; regenerate</button></div>' : ""}
                 ${message.role === "assistant" ? '<div class="shell-chat-message-tools"><button type="button" data-chat-action="save" data-message-id="' + esc(message.id) + '" ' + (savedArtifactIds.has(message.id) ? "disabled" : "") + ">" + (savedArtifactIds.has(message.id) ? "Saved to Workspace" : "Save to Workspace") + "</button></div>" : ""}
               </article>`).join("")}
             ${preview ? '<article class="shell-chat-message is-assistant is-streaming"><div class="shell-chat-message-label">SYNC AI <span class="shell-chat-streaming-status ' + (preview.state === "queued" ? "is-queued" : "") + '"><span>' + (preview.state === "queued" ? "QUEUED" : "GENERATING") + '</span><span class="shell-chat-streaming-dots" aria-hidden="true"><i></i><i></i><i></i></span></span></div><p style="white-space:pre-wrap">' + esc(cleanModelText(preview.text || "…")) + "</p></article>" : ""}
@@ -432,6 +433,23 @@ async function mountChat(root, context, initialChatId = null) {
     catch (cause) { error = errorText(cause); cancelling = false; render(); }
   }
 
+  async function editUserMessage(messageId) {
+    const original = messages.find(item => item.id === messageId && item.role === "user");
+    if (!original || generating || queuedCount) return;
+    const edited = window.prompt("Edit your message. All replies and messages after it will be removed, then Sync will regenerate from this turn.", original.body);
+    if (edited === null || !edited.trim() || edited.trim() === original.body) return;
+    error = ""; notice = "Updating message and removing the later conversation…"; render();
+    try {
+      const updated = await api.editUserMessage(chatId, messageId, edited.trim());
+      applyChat(updated);
+      queue = [{ chatId, userMessageId: messageId }];
+      queuedCount = 1;
+      notice = "Message edited. Sync is regenerating the response from this turn.";
+      render();
+      void processQueue();
+    } catch (cause) { error = errorText(cause); notice = ""; render(); }
+  }
+
   async function saveReply(messageId) {
     const message = messages.find(item => item.id === messageId);
     if (!message) return;
@@ -514,6 +532,7 @@ async function mountChat(root, context, initialChatId = null) {
     if (action === "models") context.navigate("models");
     if (action === "history") context.navigate("history");
     if (action === "save") void saveReply(button.dataset.messageId);
+    if (action === "edit-message") void editUserMessage(button.dataset.messageId);
   });
 
   currentGenerationUnsubscribe = onGenerationEvent(event => {

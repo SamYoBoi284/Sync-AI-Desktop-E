@@ -1,12 +1,12 @@
 (() => {
 const { api } = window.SyncAI;
 const { pageTitles, navigationSections, esc, errorText } = window.SyncAI.shared;
-const { mountChat, mountHistory, mountModels, mountWorkspace, mountTasks, mountLibrary, mountRuntime, mountSettings, mountPrivacyTools, mountMemory, mountPreview } = window.SyncAI.pages;
+const { mountChat, mountHistory, mountFolders, mountModels, mountWorkspace, mountTasks, mountLibrary, mountRuntime, mountSettings, mountPrivacyTools, mountMemory, mountPreview } = window.SyncAI.pages;
 
 const root = document.getElementById("root");
 if (!root) throw new Error("The Sync AI Desktop root element is missing.");
 
-const state = { page: "new-chat", selectedChatId: null, info: null, bridge: "checking", cleanup: null, splash: false, actionStatus: { isRunning: false, activeAction: null }, stopActionBusy: false };
+const state = { page: "new-chat", selectedChatId: null, selectedFolderId: null, info: null, bridge: "checking", cleanup: null, splash: false, actionStatus: { isRunning: false, activeAction: null }, stopActionBusy: false };
 const appMarkup = () => `
   <div class="shell-root" id="appShell">
     <aside class="shell-sidebar" aria-label="Main navigation">
@@ -17,6 +17,10 @@ const appMarkup = () => `
           <div class="shell-recent-heading"><h2>RECENT CHATS</h2><button type="button" data-action="go-history">SEE ALL</button></div>
           <label class="shell-chat-search"><span aria-hidden="true">⌕</span><input id="recentSearch" placeholder="Search conversations" aria-label="Search recent conversations"><button type="button" id="clearRecentSearch" aria-label="Clear search" hidden>×</button></label>
           <div id="recentChats"><p class="shell-recent-empty">Loading conversations…</p></div>
+        </section>
+        <section class="shell-recent-section shell-sidebar-folders" aria-label="Chat folders">
+          <div class="shell-recent-heading"><h2>FOLDERS</h2><button type="button" data-nav="folders">MANAGE</button></div>
+          <div id="chatFolders"><p class="shell-recent-empty">Loading folders…</p></div>
         </section>
         ${navigationSections.map(section => `
           <section class="shell-nav-section"><h2>${section.heading}</h2><ul>${section.entries.map(entry => `
@@ -110,11 +114,11 @@ async function stopActiveActionFromUi() {
 }
 
 async function refreshRecent() {
-  const host = document.getElementById("recentChats");
+  const host = document.getElementById("recentChats"), foldersHost = document.getElementById("chatFolders");
   if (!host) return;
   const query = document.getElementById("recentSearch")?.value.trim() || "";
   try {
-    const chats = await api.listChats(query, 40, 0);
+    const [chats, folders] = await Promise.all([api.listChats(query, 40, 0), api.listChatFolders()]);
     const groups = new Map();
     for (const chat of chats) {
       const date = new Date(chat.updatedAt), now = new Date();
@@ -127,17 +131,36 @@ async function refreshRecent() {
     }
     host.innerHTML = groups.size ? Array.from(groups, ([label, rows]) => `
       <div class="shell-recent-group"><h3>${label}</h3>${rows.slice(0, 8).map(chat => `
-        <button class="shell-recent-chat" type="button" data-open-chat="${esc(chat.id)}" title="${esc(chat.title)}"><span class="shell-recent-chat-mark" aria-hidden="true">◌</span><span>${esc(chat.title)}</span></button>
-      `).join("")}</div>
-    `).join("") : '<p class="shell-recent-empty">' + (query ? "No matching conversations." : "Your chats will appear here.") + "</p>";
+        <div class="shell-recent-chat-row">
+          <button class="shell-recent-chat" type="button" data-open-chat="${esc(chat.id)}" title="${esc(chat.title)}"><span class="shell-recent-chat-mark" aria-hidden="true">${chat.isPinned ? "◆" : "◌"}</span><span>${esc(chat.title)}</span>${chat.isPinned ? '<i class="shell-recent-pinned">PIN</i>' : ""}</button>
+          <button class="shell-recent-chat-menu-toggle" type="button" data-chat-menu-toggle aria-label="Conversation options for ${esc(chat.title)}" title="Conversation options">⋯</button>
+          <div class="shell-chat-context-menu" hidden>
+            <button type="button" data-chat-menu-action="rename" data-chat-id="${esc(chat.id)}">Rename</button>
+            <button type="button" data-chat-menu-action="move" data-chat-id="${esc(chat.id)}" title="Move this conversation to the top of Recent">Move</button>
+            <button type="button" data-chat-menu-action="archive" data-chat-id="${esc(chat.id)}">Archive</button>
+            <button type="button" data-chat-menu-action="delete" data-chat-id="${esc(chat.id)}">Delete</button>
+            <button type="button" data-chat-menu-action="export" data-chat-id="${esc(chat.id)}">Export</button>
+            <button type="button" data-chat-menu-action="pin" data-chat-id="${esc(chat.id)}" data-pinned="${chat.isPinned ? "true" : "false"}">${chat.isPinned ? "Unpin" : "Pin"}</button>
+            <button type="button" data-chat-menu-action="folder" data-chat-id="${esc(chat.id)}">Move to Folder <span>›</span></button>
+            <div class="shell-chat-folder-options" hidden>
+              ${folders.map(folder => '<button type="button" data-chat-folder-option data-chat-id="' + esc(chat.id) + '" data-folder-id="' + esc(folder.id) + '">' + esc(folder.name) + '</button>').join("")}
+              <button type="button" class="is-create" data-chat-folder-create data-chat-id="${esc(chat.id)}">＋ New folder…</button>
+              ${chat.folderId ? '<button type="button" data-chat-folder-option data-chat-id="' + esc(chat.id) + '" data-folder-id="">Remove from folder</button>' : ""}
+            </div>
+          </div>
+        </div>
+      `).join("")}</div>`).join("") : '<p class="shell-recent-empty">' + (query ? "No matching conversations." : "Your chats will appear here.") + "</p>";
+    if (foldersHost) foldersHost.innerHTML = folders.length
+      ? folders.slice(0, 8).map(folder => '<button type="button" class="shell-sidebar-folder" data-open-folder="' + esc(folder.id) + '"><span>▰</span><span>' + esc(folder.name) + '</span><small>' + folder.chatCount + '</small></button>').join("")
+      : '<p class="shell-recent-empty">No folders yet.</p>';
   } catch (error) {
     host.innerHTML = '<p class="shell-recent-empty">' + esc(errorText(error)) + "</p>";
+    if (foldersHost) foldersHost.innerHTML = '<p class="shell-recent-empty">' + esc(errorText(error)) + "</p>";
   }
 }
-
 function navigate(page, chatId = null) {
   if (!pageTitles[page]) return;
-  if (page === "history" || page === "new-chat") state.selectedChatId = null;
+  if (page === "history" || page === "archive" || page === "new-chat") state.selectedChatId = null;
   if (page === "new-chat" && chatId) state.selectedChatId = chatId;
   state.page = page;
   updateTopbar();
@@ -163,6 +186,8 @@ async function renderPage() {
     switch (state.page) {
       case "new-chat": cleanup = await mountChat(pageHost, context, state.selectedChatId); break;
       case "history": cleanup = await mountHistory(pageHost, context); break;
+      case "archive": cleanup = await mountHistory(pageHost, context, { archiveOnly: true }); break;
+      case "folders": cleanup = await mountFolders(pageHost, context, state.selectedFolderId); break;
       case "models": cleanup = await mountModels(pageHost, context); break;
       case "workspace": cleanup = await mountWorkspace(pageHost, context); break;
       case "tasks": cleanup = await mountTasks(pageHost, context); break;
@@ -181,6 +206,85 @@ async function renderPage() {
 
 document.addEventListener("click", event => {
   if (event.target.closest("#globalStopAction")) { void stopActiveActionFromUi(); return; }
+
+  const menuToggle = event.target.closest("[data-chat-menu-toggle]");
+  if (menuToggle) {
+    const menu = menuToggle.parentElement.querySelector(".shell-chat-context-menu");
+    const shouldOpen = Boolean(menu?.hidden);
+    document.querySelectorAll(".shell-chat-context-menu").forEach(item => { item.hidden = true; });
+    if (menu) menu.hidden = !shouldOpen;
+    return;
+  }
+
+  const folderOption = event.target.closest("[data-chat-folder-option]");
+  if (folderOption) {
+    void (async () => {
+      try { await api.updateChatMetadata(folderOption.dataset.chatId, { folderId: folderOption.dataset.folderId || null }); }
+      catch (error) { window.alert(errorText(error)); }
+      await refreshRecent();
+    })();
+    return;
+  }
+  const createFolder = event.target.closest("[data-chat-folder-create]");
+  if (createFolder) {
+    const name = window.prompt("Name the new folder");
+    if (name === null || !name.trim()) return;
+    void (async () => {
+      try {
+        const folder = await api.createChatFolder(name.trim());
+        await api.updateChatMetadata(createFolder.dataset.chatId, { folderId: folder.id });
+      } catch (error) { window.alert(errorText(error)); }
+      await refreshRecent();
+    })();
+    return;
+  }
+  const chatAction = event.target.closest("[data-chat-menu-action]");
+  if (chatAction) {
+    if (chatAction.dataset.chatMenuAction === "folder") {
+      const submenu = chatAction.parentElement.querySelector(".shell-chat-folder-options");
+      if (submenu) submenu.hidden = !submenu.hidden;
+      return;
+    }
+    void (async () => {
+      const id = chatAction.dataset.chatId;
+      try {
+        if (chatAction.dataset.chatMenuAction === "rename") {
+          const chat = await api.getChat(id);
+          const name = window.prompt("Rename conversation", chat.title);
+          if (name === null || !name.trim()) return;
+          await api.renameChat(id, name.trim());
+        } else if (chatAction.dataset.chatMenuAction === "move") {
+          await api.moveChatToTop(id);
+        } else if (chatAction.dataset.chatMenuAction === "archive") {
+          const chat = await api.getChat(id);
+          if (!window.confirm("Archive “" + chat.title + "”? It will remain available in Archive.")) return;
+          await api.updateChatMetadata(id, { archived: true });
+          if (state.selectedChatId === id) navigate("new-chat");
+        } else if (chatAction.dataset.chatMenuAction === "delete") {
+          const chat = await api.getChat(id);
+          if (!window.confirm("Delete “" + chat.title + "”? This permanently removes its messages from this local database.")) return;
+          await api.deleteChat(id);
+          if (state.selectedChatId === id) navigate("new-chat");
+        } else if (chatAction.dataset.chatMenuAction === "export") {
+          const backup = await api.exportChat(id);
+          const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }));
+          const link = document.createElement("a");
+          link.href = url; link.download = "sync-ai-chat-" + id.slice(0, 8) + ".json"; link.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } else if (chatAction.dataset.chatMenuAction === "pin") {
+          await api.updateChatMetadata(id, { pinned: chatAction.dataset.pinned !== "true" });
+        }
+      } catch (error) { window.alert(errorText(error)); }
+      finally {
+        document.querySelectorAll(".shell-chat-context-menu").forEach(item => { item.hidden = true; });
+        await refreshRecent();
+      }
+    })();
+    return;
+  }
+
+  const openFolder = event.target.closest("[data-open-folder]");
+  if (openFolder) { state.selectedFolderId = openFolder.dataset.openFolder; navigate("folders"); return; }
   const nav = event.target.closest("[data-nav]");
   if (nav) { navigate(nav.dataset.nav); return; }
   const open = event.target.closest("[data-open-chat]");

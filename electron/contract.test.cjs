@@ -88,3 +88,21 @@ test("chat-management IPC methods are wired through the renderer bridge", () => 
   assert.match(bridge, /updateChatMetadata:/);
   assert.match(bridge, /listChatFolders:/);
 });
+
+test("chat-management IPC handlers and renderer bridge expose persistent actions", () => {
+  assert.match(main, /edit_user_message:/);
+  assert.match(main, /update_chat_metadata:/);
+  assert.match(main, /list_chat_folders:/);
+  assert.match(main, /export_chat:/);
+  assert.match(bridge, /editUserMessage:/);
+  assert.match(bridge, /updateChatMetadata:/);
+  assert.match(bridge, /listChatFolders:/);
+});
+test("archive and folders routes replace the System section in sidebar", () => {
+  const shared = fs.readFileSync(path.join(root, "renderer", "shared.js"), "utf8");
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  assert.doesNotMatch(shared, /heading: "SYSTEM"/);
+  assert.match(shared, /id: "archive"/);
+  assert.match(shared, /id: "folders"/);
+  assert.match(html, /renderer\/pages\/folders\.js/);
+});

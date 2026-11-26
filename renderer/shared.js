@@ -1,6 +1,6 @@
 (() => {
 const pageTitles = {
-  "new-chat": "New chat", history: "History", workspace: "Workspace", tasks: "Tasks & Notes",
+  "new-chat": "New chat", history: "History", archive: "Archive", folders: "Folders", workspace: "Workspace", tasks: "Tasks & Notes",
   library: "File Library", models: "Local models", appearance: "Appearance", runtime: "Runtime", memory: "Memory", settings: "Settings", "privacy-tools": "Privacy & Tools"
 };
 const navigationSections = [
@@ -9,10 +9,10 @@ const navigationSections = [
     { id: "tasks", label: "Tasks & Notes", glyph: "☷", availability: "available" },
     { id: "library", label: "File Library", glyph: "▤", availability: "available" }
   ]},
-  { heading: "SYSTEM", entries: [
-    { id: "models", label: "Local models", glyph: "◈", availability: "available" },
-    { id: "appearance", label: "Appearance", glyph: "◐", availability: "planned" },
-    { id: "runtime", label: "Runtime", glyph: "⌁", availability: "available" }
+  { heading: "CONVERSATIONS", entries: [
+    { id: "history", label: "History", glyph: "◷", availability: "available" },
+    { id: "archive", label: "Archive", glyph: "▱", availability: "available" },
+    { id: "folders", label: "Folders", glyph: "▰", availability: "available" }
   ]}
 ];
 const plannedPageCopy = {

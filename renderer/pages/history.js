@@ -5,13 +5,13 @@ const { esc, errorText, fmtDate, downloadJson } = window.SyncAI.shared;
 
 
 
-async function mountHistory(root, context) {
+async function mountHistory(root, context, { archiveOnly = false } = {}) {
   let chats = [], selected = null, query = "", loading = true, busy = false, error = "", notice = "";
   function render() {
     root.innerHTML = `
       <section class="shell-page history-page">
         <div class="shell-page-eyebrow"><span class="shell-eyebrow-line"></span>LOCAL CONVERSATIONS</div>
-        <div class="history-toolbar"><div><h1>History</h1><p>Your conversations, stored on this device.</p></div>
+        <div class="history-toolbar"><div><h1>${archiveOnly ? "Archive" : "History"}</h1><p>${archiveOnly ? "Archived conversations stay here until you restore them." : "Your active conversations, stored on this device."}</p></div>
           <div class="history-actions"><button type="button" data-history="new" ${busy ? "disabled" : ""}>New chat</button><button type="button" data-history="export" ${busy ? "disabled" : ""}>Export backup</button>
           <label class="history-file-button">Import backup<input id="historyImport" type="file" accept=".json,application/json" ${busy ? "disabled" : ""}></label></div>
         </div>
@@ -28,7 +28,7 @@ async function mountHistory(root, context) {
           <article class="history-detail-panel">
             ${!selected ? '<p class="history-empty">Select a conversation to view its messages.</p>' : `
               <header class="history-detail-header"><div><h2>${esc(selected.title)}</h2><p>Created ${esc(fmtDate(selected.createdAt))}</p></div>
-                <div class="history-actions"><button type="button" data-history="continue" ${busy ? "disabled" : ""}>Continue chat</button><button type="button" data-history="rename" ${busy ? "disabled" : ""}>Rename</button><button type="button" data-history="delete" ${busy ? "disabled" : ""}>Delete</button></div>
+                <div class="history-actions"><button type="button" data-history="continue" ${busy ? "disabled" : ""}>Continue chat</button><button type="button" data-history="rename" ${busy ? "disabled" : ""}>Rename</button><button type="button" data-history="export-selected" ${busy ? "disabled" : ""}>Export</button><button type="button" data-history="${archiveOnly ? "restore" : "archive"}" ${busy ? "disabled" : ""}>${archiveOnly ? "Restore" : "Archive"}</button><button type="button" data-history="delete" ${busy ? "disabled" : ""}>Delete</button></div>
               </header>
               <div class="history-messages">${selected.messages.map(message => {
                 const d = message.diagnostics || {};
@@ -53,7 +53,7 @@ async function mountHistory(root, context) {
   async function refresh(preferredId) {
     loading = true; render();
     try {
-      chats = await api.listChats(query);
+      chats = await api.listChats(query, 100, 0, { includeArchived: archiveOnly, archivedOnly: archiveOnly });
       const wanted = preferredId || selected?.id;
       const row = chats.find(chat => chat.id === wanted) || chats[0] || null;
       selected = row ? await api.getChat(row.id) : null;
@@ -72,6 +72,16 @@ async function mountHistory(root, context) {
         const backup = await api.exportChatBackup();
         downloadJson(backup, "sync-ai-desktop-backup-" + new Date().toISOString().slice(0,10) + ".json");
         notice = "Exported " + backup.chats.length + " conversation(s).";
+      } else if (action === "export-selected" && selected) {
+        const backup = await api.exportChat(selected.id);
+        downloadJson(backup, "sync-ai-chat-" + selected.id.slice(0,8) + ".json");
+        notice = "Conversation exported.";
+      } else if (action === "archive" && selected) {
+        await api.updateChatMetadata(selected.id, { archived: true });
+        selected = null; await refresh(); notice = "Conversation moved to Archive.";
+      } else if (action === "restore" && selected) {
+        await api.updateChatMetadata(selected.id, { archived: false });
+        selected = null; await refresh(); notice = "Conversation restored to History.";
       } else if (action === "rename" && selected) {
         const title = window.prompt("Rename conversation", selected.title);
         if (title === null || !title.trim()) return;

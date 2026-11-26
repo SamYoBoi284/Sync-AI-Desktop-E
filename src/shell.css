@@ -539,3 +539,44 @@
 .chat-tool-modal-paths label{display:grid;gap:7px}
 .chat-tool-folder-input{width:100%;box-sizing:border-box;min-height:37px;padding:0 10px;border:1px solid rgba(168,121,255,.28);border-radius:8px;color:#eeeaff;background:#0c0e1b;font:9px var(--mono);outline:none}
 .chat-tool-folder-input:focus{border-color:rgba(117,193,255,.68);box-shadow:0 0 0 3px rgba(96,140,255,.08)}
+
+
+/* Hover-revealed chat menus and dedicated folder navigation. */
+.shell-recent-chat-row{position:relative;display:flex;align-items:center;gap:2px;min-width:0}
+.shell-recent-chat-row .shell-recent-chat{flex:1;min-width:0}
+.shell-recent-chat-menu-toggle{display:grid;width:26px;height:27px;flex:0 0 26px;place-items:center;border:1px solid transparent;border-radius:7px;color:#777994;background:transparent;opacity:0;cursor:pointer;font-size:18px;line-height:1;transition:opacity 120ms ease,color 120ms ease,background 120ms ease}
+.shell-recent-chat-row:hover .shell-recent-chat-menu-toggle,.shell-recent-chat-menu-toggle:focus-visible{opacity:1}
+.shell-recent-chat-menu-toggle:hover{color:#e4dcff;border-color:rgba(168,121,255,.2);background:rgba(168,121,255,.08)}
+.shell-recent-pinned{margin-left:auto;color:#c0a4ff;font:7px var(--mono);letter-spacing:.08em}
+.shell-chat-context-menu{position:absolute;z-index:120;top:calc(100% + 3px);right:0;display:grid;width:186px;gap:2px;padding:6px;border:1px solid rgba(168,121,255,.27);border-radius:10px;background:linear-gradient(145deg,#18162b,#0e1120);box-shadow:0 14px 34px rgba(0,0,0,.48)}
+.shell-chat-context-menu[hidden],.shell-chat-folder-options[hidden]{display:none}
+.shell-chat-context-menu>button,.shell-chat-folder-options>button{display:flex;width:100%;align-items:center;justify-content:space-between;padding:8px 9px;border:0;border-radius:6px;color:#d9d6ec;background:transparent;text-align:left;font-size:9px;cursor:pointer}
+.shell-chat-context-menu>button:hover,.shell-chat-folder-options>button:hover{color:#fff;background:rgba(168,121,255,.13)}
+.shell-chat-folder-options{display:grid;gap:2px;margin:2px 0 2px 8px;padding:5px;border-left:1px solid rgba(168,121,255,.25)}
+.shell-chat-folder-options>button.is-create{color:#8fe0ed}
+.shell-sidebar-folders{margin-top:12px}
+.shell-sidebar-folder{display:flex;width:100%;align-items:center;gap:8px;padding:7px 9px;border:1px solid transparent;border-radius:7px;color:#999bb3;background:transparent;text-align:left;font-size:9px;cursor:pointer}
+.shell-sidebar-folder:hover{border-color:rgba(168,121,255,.15);color:#e4ddf7;background:rgba(168,121,255,.06)}
+.shell-sidebar-folder>span:first-child{color:#a98aff}
+.shell-sidebar-folder small{margin-left:auto;color:#6e708a;font:7px var(--mono)}
+.shell-folder-layout{display:grid;grid-template-columns:minmax(190px,.38fr) minmax(0,1fr);gap:12px}
+.shell-folder-list,.shell-folder-detail{min-width:0;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.shell-folder-list{display:grid;align-content:start;gap:5px}
+.shell-folder-entry{display:flex;align-items:center;gap:10px;width:100%;padding:10px;border:1px solid transparent;border-radius:8px;color:var(--text);background:transparent;text-align:left;cursor:pointer}
+.shell-folder-entry.is-selected,.shell-folder-entry:hover{border-color:var(--border-strong);background:rgba(168,121,255,.09)}
+.shell-folder-symbol{color:#b59aff}
+.shell-folder-entry>span:nth-child(2){display:grid;gap:4px;min-width:0}
+.shell-folder-entry strong{font-size:10px}
+.shell-folder-entry small{color:var(--muted);font-size:8px}
+.shell-folder-arrow{margin-left:auto;color:var(--muted)}
+.shell-folder-detail>header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.shell-folder-detail h2{margin:0;font-size:16px}
+.shell-folder-actions{display:flex;gap:6px;flex-wrap:wrap}
+.shell-folder-actions button,.shell-folder-chat-row>button:last-child{padding:7px 9px;border:1px solid var(--border);border-radius:7px;color:var(--muted-strong);background:rgba(255,255,255,.025);font-size:8px;cursor:pointer}
+.shell-folder-actions button.is-danger{color:#e49aa9;border-color:rgba(255,112,133,.22)}
+.shell-folder-chat-list{display:grid;gap:6px;margin-top:12px}
+.shell-folder-chat-row{display:flex;align-items:center;gap:8px;padding:9px;border:1px solid rgba(161,151,206,.1);border-radius:8px}
+.shell-folder-chat-row>button:first-child{display:grid;gap:4px;flex:1;min-width:0;border:0;color:var(--text);background:transparent;text-align:left;cursor:pointer}
+.shell-folder-chat-row>button:first-child strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+.shell-folder-chat-row small{color:var(--muted);font-size:8px}
+@media(max-width:700px){.shell-folder-layout{grid-template-columns:1fr}.shell-folder-detail>header{align-items:flex-start;flex-direction:column}}

@@ -112,12 +112,13 @@ async function mountRuntime(root, context) {
         config = normalize(config);
         await api.setSetting(CONTEXT_KEY, JSON.stringify(config));
         saved = { ...config };
-        if (runtime?.isLoaded) {
-          if (runtime.isGenerating) throw new Error("Stop the active generation before reloading its context.");
+        if (runtime?.isLoaded && !runtime.isGenerating) {
           const modelId = runtime.loadedModelId;
           await api.unloadModel();
           runtime = await api.loadModel(modelId);
           message = "Context and batch settings saved. The model reloaded with the new allocation.";
+        } else if (runtime?.isGenerating) {
+          message = "Settings saved. They will apply the next time the model is loaded, after the current generation finishes.";
         } else message = "Context and batch settings saved. They will apply the next time a model loads.";
       } catch (cause) { message = "Could not apply Runtime settings: " + errorText(cause); }
       finally { saving = false; await refresh(); }
