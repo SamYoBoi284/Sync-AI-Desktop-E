@@ -296,7 +296,7 @@ test("file tool protects Sync application data and its Recovery Vault", async ()
     fs.writeFileSync(vaultFile, "recovery data");
     fs.writeFileSync(ordinaryFile, "ordinary user data");
     await assert.rejects(manager.prepareFileRemoval(dbPath), /protected application data directory/i);
-    await assert.rejects(manager.prepareFileRemoval(vaultFile), /protected application data directory/i);
+    await assert.rejects(manager.prepareFileRemoval(vaultFile), /Recovery Vault are protected/i);
     const safeRequest = await manager.prepareFileRemoval(ordinaryFile);
     assert.equal(safeRequest.state, "awaiting-approval");
     assert.equal(manager.listHistory().length, 1);
