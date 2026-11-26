@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const crypto = require("node:crypto");
 const { pathToFileURL } = require("node:url");
+const appIconPath = path.join(__dirname, "..", "assets", "sync.ico");
 const { SyncDatabase } = require("./database.cjs");
 const { ActionManager } = require("./action-manager.cjs");
 const { readGgufMetadata, estimatePeakBytes } = require("./gguf.cjs");
@@ -548,8 +549,10 @@ async function restoreMainWindow() {
 
 async function createTray() {
   if (tray) return;
-  let icon = nativeImage.createEmpty();
-  try { icon = await app.getFileIcon(process.execPath, { size: "small" }); } catch {}
+  let icon = nativeImage.createFromPath(appIconPath);
+  if (icon.isEmpty()) {
+    try { icon = await app.getFileIcon(process.execPath, { size: "small" }); } catch {}
+  }
   tray = new Tray(icon);
   tray.setToolTip("Sync AI Desktop");
   tray.setContextMenu(Menu.buildFromTemplate([
@@ -566,6 +569,7 @@ async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440, height: 920, minWidth: 980, minHeight: 680,
     backgroundColor: "#090a12", show: false,
+    icon: appIconPath,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true, nodeIntegration: false, sandbox: true,

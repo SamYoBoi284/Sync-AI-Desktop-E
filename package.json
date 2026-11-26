@@ -33,6 +33,7 @@
       "renderer/**/*",
       "src/*.css",
       "electron/**/*",
+      "assets/**/*",
       "package.json",
       "!electron/*.test.cjs",
       "!electron/startup-smoke.cjs",
@@ -44,6 +45,7 @@
       "node_modules/@node-llama-cpp/win-x64*/bins/**/*"
     ],
     "win": {
+      "icon": "assets/sync.ico",
       "target": [
         "nsis"
       ],
