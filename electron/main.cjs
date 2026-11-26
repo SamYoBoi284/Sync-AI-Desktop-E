@@ -218,7 +218,39 @@ async function startInferenceWorker(memoryLimitBytes) {
   });
 
   if (process.platform === "win32") {
-    const guarded = await attachWindowsJob(worker.pid, memoryLimitBytes);
+    // Electron UtilityProcess.pid is populated only after the child emits "spawn".
+    // Waiting here prevents PowerShell from receiving the literal string "undefined".
+    const workerPid = await new Promise((resolve, reject) => {
+      let settled = false;
+      const cleanup = () => {
+        worker.removeListener("spawn", onSpawn);
+        worker.removeListener("error", onError);
+        worker.removeListener("exit", onExitBeforeSpawn);
+      };
+      const finish = (error, pid) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (error) reject(error);
+        else resolve(pid);
+      };
+      const onSpawn = () => {
+        const pid = worker.pid;
+        if (!Number.isInteger(pid) || pid <= 0) {
+          finish(new Error("The inference worker spawned without a valid process ID."));
+          return;
+        }
+        finish(null, pid);
+      };
+      const onError = error => finish(new Error("Could not start the inference worker: " + error.message));
+      const onExitBeforeSpawn = code => finish(new Error("The inference worker exited before spawning (code " + code + ")."));
+      worker.once("spawn", onSpawn);
+      worker.once("error", onError);
+      worker.once("exit", onExitBeforeSpawn);
+      // Cover the unlikely case that spawn completed just before listeners were attached.
+      if (Number.isInteger(worker.pid) && worker.pid > 0) onSpawn();
+    });
+    const guarded = await attachWindowsJob(workerPid, memoryLimitBytes);
     runtimeState.hardLimitSupported = guarded;
   }
   return worker;
