@@ -18,7 +18,7 @@ class FileOperationManager extends ActionManager {
     return {
       ...base,
       operation: details.operation || (action.toolId === "file.reversible_remove" ? "delete" : null),
-      sourcePath: details.sourcePath || (action.toolId === "file.reversible_remove" ? action.target : null),
+      sourcePath: details.sourcePath || details.parentPath || (action.toolId === "file.reversible_remove" ? action.target : null),
       destinationPath: details.destinationPath || null,
       fileName: details.fileName || base.fileName
     };
@@ -136,6 +136,42 @@ class FileOperationManager extends ActionManager {
     return active.promise;
   }
 
+  async restoreMovedFile(details, signal = null) {
+    const source = details.sourcePath;
+    const destination = details.destinationPath;
+    if (await exists(source)) {
+      if (await exists(destination)
+        && (await hashFile(source, signal)) === details.sha256
+        && (await hashFile(destination, signal)) === details.sha256) {
+        await fsp.unlink(destination);
+      } else if (await exists(destination)) {
+        throw new Error("The original path is occupied or changed. Sync preserved the destination rather than overwriting data.");
+      }
+      return true;
+    }
+    if (!(await exists(destination)) || (await hashFile(destination, signal)) !== details.sha256) {
+      throw new Error("The moved file is missing or changed, so Sync cannot safely restore it.");
+    }
+    try {
+      await fsp.rename(destination, source);
+    } catch (error) {
+      if (error?.code !== "EXDEV") throw error;
+      const temp = path.join(path.dirname(source), "." + path.basename(source) + "." + crypto.randomUUID() + ".sync-move-back.tmp");
+      try {
+        const copied = await copyFileAndHash(destination, temp, signal);
+        if (copied !== details.sha256) throw new Error("The move-back copy failed verification.");
+        checkAbort(signal);
+        if (await exists(source)) throw new Error("The original path became occupied during restoration.");
+        await fsp.rename(temp, source);
+        if ((await hashFile(source, signal)) !== details.sha256) throw new Error("The restored file failed verification.");
+        await fsp.unlink(destination);
+      } finally {
+        await fsp.rm(temp, { force: true }).catch(() => {});
+      }
+    }
+    return true;
+  }
+
   async performFileOperation(initial, signal) {
     let action = this.save({ ...initial, state: "running", undoable: false, error: null });
     const details = { ...action.details };
@@ -166,11 +202,34 @@ class FileOperationManager extends ActionManager {
           committed = true;
           if ((await hashFile(details.destinationPath)) !== details.sha256) throw new Error("The copied file failed its final SHA-256 verification.");
           checkAbort(signal);
+        } else if (operation === "move") {
+          try {
+            await fsp.rename(details.sourcePath, details.destinationPath);
+            committed = true;
+          } catch (renameError) {
+            if (renameError?.code !== "EXDEV") throw renameError;
+            const copied = await copyFileAndHash(details.sourcePath, details.tempPath, signal);
+            if (copied !== details.sha256 || (await hashFile(details.sourcePath, signal)) !== details.sha256) {
+              throw new Error("The source changed during the cross-drive move. The original was left in place.");
+            }
+            checkAbort(signal);
+            if (await exists(details.destinationPath)) throw new Error("The destination appeared while moving. It was not overwritten.");
+            await fsp.rename(details.tempPath, details.destinationPath);
+            committed = true;
+            if ((await hashFile(details.destinationPath, signal)) !== details.sha256) throw new Error("The destination copy failed verification.");
+            checkAbort(signal);
+            if ((await hashFile(details.sourcePath, signal)) !== details.sha256) throw new Error("The source changed before the move could finish. Both paths were preserved.");
+            await fsp.unlink(details.sourcePath);
+          }
+          if ((await hashFile(details.destinationPath, signal)) !== details.sha256) {
+            throw new Error("The moved file failed its final SHA-256 verification.");
+          }
+          checkAbort(signal);
         } else {
           await fsp.rename(details.sourcePath, details.destinationPath);
           committed = true;
           if ((await hashFile(details.destinationPath, signal)) !== details.sha256) {
-            throw new Error("The moved file failed its final SHA-256 verification.");
+            throw new Error("The renamed file failed its final SHA-256 verification.");
           }
           checkAbort(signal);
         }
@@ -190,10 +249,8 @@ class FileOperationManager extends ActionManager {
             restored = true;
           } else recoveryRequired = true;
         } else if (["move", "rename"].includes(operation) && await exists(details.destinationPath)) {
-          if (!(await exists(details.sourcePath)) && (await hashFile(details.destinationPath)) === details.sha256) {
-            await fsp.rename(details.destinationPath, details.sourcePath);
-            restored = true;
-          } else recoveryRequired = true;
+          await this.restoreMovedFile(details);
+          restored = true;
         } else if (operation === "create-folder" && await exists(details.destinationPath)) {
           await fsp.rmdir(details.destinationPath);
           restored = true;
@@ -248,7 +305,7 @@ class FileOperationManager extends ActionManager {
         if (!(await exists(d.destinationPath)) || (await hashFile(d.destinationPath, signal)) !== d.sha256) {
           throw new Error("The moved file is missing or has changed, so it cannot be safely restored.");
         }
-        await fsp.rename(d.destinationPath, d.sourcePath);
+        await this.restoreMovedFile(d, signal);
       } else if (d.operation === "create-folder") {
         if (await exists(d.destinationPath)) await fsp.rmdir(d.destinationPath);
       } else throw new Error("Unsupported undo operation.");
@@ -281,8 +338,8 @@ class FileOperationManager extends ActionManager {
           if ((await hashFile(d.destinationPath)) === d.sha256) await fsp.unlink(d.destinationPath);
           else { state = "recovery-required"; undoable = true; error = "The interrupted copy destination contains different data and was preserved."; }
         } else if (["move", "rename"].includes(d.operation) && await exists(d.destinationPath)) {
-          if (!(await exists(d.sourcePath)) && (await hashFile(d.destinationPath)) === d.sha256) await fsp.rename(d.destinationPath, d.sourcePath);
-          else { state = "recovery-required"; undoable = true; error = "Sync could not safely restore the interrupted move because one of the paths changed. The destination was preserved."; }
+          await this.restoreMovedFile(d);
+
         } else if (d.operation === "create-folder" && await exists(d.destinationPath)) {
           await fsp.rmdir(d.destinationPath).catch(() => { state = "recovery-required"; undoable = true; error = "The created folder is no longer empty. Sync preserved it."; });
         }
