@@ -58,7 +58,7 @@ async function mountPrivacyTools(root) {
           '<article class="privacy-policy-card"><span class="privacy-policy-icon">↶</span><strong>Stop &amp; restore</strong><p>Stop cancels the active file operation and attempts to restore its original file. Completed removals can be undone from the history below.</p><small>VERIFIED RECOVERY COPIES</small></article>' +
         '</div>' +
         '<section class="shell-settings-panel privacy-tools-panel">' +
-          '<div class="shell-panel-heading"><div><p class="shell-section-kicker">REGISTERED TOOL CAPABILITIES</p><h2>Available tools</h2></div><span class="shell-panel-tag">NARROW ACCESS</span></div>' +
+          '<div class="shell-panel-heading"><div><p class="shell-section-kicker">CURRENT TOOL BOUNDARIES</p><h2>Available tools</h2></div><span class="shell-panel-tag">NARROW ACCESS</span></div>' +
           '<div class="privacy-tool-row"><div><strong>Reversible file removal</strong><p>Moves one individually selected file (up to 512 MiB) into the private Recovery Vault after explicit approval. The file is verified before its original path is removed.</p></div><span class="privacy-tool-state">MANUAL APPROVAL</span></div>' +
           '<div class="privacy-tool-row"><div><strong>AI-requested tool calls</strong><p>The local model is not yet connected to the tool registry. It cannot initiate file operations or other host actions from chat in this build.</p></div><span class="privacy-tool-state is-planned">NOT CONNECTED</span></div>' +
           '<p class="shell-settings-footnote">No terminal, shell, clipboard, process-control, browser automation, folder deletion or unrestricted filesystem tool is exposed. Permanent deletion is not part of this tool.</p>' +
