@@ -2,8 +2,6 @@ const fs = require("node:fs");
 const fsp = fs.promises;
 const path = require("node:path");
 const crypto = require("node:crypto");
-const { pipeline } = require("node:stream/promises");
-const { Transform } = require("node:stream");
 
 const MAX_FILE_BYTES = 512 * 1024 * 1024;
 const TOOL_ID = "file.reversible_remove";
@@ -30,27 +28,39 @@ async function hashFile(filePath, signal = null) {
 
 async function copyFileAndHash(source, destination, signal = null, onCreated = null) {
   const hash = crypto.createHash("sha256");
-  const hasher = new Transform({
-    transform(chunk, _encoding, callback) {
-      hash.update(chunk);
-      callback(null, chunk);
-    }
-  });
-  const outputHandle = await fsp.open(destination, "wx", 0o600);
+  let inputHandle = null;
+  let outputHandle = null;
   try {
+    inputHandle = await fsp.open(source, "r");
+    throwIfAborted(signal);
+    outputHandle = await fsp.open(destination, "wx", 0o600);
     try { onCreated?.(); } catch {}
-    const output = outputHandle.createWriteStream({ autoClose: false });
-    await pipeline(
-      fs.createReadStream(source, signal ? { signal } : {}),
-      hasher,
-      output,
-      signal ? { signal } : {}
-    );
+
+    const buffer = Buffer.allocUnsafe(64 * 1024);
+    while (true) {
+      throwIfAborted(signal);
+      const { bytesRead } = await inputHandle.read(buffer, 0, buffer.length, null);
+      if (bytesRead === 0) break;
+
+      const chunk = buffer.subarray(0, bytesRead);
+      hash.update(chunk);
+      let offset = 0;
+      while (offset < bytesRead) {
+        throwIfAborted(signal);
+        const { bytesWritten } = await outputHandle.write(chunk, offset, bytesRead - offset, null);
+        if (bytesWritten <= 0) throw new Error("The recovery copy could not write any more data.");
+        offset += bytesWritten;
+      }
+    }
+
+    throwIfAborted(signal);
     // Flush the verified recovery/restore copy before committing the path change.
     await outputHandle.sync();
+    throwIfAborted(signal);
     return hash.digest("hex");
   } finally {
-    await outputHandle.close().catch(() => {});
+    await inputHandle?.close().catch(() => {});
+    await outputHandle?.close().catch(() => {});
   }
 }
 
