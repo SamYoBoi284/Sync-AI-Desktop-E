@@ -172,6 +172,7 @@ class ActionManager {
     let details = { ...action.details };
     try {
       throwIfAborted(signal);
+      action = this.save({ ...action, state: "running", undoable: false, error: null });
       const currentStat = await fsp.lstat(action.target);
       if (currentStat.isSymbolicLink() || !currentStat.isFile()) {
         throw new Error("The selected path is no longer a regular file. Nothing was changed.");
@@ -184,7 +185,7 @@ class ActionManager {
         throw new Error("The selected file contents changed after the review. Nothing was changed. Prepare the action again.");
       }
       details.sha256 = originalHash;
-      action = this.save({ ...action, state: "running", undoable: false, details, error: null });
+      action = this.save({ ...action, details });
 
       await fsp.mkdir(this.recoveryDir, { recursive: true });
       const copiedHash = await copyFileAndHash(action.target, details.partialPath, signal);
@@ -201,6 +202,16 @@ class ActionManager {
       if (typeof this.hooks.afterBackup === "function") await this.hooks.afterBackup({ action: this.publicAction(action) });
       throwIfAborted(signal);
 
+      const removalStat = await fsp.lstat(action.target);
+      if (removalStat.isSymbolicLink() || !removalStat.isFile()
+        || removalStat.dev !== currentStat.dev
+        || removalStat.ino !== currentStat.ino
+        || removalStat.size !== details.sizeBytes
+        || removalStat.mtimeMs !== details.mtimeMs
+        || (await hashFile(action.target, signal)) !== details.sha256) {
+        throw new Error("The selected path changed during the operation. The original file was left untouched and the recovery copy was preserved.");
+      }
+      throwIfAborted(signal);
       await fsp.unlink(action.target);
       throwIfAborted(signal);
 
