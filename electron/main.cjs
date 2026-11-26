@@ -588,9 +588,15 @@ app.whenReady().then(async () => {
       const dataDir = app.getPath("userData");
       logStartup(`Using user data directory: ${dataDir}`);
       await fsp.mkdir(dataDir, { recursive: true });
-      database = new SyncDatabase(path.join(dataDir, "sync-ai-desktop.sqlite3"));
+      const databasePath = path.join(dataDir, "sync-ai-desktop.sqlite3");
+      database = new SyncDatabase(databasePath);
       logStartup("SQLite database initialized.");
-      actionManager = new ActionManager({ database, recoveryDir: path.join(dataDir, "recovery-vault"), onChange: sendActionEvent });
+      actionManager = new ActionManager({
+        database,
+        recoveryDir: path.join(dataDir, "recovery-vault"),
+        protectedPaths: [databasePath],
+        onChange: sendActionEvent
+      });
       const recoveredActions = await actionManager.recoverInterrupted();
       if (recoveredActions.length) logStartup("Recovered " + recoveredActions.length + " interrupted tool action(s) before opening the window.");
       registerIpc();
