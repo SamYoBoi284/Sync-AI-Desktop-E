@@ -73,22 +73,24 @@ function updateTopbar() {
 
 function renderActionStatus() {
   const running = Boolean(state.actionStatus?.isRunning);
-  const restoring = state.actionStatus.activeAction?.state === "restoring";
+  const active = state.actionStatus?.activeAction || null;
+  const restoring = active?.state === "restoring";
+  const removal = active?.toolId === "file.reversible_remove" || active?.operation === "delete";
   const status = document.getElementById("actionRunningStatus");
   const button = document.getElementById("globalStopAction");
   if (!status || !button) return;
   status.hidden = !running;
   status.textContent = running
-    ? (restoring ? "RESTORING · " : "ACTION · ") + (state.actionStatus.activeAction?.fileName || "FILE OPERATION")
+    ? (restoring ? "ROLLING BACK · " : "ACTION · ") + (active?.fileName || active?.operation || "FILE OPERATION")
     : "";
   button.hidden = !running;
   button.disabled = state.stopActionBusy;
   button.textContent = state.stopActionBusy
-    ? (restoring ? "STOPPING RESTORE…" : "STOPPING & RESTORING…")
-    : (restoring ? "STOP RESTORE" : "STOP & RESTORE");
-  button.setAttribute("aria-label", restoring
-    ? "Stop this restore attempt while keeping the Recovery Vault copy"
-    : "Stop the active file action and restore its original file");
+    ? (removal ? "STOPPING & RESTORING…" : "STOPPING & ROLLING BACK…")
+    : (removal ? "STOP & RESTORE" : "STOP & ROLLBACK");
+  button.setAttribute("aria-label", removal
+    ? "Stop the file removal and restore the original file"
+    : "Stop the active file operation and roll back its changes where possible");
 }
 
 async function stopActiveActionFromUi() {
