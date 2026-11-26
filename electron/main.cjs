@@ -8,7 +8,7 @@ const crypto = require("node:crypto");
 const { pathToFileURL } = require("node:url");
 const appIconPath = path.join(__dirname, "..", "assets", "sync.ico");
 const { SyncDatabase } = require("./database.cjs");
-const { ActionManager } = require("./action-manager.cjs");
+const { FileOperationManager } = require("./file-operation-manager.cjs");
 const { readGgufMetadata, estimatePeakBytes } = require("./gguf.cjs");
 
 const isDevelopment = process.argv.slice(1).some(arg => arg === "." || arg === "./") || process.env.SYNC_AI_DEV === "1";
@@ -495,24 +495,52 @@ const handlers = {
     if (picked.canceled || !picked.filePaths[0]) return null;
     return actionManager.prepareFileRemoval(picked.filePaths[0]);
   },
-  approve_file_removal: async ({ actionId }) => {
-    const action = database.get_tool_action({ actionId });
-    if (!action || action.state !== "awaiting-approval" || action.toolId !== "file.reversible_remove") {
-      throw new Error("That file action is not awaiting approval.");
+  prepare_file_operation: async ({ operation, folderName = "" } = {}) => {
+    if (!["copy", "move", "rename", "delete", "create-folder"].includes(operation)) {
+      throw new Error("Unsupported file operation.");
     }
-    const approval = await dialog.showMessageBox(mainWindow, {
-      type: "warning",
-      title: "Approve reversible file removal",
-      message: "Move this file into the Sync AI Recovery Vault?",
-      detail: action.target + "\n\nSync will first create and verify a local recovery copy. The original path will only be removed after the copy passes SHA-256 verification. You can stop the operation while it is running, and you can restore completed actions from Privacy & Tools.",
-      buttons: ["Cancel", "Approve file action"],
-      defaultId: 0,
-      cancelId: 0,
-      noLink: true
+    if (operation === "create-folder") {
+      const picked = await dialog.showOpenDialog(mainWindow, {
+        title: "Choose where to create the folder",
+        properties: ["openDirectory"]
+      });
+      if (picked.canceled || !picked.filePaths[0]) return null;
+      return actionManager.prepareFileOperation({ operation, parentPath: picked.filePaths[0], folderName });
+    }
+
+    const pickedSource = await dialog.showOpenDialog(mainWindow, {
+      title: operation === "delete" ? "Choose a file to remove safely" : "Choose a source file",
+      properties: ["openFile"]
     });
-    if (approval.response !== 1) return actionManager.cancelFileRemoval(actionId);
-    return actionManager.approveFileRemoval(actionId);
+    if (pickedSource.canceled || !pickedSource.filePaths[0]) return null;
+    const sourcePath = pickedSource.filePaths[0];
+    if (operation === "delete") return actionManager.prepareFileRemoval(sourcePath);
+
+    let destinationPath;
+    if (operation === "move") {
+      const pickedFolder = await dialog.showOpenDialog(mainWindow, {
+        title: "Choose the destination folder",
+        properties: ["openDirectory"]
+      });
+      if (pickedFolder.canceled || !pickedFolder.filePaths[0]) return null;
+      destinationPath = path.join(pickedFolder.filePaths[0], path.basename(sourcePath));
+    } else {
+      const defaultName = operation === "copy"
+        ? "Copy of " + path.basename(sourcePath)
+        : path.parse(sourcePath).name + " renamed" + path.extname(sourcePath);
+      const destination = await dialog.showSaveDialog(mainWindow, {
+        title: operation === "copy" ? "Choose where to save the copy" : "Choose the new file name",
+        defaultPath: path.join(path.dirname(sourcePath), defaultName),
+        buttonLabel: operation === "copy" ? "Choose copy destination" : "Rename file"
+      });
+      if (destination.canceled || !destination.filePath) return null;
+      destinationPath = destination.filePath;
+    }
+    return actionManager.prepareFileOperation({ operation, sourcePath, destinationPath });
   },
+  approve_file_action: ({ actionId }) => actionManager.approveFileOperation(actionId),
+  cancel_file_action: ({ actionId }) => actionManager.cancelFileRemoval(actionId),
+  approve_file_removal: ({ actionId }) => actionManager.approveFileRemoval(actionId),
   cancel_file_removal: ({ actionId }) => actionManager.cancelFileRemoval(actionId),
   stop_active_action: () => actionManager.stopActiveAction(),
   undo_tool_action: ({ actionId }) => actionManager.undoAction(actionId)
@@ -613,7 +641,7 @@ app.whenReady().then(async () => {
       const databasePath = path.join(resolvedDataDir, "sync-ai-desktop.sqlite3");
       database = new SyncDatabase(databasePath);
       logStartup("SQLite database initialized.");
-      actionManager = new ActionManager({
+      actionManager = new FileOperationManager({
         database,
         recoveryDir: path.join(resolvedDataDir, "recovery-vault"),
         protectedPaths: [resolvedDataDir],
