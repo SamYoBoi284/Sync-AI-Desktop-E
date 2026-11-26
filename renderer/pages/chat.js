@@ -278,7 +278,7 @@ async function mountChat(root, context, initialChatId = null) {
     try { enabled = JSON.parse(await api.getSetting("memory_auto_learn") || "false") === true; } catch {}
     if (!enabled || !runtime?.isLoaded) return;
     const userTurns = (chat.messages || []).filter(item => item.role === "user").slice(-8)
-      .map(item => "User shared: " + item.body.trim()).join("\n\n");
+      .map(item => "User shared: " + item.body.trim().slice(0, 1200)).join("\n\n").slice(-9000);
     if (!userTurns) return;
 
     const previous = await api.listMemories();
@@ -309,7 +309,8 @@ async function mountChat(root, context, initialChatId = null) {
     render();
     try {
       const result = await api.generateChat(memoryPrompt, memoryGenerationId);
-      if (result?.diagnostics?.status === "error" || result?.diagnostics?.status === "cancelled") return;
+      if (result?.diagnostics?.status === "error") return;
+      if (result?.diagnostics?.status === "cancelled") { notice = "Memory update stopped. Your existing saved memories are unchanged."; return; }
       const learned = String(result.text || "").trim();
       if (!learned) return;
       if (/^NO_CHANGES\b/i.test(learned)) { notice = "No new long-term memory was identified in this conversation."; return; }
