@@ -36,15 +36,22 @@ async function copyFileAndHash(source, destination, signal = null, onCreated = n
       callback(null, chunk);
     }
   });
-  const output = fs.createWriteStream(destination, { flags: "wx", mode: 0o600 });
-  output.once("open", () => { try { onCreated?.(); } catch {} });
-  await pipeline(
-    fs.createReadStream(source, signal ? { signal } : {}),
-    hasher,
-    output,
-    signal ? { signal } : {}
-  );
-  return hash.digest("hex");
+  const outputHandle = await fsp.open(destination, "wx", 0o600);
+  try {
+    try { onCreated?.(); } catch {}
+    const output = outputHandle.createWriteStream({ autoClose: false });
+    await pipeline(
+      fs.createReadStream(source, signal ? { signal } : {}),
+      hasher,
+      output,
+      signal ? { signal } : {}
+    );
+    // Flush the verified recovery/restore copy before committing the path change.
+    await outputHandle.sync();
+    return hash.digest("hex");
+  } finally {
+    await outputHandle.close().catch(() => {});
+  }
 }
 
 function insideDirectory(parent, candidate) {
