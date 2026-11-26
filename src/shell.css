@@ -535,3 +535,7 @@
 .chat-tool-modal-actions button.is-muted{border-color:rgba(160,157,189,.2);color:#b9b5ca;background:rgba(255,255,255,.035)}
 .chat-tool-modal-actions button:disabled{opacity:.5;cursor:wait}
 @media(max-width:620px){.chat-tool-modal{padding:17px}.chat-tool-modal-actions button{flex:1}}
+
+.chat-tool-modal-paths label{display:grid;gap:7px}
+.chat-tool-folder-input{width:100%;box-sizing:border-box;min-height:37px;padding:0 10px;border:1px solid rgba(168,121,255,.28);border-radius:8px;color:#eeeaff;background:#0c0e1b;font:9px var(--mono);outline:none}
+.chat-tool-folder-input:focus{border-color:rgba(117,193,255,.68);box-shadow:0 0 0 3px rgba(96,140,255,.08)}
