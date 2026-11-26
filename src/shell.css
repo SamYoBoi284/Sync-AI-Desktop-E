@@ -414,3 +414,36 @@
   .shell-model-empty .shell-model-import{transition:none}
   .shell-model-empty .shell-model-import:hover{transform:none}
 }
+
+
+/* Sync-themed confirmation modal and multi-operation file action controls */
+.privacy-operation-launch{display:grid;gap:10px;padding:16px 0 4px}
+.privacy-operation-controls{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.privacy-operation-controls label{color:#aaa4c0;font:8px var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.privacy-operation-select,.privacy-folder-name{min-height:38px;max-width:100%;padding:0 11px;border:1px solid rgba(168,121,255,.26);border-radius:8px;color:#eee9ff;background:#111222;font:9px var(--mono);outline:none}
+.privacy-operation-select:focus,.privacy-folder-name:focus{border-color:rgba(111,211,255,.7);box-shadow:0 0 0 3px rgba(90,150,255,.1)}
+.privacy-operation-controls button{min-height:38px;padding:0 14px;border:1px solid rgba(164,132,255,.46);border-radius:9px;color:#fff;background:linear-gradient(110deg,rgba(135,77,225,.4),rgba(34,145,223,.22));font:700 8px var(--mono);letter-spacing:.05em;cursor:pointer}
+.privacy-operation-controls button:hover{border-color:rgba(145,211,255,.75);background:linear-gradient(110deg,rgba(135,77,225,.54),rgba(34,145,223,.31))}
+.privacy-operation-controls button:disabled{opacity:.5;cursor:wait}
+.privacy-operation-launch>p{margin:0;color:#8587a2;font-size:8px;line-height:1.65}
+.privacy-modal-backdrop{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:24px;background:rgba(3,4,13,.78);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.privacy-modal{position:relative;width:min(560px,100%);padding:22px;border:1px solid rgba(144,116,255,.34);border-radius:18px;background:radial-gradient(ellipse at 3% 0%,rgba(123,56,220,.2),transparent 45%),radial-gradient(ellipse at 100% 100%,rgba(24,145,255,.15),transparent 42%),linear-gradient(145deg,#151326,#0c1020 72%);box-shadow:0 24px 100px rgba(0,0,0,.62),0 0 44px rgba(110,73,226,.14);animation:privacyModalIn 160ms ease-out}
+@keyframes privacyModalIn{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+.privacy-modal-top{display:flex;align-items:center;gap:9px;color:#c6b3ff;font:700 8px var(--mono);letter-spacing:.12em}
+.privacy-modal-mark{display:grid;width:30px;height:30px;place-items:center;border:1px solid rgba(166,124,255,.38);border-radius:9px;color:#e8d9ff;background:linear-gradient(145deg,rgba(155,69,255,.28),rgba(31,169,255,.16));font-size:16px}
+.privacy-modal-state{margin-left:auto;padding:6px 8px;border:1px solid rgba(255,190,111,.24);border-radius:99px;color:#e8bc85;background:rgba(255,177,83,.06);font-size:6px}
+.privacy-modal h2{margin:20px 0 8px;color:#f7f3ff;font-size:20px;letter-spacing:-.03em}
+.privacy-modal-description{margin:0;color:#aaa9c0;font-size:10px;line-height:1.75}
+.privacy-modal-paths{display:grid;gap:12px;margin-top:18px;padding:14px;border:1px solid rgba(168,155,224,.15);border-radius:11px;background:rgba(3,6,18,.43)}
+.privacy-modal-paths>div{display:grid;gap:6px;min-width:0}
+.privacy-modal-paths small{color:#8d86ae;font:7px var(--mono);letter-spacing:.1em}
+.privacy-modal-paths code{overflow-wrap:anywhere;color:#e4e0f2;font:9px var(--mono);line-height:1.6}
+.privacy-modal-paths strong{color:#e8e1ff;font:700 8px var(--mono);letter-spacing:.06em}
+.privacy-modal-safety{display:flex;align-items:center;gap:8px;margin:14px 0 18px;color:#8ccfc1;font:7px var(--mono);letter-spacing:.035em}
+.privacy-modal-safety span:first-child{font-size:14px}
+.privacy-modal-actions{display:flex;justify-content:flex-end;gap:9px}
+.privacy-modal-actions button{min-height:38px;padding:0 14px;border:1px solid rgba(158,127,255,.46);border-radius:9px;color:#fff;background:linear-gradient(110deg,rgba(135,77,225,.48),rgba(34,145,223,.25));font:700 8px var(--mono);cursor:pointer}
+.privacy-modal-actions button.is-muted{border-color:rgba(160,157,189,.2);color:#b9b5ca;background:rgba(255,255,255,.035)}
+.privacy-modal-actions button:focus-visible{outline:2px solid #72cfff;outline-offset:3px}
+@media(max-width:650px){.privacy-operation-controls{align-items:stretch;flex-direction:column}.privacy-operation-controls>*{width:100%;max-width:none}.privacy-modal{padding:17px}.privacy-modal-actions button{flex:1}}
+@media(prefers-reduced-motion:reduce){.privacy-modal{animation:none}}
