@@ -7,6 +7,7 @@ const fsp = require("node:fs/promises");
 const crypto = require("node:crypto");
 const { pathToFileURL } = require("node:url");
 const { SyncDatabase } = require("./database.cjs");
+const { ActionManager } = require("./action-manager.cjs");
 const { readGgufMetadata, estimatePeakBytes } = require("./gguf.cjs");
 
 const isDevelopment = process.argv.slice(1).some(arg => arg === "." || arg === "./") || process.env.SYNC_AI_DEV === "1";
@@ -26,6 +27,8 @@ let splashAvailable = true;
 let mainWindow = null;
 let tray = null;
 let database = null;
+let actionManager = null;
+let waitingForActionShutdown = false;
 let isQuitting = false;
 let inferenceWorker = null;
 let memoryJobProcess = null;
@@ -49,6 +52,12 @@ const runtimeStatus = () => ({
 function sendGenerationEvent(event) {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) window.webContents.send("sync:generation-event", event);
+  }
+}
+
+function sendActionEvent(event) {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) window.webContents.send("sync:action-event", event);
   }
 }
 
@@ -474,7 +483,21 @@ const handlers = {
   list_library_files: () => database.list_library_files(),
   import_library_file: () => importLibraryFile(),
   relink_library_file: args => relinkLibraryFile(args),
-  remove_library_file: args => database.remove_library_file(args)
+  remove_library_file: args => database.remove_library_file(args),
+  get_action_status: () => actionManager.getStatus(),
+  list_tool_actions: ({ limit = 100 } = {}) => actionManager.listHistory(limit),
+  prepare_file_removal: async () => {
+    const picked = await dialog.showOpenDialog(mainWindow, {
+      title: "Choose a file for reversible removal",
+      properties: ["openFile"]
+    });
+    if (picked.canceled || !picked.filePaths[0]) return null;
+    return actionManager.prepareFileRemoval(picked.filePaths[0]);
+  },
+  approve_file_removal: ({ actionId }) => actionManager.approveFileRemoval(actionId),
+  cancel_file_removal: ({ actionId }) => actionManager.cancelFileRemoval(actionId),
+  stop_active_action: () => actionManager.stopActiveAction(),
+  undo_tool_action: ({ actionId }) => actionManager.undoAction(actionId)
 };
 
 function registerIpc() {
@@ -567,6 +590,9 @@ app.whenReady().then(async () => {
       await fsp.mkdir(dataDir, { recursive: true });
       database = new SyncDatabase(path.join(dataDir, "sync-ai-desktop.sqlite3"));
       logStartup("SQLite database initialized.");
+      actionManager = new ActionManager({ database, recoveryDir: path.join(dataDir, "recovery-vault"), onChange: sendActionEvent });
+      const recoveredActions = await actionManager.recoverInterrupted();
+      if (recoveredActions.length) logStartup("Recovered " + recoveredActions.length + " interrupted tool action(s) before opening the window.");
       registerIpc();
       await createWindow();
       logStartup("Main window creation completed.");
@@ -586,8 +612,20 @@ app.whenReady().then(async () => {
     app.quit();
   });
 
-app.on("before-quit", () => {
+app.on("before-quit", event => {
   isQuitting = true;
+  if (!waitingForActionShutdown && actionManager?.getStatus().isRunning) {
+    event.preventDefault();
+    waitingForActionShutdown = true;
+    logStartup("Stopping and rolling back the active tool action before exit.");
+    void actionManager.stopActiveAction().catch(error => {
+      logStartup("Action shutdown recovery reported: " + (error instanceof Error ? error.message : String(error)));
+    }).finally(() => {
+      waitingForActionShutdown = false;
+      app.quit();
+    });
+    return;
+  }
   logStartup("Application is quitting.");
   try { inferenceWorker?.kill(); } catch {}
   try { memoryJobProcess?.stdin.write("STOP\n"); } catch {}
