@@ -213,6 +213,9 @@ class ActionManager {
       }
       throwIfAborted(signal);
       await fsp.unlink(action.target);
+      if (typeof this.hooks.afterUnlink === "function") {
+        await this.hooks.afterUnlink({ action: this.publicAction(action), signal });
+      }
       throwIfAborted(signal);
 
       action = this.save({
