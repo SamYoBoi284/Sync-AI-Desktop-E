@@ -76,7 +76,7 @@ async function mountChat(root, context, initialChatId = null) {
             <div class="shell-chat-empty-state"><div class="shell-chat-core" aria-hidden="true"><span></span><span></span><span></span></div>
               <p class="shell-section-kicker">A NEW CONVERSATION</p><h2>Your space.<br><span>Your signal.</span></h2>
               <p>Messages stay on this device. The selected GGUF model runs in its isolated local worker.</p>
-              ${!runtime?.isLoaded ? '<button type="button" data-chat-action="models">Choose a local model</button>' : ""}
+              ${!runtime?.isLoaded ? '<button class="shell-chat-choose-model" type="button" data-chat-action="models">Choose a local model</button>' : ""}
             </div>` : `
             ${messages.map(message => `
               <article class="shell-chat-message is-${esc(message.role)}">
