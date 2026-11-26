@@ -28,7 +28,7 @@ async function hashFile(filePath, signal = null) {
   return hash.digest("hex");
 }
 
-async function copyFileAndHash(source, destination, signal = null) {
+async function copyFileAndHash(source, destination, signal = null, onCreated = null) {
   const hash = crypto.createHash("sha256");
   const hasher = new Transform({
     transform(chunk, _encoding, callback) {
@@ -36,10 +36,12 @@ async function copyFileAndHash(source, destination, signal = null) {
       callback(null, chunk);
     }
   });
+  const output = fs.createWriteStream(destination, { flags: "wx", mode: 0o600 });
+  output.once("open", () => { try { onCreated?.(); } catch {} });
   await pipeline(
     fs.createReadStream(source, signal ? { signal } : {}),
     hasher,
-    fs.createWriteStream(destination, { flags: "wx", mode: 0o600 }),
+    output,
     signal ? { signal } : {}
   );
   return hash.digest("hex");
@@ -287,8 +289,9 @@ class ActionManager {
     }
 
     const tempPath = path.join(parent, "." + path.basename(action.target) + "." + action.id + ".sync-restore.tmp");
+    let tempCreated = false;
     try {
-      const copiedHash = await copyFileAndHash(backupPath, tempPath, signal);
+      const copiedHash = await copyFileAndHash(backupPath, tempPath, signal, () => { tempCreated = true; });
       if (copiedHash !== details.sha256) throw new Error("The temporary restore copy failed verification.");
       throwIfAborted(signal);
       if (typeof this.hooks.beforeRestoreCommit === "function") {
@@ -313,10 +316,10 @@ class ActionManager {
       }
       return true;
     } catch (error) {
-      await fsp.rm(tempPath, { force: true }).catch(() => {});
+      if (tempCreated) await fsp.rm(tempPath, { force: true }).catch(() => {});
       throw error;
     } finally {
-      await fsp.rm(tempPath, { force: true }).catch(() => {});
+      if (tempCreated) await fsp.rm(tempPath, { force: true }).catch(() => {});
     }
   }
 
