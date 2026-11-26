@@ -487,14 +487,6 @@ const handlers = {
   remove_library_file: args => database.remove_library_file(args),
   get_action_status: () => actionManager.getStatus(),
   list_tool_actions: ({ limit = 100 } = {}) => actionManager.listHistory(limit),
-  prepare_file_removal: async () => {
-    const picked = await dialog.showOpenDialog(mainWindow, {
-      title: "Choose a file for reversible removal",
-      properties: ["openFile"]
-    });
-    if (picked.canceled || !picked.filePaths[0]) return null;
-    return actionManager.prepareFileRemoval(picked.filePaths[0]);
-  },
   prepare_file_operation: async ({ operation, folderName = "" } = {}) => {
     if (!["copy", "move", "rename", "delete", "create-folder"].includes(operation)) {
       throw new Error("Unsupported file operation.");
@@ -540,8 +532,6 @@ const handlers = {
   },
   approve_file_action: ({ actionId }) => actionManager.approveFileOperation(actionId),
   cancel_file_action: ({ actionId }) => actionManager.cancelFileRemoval(actionId),
-  approve_file_removal: ({ actionId }) => actionManager.approveFileRemoval(actionId),
-  cancel_file_removal: ({ actionId }) => actionManager.cancelFileRemoval(actionId),
   stop_active_action: () => actionManager.stopActiveAction(),
   undo_tool_action: ({ actionId }) => actionManager.undoAction(actionId)
 };
