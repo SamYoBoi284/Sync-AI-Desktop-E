@@ -43,7 +43,7 @@ async function mountMemory(root) {
         '<div class="memory-overview-grid">' +
           '<article><small>MEMORY ITEMS</small><strong>' + memories.length + '</strong></article>' +
           '<article><small>ACTIVE ITEMS</small><strong>' + active + '</strong></article>' +
-          '<article><small>STORED TEXT</small><strong>' + fmtBytes(storedChars) + '</strong></article>' +
+          '<article><small>STORED CHARACTERS</small><strong>' + storedChars.toLocaleString() + '</strong></article>' +
         '</div>' +
         '<section class="shell-settings-panel memory-budget-panel">' +
           '<div class="shell-panel-heading"><div><p class="shell-section-kicker">CONTEXT AND RESOURCE LIMITS</p><h2>Memory injection budget</h2></div><span class="shell-panel-tag">BOUNDED PROMPT</span></div>' +
@@ -96,8 +96,8 @@ async function mountMemory(root) {
       ]);
       memories = items || [];
       try { autoLearn = autoRaw == null ? false : JSON.parse(autoRaw) === true; } catch { autoLearn = false; }
-      try { tokenBudget = Number(budgetRaw == null ? 256 : JSON.parse(budgetRaw)); } catch { tokenBudget = 512; }
-      tokenBudget = Math.min(1024, Math.max(128, Math.round(Number.isFinite(tokenBudget) ? tokenBudget : 256)));
+      try { tokenBudget = Number(budgetRaw == null ? 256 : JSON.parse(budgetRaw)); } catch { tokenBudget = 256; }
+      tokenBudget = Math.min(512, Math.max(128, Math.round(Number.isFinite(tokenBudget) ? tokenBudget : 256)));
       message = "";
       messageIsError = false;
     } catch (cause) {
