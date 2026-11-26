@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { SyncDatabase } = require("./database.cjs");
-const { ActionManager, hashFile } = require("./action-manager.cjs");
+const { ActionManager, hashFile, copyFileAndHash } = require("./action-manager.cjs");
 
 function fixture(options = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "sync-ai-action-test-"));
@@ -19,6 +19,29 @@ function fixture(options = {}) {
     }
   };
 }
+
+
+test("copyFileAndHash stops cleanly when cancellation arrives during backup creation", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sync-ai-copy-cancel-test-"));
+  const source = path.join(root, "source.txt");
+  const destination = path.join(root, "backup.partial");
+  const bytes = Buffer.alloc(128 * 1024, 0x61);
+  fs.writeFileSync(source, bytes);
+  const controller = new AbortController();
+  try {
+    await assert.rejects(
+      copyFileAndHash(source, destination, controller.signal, () => controller.abort()),
+      error => error?.name === "AbortError"
+    );
+    assert.equal(fs.readFileSync(source).equals(bytes), true);
+    assert.equal(fs.existsSync(destination), true);
+    // Successful unlink proves the helper closed its destination handle on cancellation.
+    fs.unlinkSync(destination);
+    assert.equal(fs.existsSync(destination), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("approved file removal verifies a recovery copy and can restore the original", async () => {
   const f = fixture();
