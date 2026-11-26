@@ -335,8 +335,9 @@ class FileOperationManager extends ActionManager {
       try {
         if (d.tempPath) await fsp.rm(d.tempPath, { force: true });
         if (d.operation === "copy" && await exists(d.destinationPath)) {
-          if ((await hashFile(d.destinationPath)) === d.sha256) await fsp.unlink(d.destinationPath);
-          else { state = "recovery-required"; undoable = true; error = "The interrupted copy destination contains different data and was preserved."; }
+          const sourceStillMatches = await exists(d.sourcePath) && (await hashFile(d.sourcePath)) === d.sha256;
+          if (sourceStillMatches && (await hashFile(d.destinationPath)) === d.sha256) await fsp.unlink(d.destinationPath);
+          else { state = "recovery-required"; undoable = true; error = "Sync could not verify the original source of the interrupted copy. The destination was preserved."; }
         } else if (["move", "rename"].includes(d.operation) && await exists(d.destinationPath)) {
           await this.restoreMovedFile(d);
 
