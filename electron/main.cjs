@@ -588,13 +588,14 @@ app.whenReady().then(async () => {
       const dataDir = app.getPath("userData");
       logStartup(`Using user data directory: ${dataDir}`);
       await fsp.mkdir(dataDir, { recursive: true });
-      const databasePath = path.join(dataDir, "sync-ai-desktop.sqlite3");
+      const resolvedDataDir = await fsp.realpath(dataDir);
+      const databasePath = path.join(resolvedDataDir, "sync-ai-desktop.sqlite3");
       database = new SyncDatabase(databasePath);
       logStartup("SQLite database initialized.");
       actionManager = new ActionManager({
         database,
-        recoveryDir: path.join(dataDir, "recovery-vault"),
-        protectedPaths: [databasePath],
+        recoveryDir: path.join(resolvedDataDir, "recovery-vault"),
+        protectedPaths: [resolvedDataDir],
         onChange: sendActionEvent
       });
       const recoveredActions = await actionManager.recoverInterrupted();
