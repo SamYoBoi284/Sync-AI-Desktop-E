@@ -21,6 +21,7 @@ async function mountSettings(root, context) {
         <div class="shell-settings-grid">
           <button class="shell-settings-card" type="button" data-settings="appearance"><span class="shell-settings-card-icon">◐</span><span><strong>Appearance</strong><small>Theme, accent color and motion preferences</small></span><span class="shell-settings-card-arrow">›</span></button>
           <button class="shell-settings-card" type="button" data-settings="runtime"><span class="shell-settings-card-icon">⌁</span><span><strong>Runtime</strong><small>Worker memory, native diagnostics and host information</small></span><span class="shell-settings-card-arrow">›</span></button>
+          <button class="shell-settings-card" type="button" data-settings="memory"><span class="shell-settings-card-icon">✧</span><span><strong>Memory</strong><small>Import, save and manage context Sync uses during local inference</small></span><span class="shell-settings-card-arrow">›</span></button>
         </div>
         <section class="shell-settings-panel"><div class="shell-panel-heading"><div><p class="shell-section-kicker">INFERENCE RESOURCE CONTROL</p><h2>RAM Limiter</h2></div><span class="shell-panel-tag">OPTIONAL · OFF BY DEFAULT</span></div>
           <p class="shell-settings-intro">Places the isolated llama.cpp worker inside a Windows Job Object with a hard private-memory commit ceiling. The limit includes model allocations and inference context, so a model that needs more than the ceiling may fail to load. The main Sync AI desktop process stays outside that limit.</p>
@@ -63,6 +64,7 @@ async function mountSettings(root, context) {
     const action = button.dataset.settings;
     if (action === "appearance") context.navigate("appearance");
     if (action === "runtime") context.navigate("runtime");
+    if (action === "memory") context.navigate("memory");
     if (action === "models") context.navigate("models");
     if (action === "privacy-tools") context.navigate("privacy-tools");
     if (action === "save" && !saving) {
