@@ -558,6 +558,8 @@ app.on("will-quit", () => logStartup("Electron emitted will-quit."));
 app.on("quit", (_event, exitCode) => logStartup(`Electron emitted quit (code=${exitCode}).`));
 logStartup("Single-instance locking is disabled. Registering app.whenReady handler.");
 app.whenReady().then(async () => {
+    // Sync AI uses its own in-app navigation; hide Electron's default application menu.
+    Menu.setApplicationMenu(null);
     logStartup(`Electron ready (development=${isDevelopment}, packaged=${app.isPackaged}, platform=${process.platform}, arch=${process.arch}).`);
     try {
       const dataDir = app.getPath("userData");
