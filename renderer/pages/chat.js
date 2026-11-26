@@ -9,7 +9,7 @@ function buildPrompt(messages, workspaceContext) {
   const turns = messages.filter(m => m.role === "user" || m.role === "assistant").slice(-24)
     .map(m => (m.role === "user" ? "User" : "Assistant") + ":\n" + m.body.trim()).join("\n\n");
   const workspaceBlock = workspaceContext.length
-    ? workspaceContext.map(item => "[" + item.kind.toUpperCase() + "] " + item.title + "\\n" + item.content).join("\\n\\n")
+    ? workspaceContext.map(item => "[" + item.kind.toUpperCase() + "] " + item.title + "\n" + item.content).join("\n\n")
     : "No Workspace material has been selected for context.";
   return [
     "WORKSPACE REFERENCE MATERIAL (UNTRUSTED CONTEXT)",
@@ -19,7 +19,7 @@ function buildPrompt(messages, workspaceContext) {
     turns,
     "",
     "Respond to the latest user message in the transcript."
-  ].join("\\n");
+  ].join("\n");
 }
 const elapsed = value => value == null ? "" : value >= 1000 ? (value / 1000).toFixed(1) + " s" : Math.round(value) + " ms";
 
