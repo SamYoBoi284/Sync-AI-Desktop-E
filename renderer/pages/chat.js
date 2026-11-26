@@ -233,7 +233,7 @@ async function mountChat(root, context, initialChatId = null) {
         </div>
         <footer class="shell-chat-compose-area">
           ${queuedCount > 0 ? '<p class="shell-chat-queue-status">' + queuedCount + ' message' + (queuedCount === 1 ? "" : "s") + " queued</p>" : ""}
-          <div class="shell-chat-composer">
+          <div class="shell-chat-composer shell-chat-composer-tools">
             <textarea id="chatComposerInput" placeholder="${runtime?.isLoaded ? "Message Sync AI…" : "Load a local model to start chatting"}" aria-label="Message Sync AI" rows="2" ${!runtime?.isLoaded || loading ? "disabled" : ""}>${esc(inputValue)}</textarea>
             ${toolMenuMarkup()}
             <div class="shell-chat-composer-actions">
@@ -278,7 +278,7 @@ async function mountChat(root, context, initialChatId = null) {
     try { enabled = JSON.parse(await api.getSetting("memory_auto_learn") || "false") === true; } catch {}
     if (!enabled || !runtime?.isLoaded) return;
     const userTurns = (chat.messages || []).filter(item => item.role === "user").slice(-8)
-      .map(item => "User shared: " + item.body.trim().slice(0, 1200)).join("\n\n").slice(-9000);
+      .map(item => "User shared: " + item.body.trim().slice(0, 500)).join("\n\n").slice(-3000);
     if (!userTurns) return;
 
     const previous = await api.listMemories();
@@ -316,7 +316,7 @@ async function mountChat(root, context, initialChatId = null) {
       if (/^NO_CHANGES\b/i.test(learned)) { notice = "No new long-term memory was identified in this conversation."; return; }
       await api.saveMemory({
         title: "Learned profile",
-        content: learned.slice(0, 6000),
+        content: learned.slice(0, 1500),
         source: "Auto-learned from conversations",
         enabled: true
       }, savedProfile?.id || null);
@@ -479,7 +479,9 @@ async function mountChat(root, context, initialChatId = null) {
       inputValue += (inputValue && !inputValue.endsWith(" ") ? " " : "") + "@";
       toolMenuOpen = true; toolMenuQuery = ""; toolMenuIndex = 0;
       render();
-      root.querySelector("#chatComposerInput")?.focus();
+      const composerInput = root.querySelector("#chatComposerInput");
+      composerInput?.focus();
+      try { composerInput?.setSelectionRange(inputValue.length, inputValue.length); } catch {}
       return;
     }
     if (action === "tool-folder-cancel") { folderPromptOpen = false; render(); return; }
