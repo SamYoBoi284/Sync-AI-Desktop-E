@@ -25,7 +25,7 @@ async function mountModels(root) {
         <div class="shell-model-library-head"><div><h2>MODEL LIBRARY</h2><span>${models.length} ${models.length === 1 ? "MODEL" : "MODELS"}</span></div><span>ORIGINAL FILES · LOCAL REGISTRY</span></div>
         ${error ? '<p class="shell-model-message is-error" role="alert">' + esc(error) + "</p>" : ""}
         ${notice ? '<p class="shell-model-message" role="status">' + esc(notice) + "</p>" : ""}
-        ${models.length === 0 ? '<div class="shell-model-empty"><span>◈</span><strong>No GGUF models registered</strong><p>Choose a GGUF file. Sync validates its header, calculates SHA-256 and stores its original absolute path in the local registry.</p><button type="button" data-model="import" ' + (anyBusy() ? "disabled" : "") + '>Choose a GGUF file</button></div>' :
+        ${models.length === 0 ? '<div class="shell-model-empty"><span>◈</span><strong>No GGUF models registered</strong><p>Choose a GGUF file. Sync validates its header, calculates SHA-256 and stores its original absolute path in the local registry.</p><button class="shell-model-import" type="button" data-model="import" ' + (anyBusy() ? "disabled" : "") + '>Choose a GGUF file</button></div>' :
           '<div class="shell-model-list">' + models.map(model => {
             const estimate = estimates[model.id], active = runtime?.loadedModelId === model.id, isBusy = anyBusy();
             return `<article class="shell-model-card"><div class="shell-model-icon">◈</div><div class="shell-model-info">
