@@ -139,3 +139,97 @@ test("file tool rejects folders and never creates a pending action for them", as
     f.close();
   }
 });
+
+test("Stop during restoration leaves the verified Recovery Vault copy available", async () => {
+  let releaseRestore;
+  let enteredRestore;
+  let shouldPause = true;
+  const entered = new Promise(resolve => { enteredRestore = resolve; });
+  const f = fixture({
+    hooks: {
+      beforeRestoreCommit: () => {
+        if (!shouldPause) return;
+        shouldPause = false;
+        return new Promise(resolve => {
+          releaseRestore = resolve;
+          enteredRestore();
+        });
+      }
+    }
+  });
+  try {
+    const original = path.join(f.root, "restore-stop.txt");
+    fs.writeFileSync(original, "restore operation must be cancellable\n");
+    const request = await f.manager.prepareFileRemoval(original);
+    const completed = await f.manager.approveFileRemoval(request.id);
+    assert.equal(completed.state, "completed");
+    assert.equal(fs.existsSync(original), false);
+
+    const restoring = f.manager.undoAction(request.id);
+    await entered;
+    assert.equal(f.manager.getStatus().isRunning, true);
+    const stopping = f.manager.stopActiveAction();
+    releaseRestore();
+    const [result, stopResult] = await Promise.all([restoring, stopping]);
+
+    assert.equal(result.state, "completed");
+    assert.equal(result.undoable, true);
+    assert.equal(stopResult.stopped, true);
+    assert.equal(fs.existsSync(original), false);
+    assert.equal(fs.existsSync(f.database.get_tool_action({ actionId: request.id }).details.backupPath), true);
+
+    const restored = await f.manager.undoAction(request.id);
+    assert.equal(restored.state, "rolled-back");
+    assert.equal(fs.readFileSync(original, "utf8"), "restore operation must be cancellable\n");
+  } finally {
+    f.close();
+  }
+});
+
+test("startup recovery makes an interrupted restore safely retryable", async () => {
+  const f = fixture();
+  try {
+    const original = path.join(f.root, "retry-restore.txt");
+    fs.writeFileSync(original, "recover after restore interruption\n");
+    const request = await f.manager.prepareFileRemoval(original);
+    const completed = await f.manager.approveFileRemoval(request.id);
+    assert.equal(completed.state, "completed");
+
+    const record = f.database.get_tool_action({ actionId: request.id });
+    const tempPath = path.join(f.root, "." + path.basename(original) + "." + request.id + ".sync-restore.tmp");
+    fs.writeFileSync(tempPath, "incomplete restore\n");
+    f.database.save_tool_action({ action: { ...record, state: "restoring", undoable: true } });
+
+    const recovered = await f.manager.recoverInterrupted();
+    assert.equal(recovered[0].state, "completed");
+    assert.equal(recovered[0].undoable, true);
+    assert.equal(fs.existsSync(tempPath), false);
+    assert.equal(fs.existsSync(record.details.backupPath), true);
+    assert.equal(fs.existsSync(original), false);
+
+    const restored = await f.manager.undoAction(request.id);
+    assert.equal(restored.state, "rolled-back");
+    assert.equal(fs.readFileSync(original, "utf8"), "recover after restore interruption\n");
+  } finally {
+    f.close();
+  }
+});
+
+test("changed file contents after review fail safely without claiming a Recovery Vault copy exists", async () => {
+  const f = fixture();
+  try {
+    const original = path.join(f.root, "changed-after-review.txt");
+    fs.writeFileSync(original, "original text\n");
+    const request = await f.manager.prepareFileRemoval(original);
+    fs.writeFileSync(original, "changed text!!\n");
+    const result = await f.manager.approveFileRemoval(request.id);
+
+    assert.equal(result.state, "failed");
+    assert.equal(result.undoable, false);
+    assert.match(result.error, /changed after the review/i);
+    assert.equal(fs.readFileSync(original, "utf8"), "changed text!!\n");
+    assert.equal(fs.existsSync(f.database.get_tool_action({ actionId: request.id }).details.backupPath), false);
+  } finally {
+    f.close();
+  }
+});
