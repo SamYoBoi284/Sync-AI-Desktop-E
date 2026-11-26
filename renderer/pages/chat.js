@@ -311,7 +311,7 @@ async function mountChat(root, context, initialChatId = null) {
       const result = await api.generateChat(memoryPrompt, memoryGenerationId);
       if (result?.diagnostics?.status === "error") return;
       if (result?.diagnostics?.status === "cancelled") { notice = "Memory update stopped. Your existing saved memories are unchanged."; return; }
-      const learned = String(result.text || "").trim();
+      const learned = String(result.text || "").trim().replace(/^[\s"\x27]+|[\s"\x27]+$/g, "");
       if (!learned) return;
       if (/^NO_CHANGES\b/i.test(learned)) { notice = "No new long-term memory was identified in this conversation."; return; }
       await api.saveMemory({
