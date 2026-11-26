@@ -123,8 +123,10 @@ class ActionManager {
     if (insideDirectory(this.recoveryDir, filePath)) {
       throw new Error("Files inside the Sync AI Recovery Vault are protected and cannot be selected for removal.");
     }
-    if (this.protectedPaths.some(protectedPath => path.resolve(protectedPath) === path.resolve(filePath))) {
-      throw new Error("This file is part of Sync AI's protected application data and cannot be selected for removal.");
+    if (this.protectedPaths.some(protectedPath =>
+      path.resolve(protectedPath) === path.resolve(filePath) || insideDirectory(protectedPath, filePath)
+    )) {
+      throw new Error("Files inside Sync AI's protected application data directory cannot be selected for removal.");
     }
     const stat = await fsp.stat(filePath);
     if (!stat.isFile()) throw new Error("The selected item is not a regular file.");
