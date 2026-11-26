@@ -494,7 +494,24 @@ const handlers = {
     if (picked.canceled || !picked.filePaths[0]) return null;
     return actionManager.prepareFileRemoval(picked.filePaths[0]);
   },
-  approve_file_removal: ({ actionId }) => actionManager.approveFileRemoval(actionId),
+  approve_file_removal: async ({ actionId }) => {
+    const action = database.get_tool_action({ actionId });
+    if (!action || action.state !== "awaiting-approval" || action.toolId !== "file.reversible_remove") {
+      throw new Error("That file action is not awaiting approval.");
+    }
+    const approval = await dialog.showMessageBox(mainWindow, {
+      type: "warning",
+      title: "Approve reversible file removal",
+      message: "Move this file into the Sync AI Recovery Vault?",
+      detail: action.target + "\n\nSync will first create and verify a local recovery copy. The original path will only be removed after the copy passes SHA-256 verification. You can stop the operation while it is running, and you can restore completed actions from Privacy & Tools.",
+      buttons: ["Cancel", "Approve file action"],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true
+    });
+    if (approval.response !== 1) return actionManager.cancelFileRemoval(actionId);
+    return actionManager.approveFileRemoval(actionId);
+  },
   cancel_file_removal: ({ actionId }) => actionManager.cancelFileRemoval(actionId),
   stop_active_action: () => actionManager.stopActiveAction(),
   undo_tool_action: ({ actionId }) => actionManager.undoAction(actionId)
