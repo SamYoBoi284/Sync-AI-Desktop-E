@@ -96,11 +96,12 @@ async function stopActiveActionFromUi() {
   state.stopActionBusy = true;
   renderActionStatus();
   try {
-    await api.stopActiveAction();
-    state.actionStatus = await api.getActionStatus();
+    const result = await api.stopActiveAction();
+    state.actionStatus = result?.status || await api.getActionStatus();
   } catch (error) {
     console.error("Could not stop the active file action:", error);
   } finally {
+    try { state.actionStatus = await api.getActionStatus(); } catch {}
     state.stopActionBusy = false;
     renderActionStatus();
   }
