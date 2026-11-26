@@ -277,26 +277,27 @@ test("changed file contents after review fail safely without claiming a Recovery
 });
 
 
-test("file tool protects the Recovery Vault and explicitly protected application files", async () => {
+test("file tool protects Sync application data and its Recovery Vault", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "sync-ai-protected-test-"));
-  const dbPath = path.join(root, "protected.sqlite3");
+  const appDataDir = path.join(root, "app-data");
+  fs.mkdirSync(appDataDir, { recursive: true });
+  const dbPath = path.join(appDataDir, "protected.sqlite3");
   const database = new SyncDatabase(dbPath);
-  const recoveryDir = path.join(root, "recovery-vault");
-  const protectedFile = path.join(root, "protected.sqlite3");
+  const recoveryDir = path.join(appDataDir, "recovery-vault");
   const vaultFile = path.join(recoveryDir, "existing.recovery");
-  const userFile = path.join(root, "ordinary.txt");
+  const ordinaryFile = path.join(root, "ordinary.txt");
   const manager = new ActionManager({
     database,
     recoveryDir,
-    protectedPaths: [protectedFile]
+    protectedPaths: [appDataDir]
   });
   try {
     fs.mkdirSync(recoveryDir, { recursive: true });
     fs.writeFileSync(vaultFile, "recovery data");
-    fs.writeFileSync(userFile, "ordinary user data");
-    await assert.rejects(manager.prepareFileRemoval(protectedFile), /protected application data/i);
-    await assert.rejects(manager.prepareFileRemoval(vaultFile), /Recovery Vault are protected/i);
-    const safeRequest = await manager.prepareFileRemoval(userFile);
+    fs.writeFileSync(ordinaryFile, "ordinary user data");
+    await assert.rejects(manager.prepareFileRemoval(dbPath), /protected application data directory/i);
+    await assert.rejects(manager.prepareFileRemoval(vaultFile), /protected application data directory/i);
+    const safeRequest = await manager.prepareFileRemoval(ordinaryFile);
     assert.equal(safeRequest.state, "awaiting-approval");
     assert.equal(manager.listHistory().length, 1);
   } finally {
