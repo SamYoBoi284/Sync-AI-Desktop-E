@@ -92,6 +92,95 @@ async function mountChat(root, context, initialChatId = null) {
     if (transcript) transcript.scrollTop = transcript.scrollHeight;
   };
 
+  function matchingTools() {
+    const term = toolMenuQuery.trim().toLowerCase();
+    return fileTools.filter(item => !term || (item.id + " " + item.label + " " + item.aliases).toLowerCase().includes(term));
+  }
+
+  function toolMenuMarkup() {
+    if (!toolMenuOpen) return "";
+    const items = matchingTools();
+    return '<div class="shell-chat-tool-menu" role="listbox" aria-label="Available Sync tools">' +
+      '<div class="shell-chat-tool-menu-heading"><span>SYNC TOOLS</span><small>Choose an operation</small></div>' +
+      (items.length ? items.map((item, index) =>
+        '<button type="button" class="shell-chat-tool-option ' + (index === toolMenuIndex ? "is-active" : "") + '" data-chat-tool="' + esc(item.id) + '" role="option" aria-selected="' + (index === toolMenuIndex) + '">' +
+          '<span class="shell-chat-tool-symbol">⌘</span><span><strong>' + esc(item.label) + '</strong><small>' + esc(item.hint) + '</small></span><kbd>@' + esc(item.id) + '</kbd></button>'
+      ).join("") : '<p class="shell-chat-tool-empty">No matching tools. Try copy, move, rename, delete or folder.</p>') +
+      '<div class="shell-chat-tool-menu-foot">Selected operations require approval</div></div>';
+  }
+
+  function renderToolMenuOnly() {
+    const composer = root.querySelector(".shell-chat-composer");
+    if (!composer) return;
+    composer.querySelector(".shell-chat-tool-menu")?.remove();
+    const markup = toolMenuMarkup();
+    if (markup) composer.insertAdjacentHTML("afterbegin", markup);
+  }
+
+  function toolApprovalMarkup() {
+    if (!pendingToolAction) return "";
+    const action = pendingToolAction;
+    const removing = action.operation === "delete" || action.toolId === "file.reversible_remove";
+    const description = removing
+      ? "Sync will create and verify a Recovery Vault copy before removing the original file."
+      : "Sync will perform this operation only after your approval. Existing destination data will not be overwritten.";
+    return '<div class="chat-tool-modal-backdrop">' +
+      '<section class="chat-tool-modal" role="dialog" aria-modal="true" aria-labelledby="chatToolModalTitle">' +
+        '<div class="chat-tool-modal-kicker"><span>✦</span> SYNC TOOL REQUEST <small>REVIEW REQUIRED</small></div>' +
+        '<h2 id="chatToolModalTitle">' + esc(action.summary || action.fileName || "File operation") + '</h2>' +
+        '<p>' + esc(description) + '</p>' +
+        '<div class="chat-tool-modal-paths">' +
+          (action.sourcePath || action.target ? '<div><small>SOURCE / ORIGINAL</small><code>' + esc(action.sourcePath || action.target) + '</code></div>' : '') +
+          (action.destinationPath ? '<div><small>DESTINATION</small><code>' + esc(action.destinationPath) + '</code></div>' : '') +
+          '<div><small>OPERATION</small><strong>' + esc(String(action.operation || "delete").replace(/-/g, " ").toUpperCase()) + '</strong></div>' +
+        '</div>' +
+        '<div class="chat-tool-modal-actions"><button type="button" class="is-muted" data-chat-action="tool-cancel" ' + (toolActionBusy ? "disabled" : "") + '>Cancel</button><button type="button" data-chat-action="tool-approve" ' + (toolActionBusy ? "disabled" : "") + '>Approve operation</button></div>' +
+      '</section></div>';
+  }
+
+  async function selectFileTool(operation) {
+    if (toolActionBusy || !fileTools.some(item => item.id === operation)) return;
+    toolMenuOpen = false;
+    inputValue = inputValue.replace(/(?:^|\s)@[a-z0-9_-]*$/i, "").trimEnd();
+    let folderName = "";
+    if (operation === "create-folder") {
+      folderName = window.prompt("Name for the new folder", "New Folder");
+      if (folderName === null || !folderName.trim()) { render(); return; }
+    }
+    toolActionBusy = true;
+    error = ""; notice = ""; render();
+    try {
+      const prepared = await api.prepareFileOperation(operation, folderName);
+      if (prepared) {
+        pendingToolAction = prepared;
+        notice = "Tool request prepared. Review the exact paths before approving.";
+      }
+    } catch (cause) { error = errorText(cause); }
+    finally { toolActionBusy = false; render(); }
+  }
+
+  async function executePendingTool(approve) {
+    const action = pendingToolAction;
+    if (!action || toolActionBusy) return;
+    toolActionBusy = true; render();
+    try {
+      if (approve) {
+        const result = await api.approveFileAction(action.id);
+        if (result?.state === "completed") notice = "File operation completed. You can undo it from Settings → Privacy & Tools.";
+        else if (result?.state === "recovery-required") error = result.error || "The operation needs recovery attention. Sync preserved the affected data.";
+        else if (result?.state === "stopped") notice = "Operation stopped. Sync rolled back changes where possible.";
+        else if (result?.state === "failed") error = result.error || "The file operation failed.";
+      } else {
+        await api.cancelFileAction(action.id);
+        notice = "Tool request cancelled. No file changes were made.";
+      }
+      pendingToolAction = null;
+    } catch (cause) {
+      error = errorText(cause);
+      pendingToolAction = null;
+    } finally { toolActionBusy = false; render(); }
+  }
+
   function render() {
     const oldInput = root.querySelector("#chatComposerInput");
     const focused = oldInput && document.activeElement === oldInput;
@@ -131,14 +220,16 @@ async function mountChat(root, context, initialChatId = null) {
           ${queuedCount > 0 ? '<p class="shell-chat-queue-status">' + queuedCount + ' message' + (queuedCount === 1 ? "" : "s") + " queued</p>" : ""}
           <div class="shell-chat-composer">
             <textarea id="chatComposerInput" placeholder="${runtime?.isLoaded ? "Message Sync AI…" : "Load a local model to start chatting"}" aria-label="Message Sync AI" rows="2" ${!runtime?.isLoaded || loading ? "disabled" : ""}>${esc(inputValue)}</textarea>
+            ${toolMenuMarkup()}
             <div class="shell-chat-composer-actions">
+              <button class="shell-chat-mention" type="button" data-chat-action="insert-mention" title="Browse Sync tools">@</button>
               ${generating ? '<button class="shell-chat-stop" type="button" data-chat-action="stop" ' + (!stopAvailable || cancelling ? "disabled" : "") + ">" + (cancelling ? "Stopping…" : stopAvailable ? "Stop" : "Starting…") + "</button>" : ""}
               <button class="shell-chat-send" type="button" data-chat-action="send" ${!inputValue.trim() || !runtime?.isLoaded || loading ? "disabled" : ""}>Send ↑</button>
             </div>
           </div>
-          <p class="shell-chat-composer-hint">Enter to send · Shift + Enter for a new line · queued messages run in order</p>
+          <p class="shell-chat-composer-hint">Enter to send · Shift + Enter for a new line · Type @ to browse tools · queued messages run in order</p>
         </footer>
-      </section>`;
+      </section>` + toolApprovalMarkup();
     if (focused) {
       const nextInput = root.querySelector("#chatComposerInput");
       nextInput?.focus();
@@ -332,19 +423,50 @@ async function mountChat(root, context, initialChatId = null) {
   root.addEventListener("input", event => {
     if (event.target.id === "chatComposerInput") {
       inputValue = event.target.value;
+      const caret = event.target.selectionStart ?? inputValue.length;
+      const mention = inputValue.slice(0, caret).match(/(?:^|\s)@([a-z0-9_-]*)$/i);
+      toolMenuOpen = Boolean(mention);
+      toolMenuQuery = mention?.[1] || "";
+      toolMenuIndex = 0;
       const button = root.querySelector('[data-chat-action="send"]');
       if (button) button.disabled = !inputValue.trim() || !runtime?.isLoaded || loading;
+      renderToolMenuOnly();
     }
   });
   root.addEventListener("keydown", event => {
-    if (event.target.id === "chatComposerInput" && event.key === "Enter" && !event.shiftKey) {
+    if (event.target.id !== "chatComposerInput") return;
+    if (toolMenuOpen && event.key === "ArrowDown") {
+      event.preventDefault(); toolMenuIndex = Math.min(matchingTools().length - 1, toolMenuIndex + 1); renderToolMenuOnly(); return;
+    }
+    if (toolMenuOpen && event.key === "ArrowUp") {
+      event.preventDefault(); toolMenuIndex = Math.max(0, toolMenuIndex - 1); renderToolMenuOnly(); return;
+    }
+    if (toolMenuOpen && event.key === "Escape") {
+      toolMenuOpen = false; renderToolMenuOnly(); return;
+    }
+    if (toolMenuOpen && event.key === "Enter" && !event.shiftKey) {
+      const item = matchingTools()[toolMenuIndex] || matchingTools()[0];
+      if (item) { event.preventDefault(); void selectFileTool(item.id); return; }
+    }
+    if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault(); submitMessage(inputValue);
     }
   });
   root.addEventListener("click", event => {
+    const toolOption = event.target.closest("[data-chat-tool]");
+    if (toolOption) { void selectFileTool(toolOption.dataset.chatTool); return; }
     const button = event.target.closest("[data-chat-action]");
     if (!button) return;
     const action = button.dataset.chatAction;
+    if (action === "insert-mention") {
+      inputValue += (inputValue && !inputValue.endsWith(" ") ? " " : "") + "@";
+      toolMenuOpen = true; toolMenuQuery = ""; toolMenuIndex = 0;
+      render();
+      root.querySelector("#chatComposerInput")?.focus();
+      return;
+    }
+    if (action === "tool-approve") { void executePendingTool(true); return; }
+    if (action === "tool-cancel") { void executePendingTool(false); return; }
     if (action === "send") submitMessage(inputValue);
     if (action === "stop") void stopGeneration();
     if (action === "new" && !generating && !queue.length) {
