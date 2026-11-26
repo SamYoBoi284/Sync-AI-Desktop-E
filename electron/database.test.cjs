@@ -60,3 +60,22 @@ test("rejects invalid roles, malformed backups and invalid task states", () => w
   assert.throws(() => db.import_chat_backup({ backup: { format: "wrong", formatVersion: 1, chats: [] } }));
   assert.throws(() => db.save_task({ task: { title: "bad", details: "", status: "unknown", priority: "normal" } }));
 }));
+
+test("supports archive, pin, folders, edit-from-turn and single-chat export", () => withDb(db => {
+  const folder = db.create_chat_folder({ name: "Project Alpha" });
+  const chat = db.create_chat({ title: "Conversation" });
+  const first = db.append_message({ chatId: chat.id, message: { role: "user", body: "first draft" } });
+  db.append_message({ chatId: chat.id, message: { role: "assistant", body: "old reply" } });
+  db.append_message({ chatId: chat.id, message: { role: "user", body: "later turn" } });
+  const edited = db.edit_user_message({ chatId: chat.id, messageId: first.id, body: "revised first turn" });
+  assert.deepEqual(edited.messages.map(m => m.body), ["revised first turn"]);
+  db.update_chat_metadata({ chatId: chat.id, pinned: true, folderId: folder.id });
+  assert.equal(db.list_chats({ folderId: folder.id })[0].isPinned, true);
+  db.update_chat_metadata({ chatId: chat.id, archived: true });
+  assert.equal(db.list_chats().length, 0);
+  assert.equal(db.list_chats({ includeArchived: true, archivedOnly: true }).length, 1);
+  db.update_chat_metadata({ chatId: chat.id, archived: false });
+  assert.equal(db.export_chat({ chatId: chat.id }).chats[0].messages[0].body, "revised first turn");
+  db.delete_chat_folder({ folderId: folder.id });
+  assert.equal(db.get_chat({ chatId: chat.id }).folderId, null);
+}));

@@ -78,3 +78,13 @@ test("chat generation survives navigation and shows an animated state", () => {
   assert.match(styles, /@keyframes syncChatDot/);
   assert.match(styles, /::-webkit-scrollbar-thumb/);
 });
+
+test("chat-management IPC methods are wired through the renderer bridge", () => {
+  assert.match(main, /edit_user_message:/);
+  assert.match(main, /update_chat_metadata:/);
+  assert.match(main, /list_chat_folders:/);
+  assert.match(main, /export_chat:/);
+  assert.match(bridge, /editUserMessage:/);
+  assert.match(bridge, /updateChatMetadata:/);
+  assert.match(bridge, /listChatFolders:/);
+});
