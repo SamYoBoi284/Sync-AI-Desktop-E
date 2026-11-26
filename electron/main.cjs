@@ -614,7 +614,11 @@ app.whenReady().then(async () => {
 
 app.on("before-quit", event => {
   isQuitting = true;
-  if (!waitingForActionShutdown && actionManager?.getStatus().isRunning) {
+  if (waitingForActionShutdown) {
+    event.preventDefault();
+    return;
+  }
+  if (actionManager?.getStatus().isRunning) {
     event.preventDefault();
     waitingForActionShutdown = true;
     logStartup("Stopping and rolling back the active tool action before exit.");
