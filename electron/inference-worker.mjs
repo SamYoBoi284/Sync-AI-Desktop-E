@@ -78,9 +78,6 @@ async function generate(data) {
       temperature: 0.7,
       signal: controller.signal,
       stopOnAbortSignal: true,
-      onToken(tokens) {
-        generatedTokens += tokens.length;
-      },
       onTextChunk(chunk) {
         if (!chunk) return;
         if (promptEvalMs == null) {
@@ -90,6 +87,7 @@ async function generate(data) {
         send("GENERATION_EVENT", { event: { event: "token", generationId, token: chunk } });
       }
     });
+    generatedTokens = model.tokenize(response).length;
     const totalMs = Number(process.hrtime.bigint() - clock) / 1e6;
     const generationMs = Math.max(0, totalMs - (promptEvalMs ?? 0));
     const tokensPerSecond = generationMs > 0 ? generatedTokens / (generationMs / 1000) : null;
