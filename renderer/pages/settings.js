@@ -37,7 +37,7 @@ async function mountSettings(root, context) {
         </section>
         <div class="shell-settings-grid shell-settings-secondary">
           <button class="shell-settings-card" type="button" data-settings="models"><span class="shell-settings-card-icon">◈</span><span><strong>Local models</strong><small>GGUF library, original file paths and model selection.</small></span><span class="shell-settings-card-arrow">›</span></button>
-          <div class="shell-settings-card is-staged"><span class="shell-settings-card-icon">⌑</span><span><strong>Privacy and permissions</strong><small>Explicit approval controls arrive with the secure tool system.</small></span><span class="shell-settings-card-state">PLANNED</span></div>
+          <button class="shell-settings-card" type="button" data-settings="privacy-tools"><span class="shell-settings-card-icon">⌑</span><span><strong>Privacy &amp; Tools</strong><small>Review tool approvals, action history, Stop &amp; Restore, and local data boundaries.</small></span><span class="shell-settings-card-arrow">›</span></button>
         </div>
         <p class="shell-settings-footnote">Changing the saved ceiling does not resize a running worker. Unload and load the model again to apply a new limit. No model is loaded automatically at startup.</p>
       </section>`;
@@ -64,6 +64,7 @@ async function mountSettings(root, context) {
     if (action === "appearance") context.navigate("appearance");
     if (action === "runtime") context.navigate("runtime");
     if (action === "models") context.navigate("models");
+    if (action === "privacy-tools") context.navigate("privacy-tools");
     if (action === "save" && !saving) {
       saving = true; message = ""; render();
       try {
