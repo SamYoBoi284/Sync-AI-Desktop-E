@@ -107,13 +107,6 @@ async function mountPrivacyTools(root) {
     if (busyId || !id) return;
     const action = actions.find(item => item.id === id);
     if (!action) return;
-    if (name === "approve") {
-      const confirmed = window.confirm(
-        "Approve reversible removal of this file?\n\n" + action.target +
-        "\n\nSync will verify a recovery copy before removing the original path. You can stop the operation while it is running, and completed actions can be undone."
-      );
-      if (!confirmed) return;
-    }
     if (name === "undo") {
       const confirmed = window.confirm("Restore this file to its original path?\n\n" + action.target + "\n\nSync will not overwrite a different file that already exists there.");
       if (!confirmed) return;
