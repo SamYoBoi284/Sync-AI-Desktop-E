@@ -79,7 +79,7 @@ class ActionManager {
   }
 
   save(action) {
-    const saved = this.database.save_tool_action({ action });
+    const saved = this.database.save_tool_action({ action: { ...action, updatedAt: now() } });
     try {
       this.onChange({
         status: this.getStatus(),
@@ -116,8 +116,10 @@ class ActionManager {
     await fsp.mkdir(this.recoveryDir, { recursive: true });
     const id = crypto.randomUUID();
     const fileName = path.basename(filePath);
+    const previewHash = await hashFile(filePath);
     const details = {
       fileName,
+      sha256: previewHash,
       sizeBytes: stat.size,
       mtimeMs: stat.mtimeMs,
       atimeMs: stat.atimeMs,
@@ -176,6 +178,9 @@ class ActionManager {
         throw new Error("The selected file changed after the review. Nothing was changed. Prepare the action again.");
       }
       const originalHash = await hashFile(action.target, signal);
+      if (details.sha256 && details.sha256 !== originalHash) {
+        throw new Error("The selected file contents changed after the review. Nothing was changed. Prepare the action again.");
+      }
       details.sha256 = originalHash;
       action = this.save({ ...action, state: "running", undoable: false, details, error: null });
 
