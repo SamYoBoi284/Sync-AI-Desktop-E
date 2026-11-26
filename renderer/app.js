@@ -73,15 +73,22 @@ function updateTopbar() {
 
 function renderActionStatus() {
   const running = Boolean(state.actionStatus?.isRunning);
+  const restoring = state.actionStatus.activeAction?.state === "restoring";
   const status = document.getElementById("actionRunningStatus");
   const button = document.getElementById("globalStopAction");
   if (!status || !button) return;
   status.hidden = !running;
-  status.textContent = running ? "ACTION · " + (state.actionStatus.activeAction?.fileName || "FILE OPERATION") : "";
+  status.textContent = running
+    ? (restoring ? "RESTORING · " : "ACTION · ") + (state.actionStatus.activeAction?.fileName || "FILE OPERATION")
+    : "";
   button.hidden = !running;
   button.disabled = state.stopActionBusy;
-  button.textContent = state.stopActionBusy ? "STOPPING & RESTORING…" : "STOP & RESTORE";
-  button.setAttribute("aria-label", "Stop the active file action and restore its original file");
+  button.textContent = state.stopActionBusy
+    ? (restoring ? "STOPPING RESTORE…" : "STOPPING & RESTORING…")
+    : (restoring ? "STOP RESTORE" : "STOP & RESTORE");
+  button.setAttribute("aria-label", restoring
+    ? "Stop this restore attempt while keeping the Recovery Vault copy"
+    : "Stop the active file action and restore its original file");
 }
 
 async function stopActiveActionFromUi() {
