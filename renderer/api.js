@@ -68,9 +68,6 @@ const api = {
   removeLibraryFile: fileId => invoke("remove_library_file", { fileId }),
   getActionStatus: () => invoke("get_action_status"),
   listToolActions: (limit = 100) => invoke("list_tool_actions", { limit }),
-  prepareFileOperation: (operation, folderName = "") => invoke("prepare_file_operation", { operation, folderName }),
-  approveFileAction: actionId => invoke("approve_file_action", { actionId }),
-  cancelFileAction: actionId => invoke("cancel_file_action", { actionId }),
   stopActiveAction: () => invoke("stop_active_action"),
   undoToolAction: actionId => invoke("undo_tool_action", { actionId }),
 };
