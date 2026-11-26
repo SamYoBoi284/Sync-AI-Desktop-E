@@ -77,6 +77,43 @@ test("Stop during a reversible removal cancels before unlink and preserves the o
   }
 });
 
+
+test("Stop after the original file is removed automatically restores it from the Recovery Vault", async () => {
+  let releaseUnlink;
+  let enteredUnlink;
+  const entered = new Promise(resolve => { enteredUnlink = resolve; });
+  const f = fixture({
+    hooks: {
+      afterUnlink: () => new Promise(resolve => {
+        releaseUnlink = resolve;
+        enteredUnlink();
+      })
+    }
+  });
+  try {
+    const original = path.join(f.root, "already-removed.txt");
+    const bytes = "this file must come back when Stop is pressed\n";
+    fs.writeFileSync(original, bytes);
+    const request = await f.manager.prepareFileRemoval(original);
+    const operation = f.manager.approveFileRemoval(request.id);
+    await entered;
+    assert.equal(f.manager.getStatus().isRunning, true);
+    assert.equal(fs.existsSync(original), false);
+
+    const stopping = f.manager.stopActiveAction();
+    releaseUnlink();
+    const [result, stopResult] = await Promise.all([operation, stopping]);
+
+    assert.equal(result.state, "stopped");
+    assert.equal(stopResult.action.state, "stopped");
+    assert.equal(fs.readFileSync(original, "utf8"), bytes);
+    assert.equal(fs.existsSync(path.join(f.recoveryDir, request.id + ".recovery")), false);
+    assert.equal(f.manager.getStatus().isRunning, false);
+  } finally {
+    f.close();
+  }
+});
+
 test("startup recovery restores a file if the app stopped after removing its original path", async () => {
   const f = fixture();
   try {
