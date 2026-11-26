@@ -1,7 +1,7 @@
 (() => {
 const pageTitles = {
   "new-chat": "New chat", history: "History", workspace: "Workspace", tasks: "Tasks & Notes",
-  library: "File Library", models: "Local models", appearance: "Appearance", runtime: "Runtime", settings: "Settings", "privacy-tools": "Privacy & Tools"
+  library: "File Library", models: "Local models", appearance: "Appearance", runtime: "Runtime", memory: "Memory", settings: "Settings", "privacy-tools": "Privacy & Tools"
 };
 const navigationSections = [
   { heading: "WORKSPACE", entries: [
