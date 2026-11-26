@@ -13,6 +13,7 @@ async function mountPrivacyTools(root) {
   let selectedOperation = "delete";
   let folderName = "";
   let pendingModal = null;
+  let modalReturnFocus = null;
   let disposed = false;
 
   const stateLabel = state => ({
@@ -44,6 +45,23 @@ async function mountPrivacyTools(root) {
         (action.error ? '<p class="privacy-action-error">' + esc(action.error) + '</p>' : '') +
         (controls ? '<div class="privacy-action-controls">' + controls + '</div>' : '') +
       '</div></article>';
+  }
+
+  function focusModal() {
+    const modal = root.querySelector(".privacy-modal");
+    if (!modal) return;
+    const first = modal.querySelector('[data-tool-action="modal-close"], button:not([disabled]), [tabindex="0"]');
+    (first || modal).focus?.();
+  }
+
+  function closeModal() {
+    pendingModal = null;
+    render();
+    const target = modalReturnFocus;
+    modalReturnFocus = null;
+    if (target?.isConnected && typeof target.focus === "function") {
+      requestAnimationFrame(() => target.focus({ preventScroll: true }));
+    }
   }
 
   function renderModal() {
@@ -137,8 +155,8 @@ async function mountPrivacyTools(root) {
   }
 
   async function runAction(name, id) {
-    if (name === "modal-close" || name === "modal-backdrop") {
-      pendingModal = null; render(); return;
+    if (name === "modal-close") {
+      closeModal(); return;
     }
     if (name === "prepare") {
       if (preparing || status.isRunning) return;
@@ -157,15 +175,17 @@ async function mountPrivacyTools(root) {
     if (name === "refresh") { await refresh(); return; }
     if (name === "approve" || name === "undo" || name === "cancel") {
       if (!id) return;
+      modalReturnFocus = document.activeElement;
       pendingModal = { kind: name, id };
       render();
+      requestAnimationFrame(focusModal);
       return;
     }
     if (name === "modal-confirm") {
       const current = pendingModal;
       const actionId = current?.id || id;
       if (!current || !actionId || busyId) return;
-      busyId = actionId; pendingModal = null; error = ""; notice = ""; render();
+      busyId = actionId; pendingModal = null; modalReturnFocus = null; error = ""; notice = ""; render();
       try {
         let result;
         if (current.kind === "approve") result = await api.approveFileAction(actionId);
@@ -208,11 +228,35 @@ async function mountPrivacyTools(root) {
     if (event.target.id === "privacyFolderName") folderName = event.target.value;
   });
   root.addEventListener("click", event => {
+    // Only a click on the backdrop itself closes the modal. Clicks inside the
+    // dialog must never be mistaken for backdrop clicks.
+    if (event.target.matches(".privacy-modal-backdrop")) {
+      closeModal();
+      return;
+    }
     const button = event.target.closest("[data-tool-action]");
     if (button) void runAction(button.dataset.toolAction, button.dataset.id);
   });
   const onKeyDown = event => {
-    if (event.key === "Escape" && pendingModal) { pendingModal = null; render(); }
+    if (!pendingModal) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeModal();
+      return;
+    }
+    if (event.key === "Tab") {
+      const modal = root.querySelector(".privacy-modal");
+      const focusable = Array.from(modal?.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') || []);
+      if (!focusable.length) { event.preventDefault(); return; }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) {
+        event.preventDefault(); first.focus();
+      }
+    }
   };
   window.addEventListener("keydown", onKeyDown);
   await refresh();
