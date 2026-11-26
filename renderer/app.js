@@ -1,12 +1,12 @@
 (() => {
 const { api } = window.SyncAI;
 const { pageTitles, navigationSections, esc, errorText } = window.SyncAI.shared;
-const { mountChat, mountHistory, mountModels, mountWorkspace, mountTasks, mountLibrary, mountRuntime, mountSettings, mountPreview } = window.SyncAI.pages;
+const { mountChat, mountHistory, mountModels, mountWorkspace, mountTasks, mountLibrary, mountRuntime, mountSettings, mountPrivacyTools, mountPreview } = window.SyncAI.pages;
 
 const root = document.getElementById("root");
 if (!root) throw new Error("The Sync AI Desktop root element is missing.");
 
-const state = { page: "new-chat", selectedChatId: null, info: null, bridge: "checking", cleanup: null, splash: false };
+const state = { page: "new-chat", selectedChatId: null, info: null, bridge: "checking", cleanup: null, splash: false, actionStatus: { isRunning: false, activeAction: null }, stopActionBusy: false };
 const appMarkup = () => `
   <div class="shell-root" id="appShell">
     <aside class="shell-sidebar" aria-label="Main navigation">
@@ -34,7 +34,7 @@ const appMarkup = () => `
     <main class="shell-main">
       <header class="shell-topbar">
         <div class="shell-breadcrumb"><span>SYNC AI</span><span class="shell-breadcrumb-slash">/</span><strong id="breadcrumbTitle">NEW CHAT</strong></div>
-        <div class="shell-topbar-meta"><span class="shell-version-label" id="topbarVersion">BUILD 0.1.0</span><span class="shell-connection-pill is-checking" id="connectionPill"><span class="shell-connection-dot"></span>CONNECTING</span></div>
+        <div class="shell-topbar-meta"><span class="shell-action-running" id="actionRunningStatus" hidden>FILE ACTION RUNNING</span><button class="shell-stop-action" id="globalStopAction" type="button" hidden>STOP &amp; RESTORE</button><span class="shell-version-label" id="topbarVersion">BUILD 0.1.0</span><span class="shell-connection-pill is-checking" id="connectionPill"><span class="shell-connection-dot"></span>CONNECTING</span></div>
       </header>
       <div class="shell-page-scroll" id="pageHost"><p class="shell-chat-empty">Preparing your workspace…</p></div>
     </main>
@@ -68,6 +68,35 @@ function updateTopbar() {
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-current", active ? "page" : "false");
   });
+  renderActionStatus();
+}
+
+function renderActionStatus() {
+  const running = Boolean(state.actionStatus?.isRunning);
+  const status = document.getElementById("actionRunningStatus");
+  const button = document.getElementById("globalStopAction");
+  if (!status || !button) return;
+  status.hidden = !running;
+  status.textContent = running ? "ACTION · " + (state.actionStatus.activeAction?.fileName || "FILE OPERATION") : "";
+  button.hidden = !running;
+  button.disabled = state.stopActionBusy;
+  button.textContent = state.stopActionBusy ? "STOPPING & RESTORING…" : "STOP & RESTORE";
+  button.setAttribute("aria-label", "Stop the active file action and restore its original file");
+}
+
+async function stopActiveActionFromUi() {
+  if (state.stopActionBusy || !state.actionStatus?.isRunning) return;
+  state.stopActionBusy = true;
+  renderActionStatus();
+  try {
+    await api.stopActiveAction();
+    state.actionStatus = await api.getActionStatus();
+  } catch (error) {
+    console.error("Could not stop the active file action:", error);
+  } finally {
+    state.stopActionBusy = false;
+    renderActionStatus();
+  }
 }
 
 async function refreshRecent() {
@@ -130,6 +159,7 @@ async function renderPage() {
       case "library": cleanup = await mountLibrary(pageHost, context); break;
       case "runtime": cleanup = await mountRuntime(pageHost, context); break;
       case "settings": cleanup = await mountSettings(pageHost, context); break;
+      case "privacy-tools": cleanup = await mountPrivacyTools(pageHost, context); break;
       default: cleanup = await mountPreview(pageHost, context, state.page); break;
     }
     state.cleanup = typeof cleanup === "function" ? cleanup : () => {};
@@ -139,6 +169,7 @@ async function renderPage() {
 }
 
 document.addEventListener("click", event => {
+  if (event.target.closest("#globalStopAction")) { void stopActiveActionFromUi(); return; }
   const nav = event.target.closest("[data-nav]");
   if (nav) { navigate(nav.dataset.nav); return; }
   const open = event.target.closest("[data-open-chat]");
@@ -148,6 +179,11 @@ document.addEventListener("click", event => {
   if (action.dataset.action === "new-chat") navigate("new-chat");
   if (action.dataset.action === "go-history") navigate("history");
 });
+window.SyncAI.onActionEvent(payload => {
+  state.actionStatus = payload?.status || { isRunning: false, activeAction: null };
+  renderActionStatus();
+});
+
 document.getElementById("recentSearch").addEventListener("input", () => {
   document.getElementById("clearRecentSearch").hidden = !document.getElementById("recentSearch").value;
   void refreshRecent();
@@ -168,6 +204,7 @@ async function bootstrap() {
   try {
     state.splash = await api.consumeStartupSplash();
     state.info = await api.getAppInfo();
+    state.actionStatus = await api.getActionStatus();
     state.bridge = "connected";
   } catch (error) {
     state.bridge = "preview";
