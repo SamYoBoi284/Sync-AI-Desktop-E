@@ -375,3 +375,42 @@
 .privacy-feedback{margin:12px 0;padding:10px 12px;border:1px solid rgba(97,215,190,.17);border-radius:8px;color:#8dd7c8;background:rgba(97,215,190,.04);font-size:9px}
 .privacy-feedback.is-error{border-color:rgba(255,120,140,.2);color:#d99aa7;background:rgba(255,120,140,.04)}
 @media(max-width:760px){.privacy-policy-grid{grid-template-columns:1fr}.privacy-tool-row,.privacy-tool-launch{align-items:flex-start;flex-direction:column}.privacy-tool-launch button{width:100%}.shell-action-running{display:none}.shell-stop-action{font-size:6px;padding:0 8px}}
+
+
+/* Local models: primary empty-library GGUF selection action */
+.shell-model-empty .shell-model-import{
+  display:inline-flex;
+  min-width:176px;
+  min-height:41px;
+  align-items:center;
+  justify-content:center;
+  padding:0 18px;
+  border:1px solid rgba(183,153,255,.42);
+  border-radius:10px;
+  color:#f5f0ff;
+  background:linear-gradient(110deg,rgba(145,103,227,.32),rgba(79,201,228,.12));
+  box-shadow:0 7px 24px rgba(105,69,184,.13);
+  font:600 8px var(--mono);
+  letter-spacing:.07em;
+  transition:transform 140ms ease,border-color 140ms ease,background 140ms ease,box-shadow 140ms ease;
+}
+.shell-model-empty .shell-model-import:hover:not(:disabled){
+  transform:translateY(-1px);
+  border-color:rgba(183,153,255,.72);
+  background:linear-gradient(110deg,rgba(145,103,227,.43),rgba(79,201,228,.18));
+  box-shadow:0 9px 27px rgba(105,69,184,.2);
+}
+.shell-model-empty .shell-model-import:focus-visible{
+  outline:2px solid rgba(104,216,235,.88);
+  outline-offset:3px;
+}
+.shell-model-empty .shell-model-import:disabled{
+  transform:none;
+  cursor:wait;
+  opacity:.55;
+  box-shadow:none;
+}
+@media(prefers-reduced-motion:reduce){
+  .shell-model-empty .shell-model-import{transition:none}
+  .shell-model-empty .shell-model-import:hover{transform:none}
+}
