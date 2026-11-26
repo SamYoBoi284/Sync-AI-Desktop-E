@@ -15,6 +15,7 @@ async function mountPrivacyTools(root) {
   const stateLabel = state => ({
     "awaiting-approval": "AWAITING YOUR APPROVAL",
     running: "RUNNING",
+    restoring: "RESTORING FILE",
     completed: "COMPLETED · UNDO AVAILABLE",
     "rolled-back": "RESTORED",
     stopped: "STOPPED · ORIGINAL PRESERVED",
@@ -26,8 +27,8 @@ async function mountPrivacyTools(root) {
   function renderAction(action) {
     const controls = action.state === "awaiting-approval"
       ? '<button type="button" data-tool-action="approve" data-id="' + esc(action.id) + '" ' + (busyId ? "disabled" : "") + '>Review &amp; approve</button><button type="button" class="is-muted" data-tool-action="cancel" data-id="' + esc(action.id) + '" ' + (busyId ? "disabled" : "") + '>Cancel request</button>'
-      : action.state === "completed" && action.undoable
-        ? '<button type="button" data-tool-action="undo" data-id="' + esc(action.id) + '" ' + (busyId ? "disabled" : "") + '>Undo &amp; restore file</button>'
+      : ["completed", "recovery-required"].includes(action.state) && action.undoable
+        ? '<button type="button" data-tool-action="undo" data-id="' + esc(action.id) + '" ' + (busyId ? "disabled" : "") + '>' + (action.state === "recovery-required" ? "Retry restore" : "Undo &amp; restore file") + '</button>'
         : "";
     return '<article class="privacy-action-card">' +
       '<div class="privacy-action-main">' +
@@ -53,7 +54,7 @@ async function mountPrivacyTools(root) {
         '<div class="privacy-policy-grid">' +
           '<article class="privacy-policy-card"><span class="privacy-policy-icon">⌂</span><strong>Local-first storage</strong><p>Chats, settings, tasks, notes, model registrations and action history are stored in the app\'s local data folder.</p><small>NO CLOUD SYNC CONNECTED</small></article>' +
           '<article class="privacy-policy-card"><span class="privacy-policy-icon">◈</span><strong>Explicit file access</strong><p>The File Library stores selected paths and SHA-256 fingerprints. It does not read file contents into chat.</p><small>NO AUTOMATIC FILE SCANNING</small></article>' +
-          '<article class="privacy-policy-card"><span class="privacy-policy-icon">⊙</span><strong>Approval before action</strong><p>The available file action starts from a native picker and waits for a separate approval in this page.</p><small>NO SILENT APPROVALS</small></article>' +
+          '<article class="privacy-policy-card"><span class="privacy-policy-icon">⊙</span><strong>Approval before action</strong><p>The available file action starts from a native picker and waits for a separate approval in this page. Restore operations can also be stopped safely.</p><small>NO SILENT APPROVALS</small></article>' +
           '<article class="privacy-policy-card"><span class="privacy-policy-icon">↶</span><strong>Stop &amp; restore</strong><p>Stop cancels the active file operation and attempts to restore its original file. Completed removals can be undone from the history below.</p><small>VERIFIED RECOVERY COPIES</small></article>' +
         '</div>' +
         '<section class="shell-settings-panel privacy-tools-panel">' +
