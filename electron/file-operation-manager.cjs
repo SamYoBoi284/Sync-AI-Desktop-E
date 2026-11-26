@@ -220,6 +220,7 @@ class FileOperationManager extends ActionManager {
             checkAbort(signal);
             if ((await hashFile(details.sourcePath, signal)) !== details.sha256) throw new Error("The source changed before the move could finish. Both paths were preserved.");
             await fsp.unlink(details.sourcePath);
+            checkAbort(signal);
           }
           if ((await hashFile(details.destinationPath, signal)) !== details.sha256) {
             throw new Error("The moved file failed its final SHA-256 verification.");
