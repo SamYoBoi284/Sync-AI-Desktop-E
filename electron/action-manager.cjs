@@ -60,11 +60,13 @@ function insideDirectory(parent, candidate) {
 }
 
 class ActionManager {
-  constructor({ database, recoveryDir, onChange = () => {}, hooks = {} }) {
+  constructor({ database, recoveryDir, protectedPaths = [], onChange = () => {}, hooks = {} }) {
     if (!database) throw new Error("ActionManager requires the local database.");
     if (!recoveryDir) throw new Error("ActionManager requires a Recovery Vault directory.");
+    if (!Array.isArray(protectedPaths)) throw new Error("Protected paths must be an array.");
     this.database = database;
     this.recoveryDir = path.resolve(recoveryDir);
+    this.protectedPaths = protectedPaths.filter(value => typeof value === "string" && value.trim()).map(value => path.resolve(value));
     this.onChange = onChange;
     this.hooks = hooks;
     this.active = null;
@@ -118,6 +120,12 @@ class ActionManager {
     if (selectedStat.isSymbolicLink()) throw new Error("Symbolic links cannot be moved by this tool. Choose the actual file instead.");
     if (!selectedStat.isFile()) throw new Error("Only individual files are supported. Folders and special files are not allowed.");
     const filePath = await fsp.realpath(selectedPath);
+    if (insideDirectory(this.recoveryDir, filePath)) {
+      throw new Error("Files inside the Sync AI Recovery Vault are protected and cannot be selected for removal.");
+    }
+    if (this.protectedPaths.some(protectedPath => path.resolve(protectedPath) === path.resolve(filePath))) {
+      throw new Error("This file is part of Sync AI's protected application data and cannot be selected for removal.");
+    }
     const stat = await fsp.stat(filePath);
     if (!stat.isFile()) throw new Error("The selected item is not a regular file.");
     if (stat.size > MAX_FILE_BYTES) throw new Error("Files larger than 512 MiB are not supported by the reversible file tool.");
