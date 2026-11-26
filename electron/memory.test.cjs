@@ -50,3 +50,24 @@ test("memory content is limited to one MiB", () => {
     );
   } finally { f.close(); }
 });
+
+
+test("memory library has a four MiB aggregate storage ceiling", () => {
+  const f = fixture();
+  try {
+    for (let index = 0; index < 4; index++) {
+      f.db.save_memory({
+        memory: {
+          title: "Memory " + index,
+          content: "x".repeat(1024 * 1024),
+          source: "storage-cap-test"
+        }
+      });
+    }
+    assert.throws(
+      () => f.db.save_memory({ memory: { title: "Over limit", content: "y", source: "storage-cap-test" } }),
+      /4 MiB storage limit/
+    );
+    assert.equal(f.db.list_memories().length, 4);
+  } finally { f.close(); }
+});
