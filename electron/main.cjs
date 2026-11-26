@@ -331,6 +331,68 @@ async function importLibraryFile() {
   return database.register_library_file(info);
 }
 
+function extractImportedMemory(raw, extension) {
+  const source = String(raw || "").replace(/^\uFEFF/, "").trim();
+  if (!source) throw new Error("The selected memory file is empty.");
+  if (!["json", "jsonl"].includes(extension)) return source.slice(0, 1024 * 1024);
+
+  let parsed;
+  try {
+    parsed = extension === "jsonl"
+      ? source.split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line))
+      : JSON.parse(source);
+  } catch {
+    if (extension === "jsonl") throw new Error("The selected JSONL file contains an invalid JSON line.");
+    return source.slice(0, 1024 * 1024);
+  }
+
+  const preferred = /^(memories?|memory_summary|user_memory|user_profile|profile|facts?|preferences?|instructions?|summary|content|text|description|bio|about|user_context)$/i;
+  const extracted = [];
+  const seen = new Set();
+  const visit = (value, key = "", inherited = false, depth = 0) => {
+    if (depth > 24 || extracted.join("\n").length >= 1024 * 1024) return;
+    const selected = inherited || preferred.test(key);
+    if (typeof value === "string") {
+      const clean = value.trim();
+      if (selected && clean && !seen.has(clean)) { seen.add(clean); extracted.push(clean); }
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item, key, selected, depth + 1);
+      return;
+    }
+    if (value && typeof value === "object") {
+      for (const [childKey, child] of Object.entries(value)) {
+        if (selected || preferred.test(childKey)) visit(child, childKey, selected, depth + 1);
+      }
+    }
+  };
+  visit(parsed);
+  const result = extracted.length ? extracted.join("\n\n") : JSON.stringify(parsed, null, 2);
+  if (!result.trim()) throw new Error("No readable memory content was found in this file.");
+  return result.slice(0, 1024 * 1024);
+}
+
+async function importMemoryFile() {
+  const picked = await dialog.showOpenDialog(mainWindow, {
+    title: "Import memory for Sync AI",
+    properties: ["openFile"],
+    filters: [{ name: "Memory files", extensions: ["txt", "md", "markdown", "json", "jsonl"] }]
+  });
+  if (picked.canceled || !picked.filePaths[0]) return null;
+  const filePath = await fsp.realpath(picked.filePaths[0]);
+  const stat = await fsp.stat(filePath);
+  if (!stat.isFile() || stat.size <= 0) throw new Error("The selected memory file is empty or invalid.");
+  if (stat.size > 2 * 1024 * 1024) throw new Error("Memory import files must be 2 MiB or smaller.");
+  const raw = await fsp.readFile(filePath, "utf8");
+  const extension = path.extname(filePath).slice(1).toLowerCase();
+  const content = extractImportedMemory(raw, extension);
+  const title = path.basename(filePath, path.extname(filePath)).replace(/[._-]+/g, " ").trim().slice(0, 160) || "Imported memory";
+  return database.save_memory({
+    memory: { title, content, source: "Imported from " + path.basename(filePath), enabled: true }
+  });
+}
+
 async function relinkLibraryFile({ fileId }) {
   const picked = await dialog.showOpenDialog(mainWindow, { title: "Relink File Library entry", properties: ["openFile"] });
   if (picked.canceled || !picked.filePaths[0]) return null;
@@ -354,6 +416,12 @@ const handlers = {
   import_chat_backup: args => database.import_chat_backup(args),
   get_setting: args => database.get_setting(args),
   set_setting: args => database.set_setting(args),
+  list_memories: () => database.list_memories(),
+  list_memory_context: () => database.list_memory_context({ maxCharacters: 12000 }),
+  save_memory: args => database.save_memory(args),
+  set_memory_enabled: args => database.set_memory_enabled(args),
+  delete_memory: args => database.delete_memory(args),
+  import_memory_file: () => importMemoryFile(),
   list_models: () => database.list_models(),
   import_gguf: () => importGguf(),
   set_default_model: ({ modelId }) => {
