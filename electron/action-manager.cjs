@@ -97,7 +97,7 @@ class ActionManager {
       : null;
     return {
       isRunning: action?.state === "running" || action?.state === "restoring",
-      activeAction: action?.state === "running" ? this.publicAction(action) : null
+      activeAction: ["running", "restoring"].includes(action?.state) ? this.publicAction(action) : null
     };
   }
 
