@@ -295,7 +295,7 @@ class ActionManager {
     const parentStat = await fsp.stat(parent);
     if (!parentStat.isDirectory()) throw new Error("The original parent folder is no longer available.");
     if (await exists(action.target)) {
-      if ((await hashFile(action.target)) === details.sha256) return true;
+      if ((await hashFile(action.target, signal)) === details.sha256) return true;
       throw new Error("A different file now exists at the original path. Sync did not overwrite it; the Recovery Vault copy was preserved.");
     }
 
@@ -382,11 +382,19 @@ class ActionManager {
       }
 
       if (signal.aborted || error?.name === "AbortError") {
+        let recoveryAvailable = false;
+        try {
+          recoveryAvailable = Boolean(action.details.backupPath)
+            && insideDirectory(this.recoveryDir, action.details.backupPath)
+            && (await hashFile(action.details.backupPath)) === action.details.sha256;
+        } catch {}
         action = this.save({
           ...action,
-          state: "completed",
-          undoable: true,
-          error: "Restore stopped before the original file was put back. The Recovery Vault copy is intact and can be restored again."
+          state: recoveryAvailable ? "completed" : "recovery-required",
+          undoable: recoveryAvailable,
+          error: recoveryAvailable
+            ? "Restore stopped before the original file was put back. The verified Recovery Vault copy is intact and can be restored again."
+            : "Restore was stopped, but the Recovery Vault copy could not be verified. Manual recovery is required."
         });
         return this.publicAction(action);
       }
@@ -430,6 +438,7 @@ class ActionManager {
             await fsp.rm(tempPath, { force: true }).catch(() => {});
             action = this.save({ ...action, state: "rolled-back", undoable: false, details: { ...details, restoredAt: now() }, error: "Sync restarted after the original file had been restored and verified." });
           } else {
+            await fsp.rm(tempPath, { force: true }).catch(() => {});
             action = this.save({ ...action, state: "recovery-required", undoable: Boolean(backupExists), error: "Sync restarted while restoring, but the original path contains different data. Any Recovery Vault copy was preserved." });
           }
         } else if (!originalExists && backupExists) {
