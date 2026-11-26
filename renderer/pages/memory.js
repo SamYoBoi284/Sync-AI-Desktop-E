@@ -16,7 +16,7 @@ async function mountMemory(root) {
   let source = "manual";
   let enabled = true;
   let autoLearn = false;
-  let tokenBudget = 512;
+  let tokenBudget = 256;
   let message = "";
   let messageIsError = false;
   let disposed = false;
@@ -49,10 +49,10 @@ async function mountMemory(root) {
           '<div class="shell-panel-heading"><div><p class="shell-section-kicker">CONTEXT AND RESOURCE LIMITS</p><h2>Memory injection budget</h2></div><span class="shell-panel-tag">BOUNDED PROMPT</span></div>' +
           '<p class="shell-settings-intro">Only enabled memories are included. The budget limits how much memory text can enter each prompt. It does not change the model file or allocate a separate model-sized RAM buffer.</p>' +
           '<label class="memory-budget-control"><div><span>Maximum memory context</span><strong>' + tokenBudget + ' tokens</strong></div>' +
-            '<input id="memoryBudget" type="range" min="128" max="1024" step="64" value="' + tokenBudget + '" ' + (saving || toggling ? "disabled" : "") + '>' +
-            '<div><small>Approx. ' + (tokenBudget * 4).toLocaleString() + ' characters</small><small>Hard limit: 1,024 tokens</small></div>' +
+            '<input id="memoryBudget" type="range" min="128" max="512" step="32" value="' + tokenBudget + '" ' + (saving || toggling ? "disabled" : "") + '>' +
+            '<div><small>Approx. ' + (tokenBudget * 4).toLocaleString() + ' characters</small><small>Hard limit: 512 tokens</small></div>' +
           '</label>' +
-          '<p class="memory-limit-note">The token count is an estimate based on characters. The actual tokenizer may count differently. Sync reserves the rest of the model context for conversation and output.</p>' +
+          '<p class="memory-limit-note">The token count is a conservative estimate based on characters. The actual tokenizer may count differently. Memory is capped at 512 estimated tokens so conversation and output retain most of the model context.</p>' +
           '<label class="memory-toggle-row"><span><strong>Learn from conversations</strong><small>After a successful reply, the local model can refresh a concise profile using facts you explicitly shared. This runs an extra local inference and may add time after each reply.</small></span>' +
             '<input id="memoryAutoLearn" type="checkbox" ' + (autoLearn ? "checked" : "") + ' ' + (toggling ? "disabled" : "") + '></label>' +
           '<p class="memory-limit-note">Auto-learning is off until you enable it. It excludes sensitive personal categories and credentials, and its saved profile remains visible and editable below.</p>' +
@@ -96,8 +96,8 @@ async function mountMemory(root) {
       ]);
       memories = items || [];
       try { autoLearn = autoRaw == null ? false : JSON.parse(autoRaw) === true; } catch { autoLearn = false; }
-      try { tokenBudget = Number(budgetRaw == null ? 512 : JSON.parse(budgetRaw)); } catch { tokenBudget = 512; }
-      tokenBudget = Math.min(1024, Math.max(128, Math.round(Number.isFinite(tokenBudget) ? tokenBudget : 512)));
+      try { tokenBudget = Number(budgetRaw == null ? 256 : JSON.parse(budgetRaw)); } catch { tokenBudget = 512; }
+      tokenBudget = Math.min(1024, Math.max(128, Math.round(Number.isFinite(tokenBudget) ? tokenBudget : 256)));
       message = "";
       messageIsError = false;
     } catch (cause) {
@@ -124,7 +124,7 @@ async function mountMemory(root) {
   root.addEventListener("change", async event => {
     if (event.target.id === "memoryEnabled") enabled = event.target.checked;
     if (event.target.id === "memoryBudget") {
-      const next = Math.min(1024, Math.max(128, Number(event.target.value) || 512));
+      const next = Math.min(512, Math.max(128, Number(event.target.value) || 256));
       try {
         await api.setSetting(MEMORY_BUDGET_KEY, JSON.stringify(next));
         tokenBudget = next;
