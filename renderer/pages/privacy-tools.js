@@ -142,12 +142,21 @@ async function mountPrivacyTools(root) {
     }
   }
 
+  const unlisten = window.SyncAI.onActionEvent(payload => {
+    if (payload?.status) status = payload.status;
+    if (payload?.action) {
+      const index = actions.findIndex(item => item.id === payload.action.id);
+      if (index >= 0) actions[index] = payload.action;
+      else actions.unshift(payload.action);
+    }
+    render();
+  });
   root.addEventListener("click", event => {
     const button = event.target.closest("[data-tool-action]");
     if (button) void runAction(button.dataset.toolAction, button.dataset.id);
   });
   await refresh();
-  return () => { disposed = true; root.replaceChildren(); };
+  return () => { disposed = true; unlisten(); root.replaceChildren(); };
 }
 
 window.SyncAI.pages = window.SyncAI.pages || {};
