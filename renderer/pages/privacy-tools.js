@@ -59,7 +59,7 @@ async function mountPrivacyTools(root) {
         '</div>' +
         '<section class="shell-settings-panel privacy-tools-panel">' +
           '<div class="shell-panel-heading"><div><p class="shell-section-kicker">REGISTERED TOOL CAPABILITIES</p><h2>Available tools</h2></div><span class="shell-panel-tag">NARROW ACCESS</span></div>' +
-          '<div class="privacy-tool-row"><div><strong>Reversible file removal</strong><p>Moves one individually selected file into the private Recovery Vault after explicit approval. The file is verified before its original path is removed.</p></div><span class="privacy-tool-state">MANUAL APPROVAL</span></div>' +
+          '<div class="privacy-tool-row"><div><strong>Reversible file removal</strong><p>Moves one individually selected file (up to 512 MiB) into the private Recovery Vault after explicit approval. The file is verified before its original path is removed.</p></div><span class="privacy-tool-state">MANUAL APPROVAL</span></div>' +
           '<div class="privacy-tool-row"><div><strong>AI-requested tool calls</strong><p>The local model is not yet connected to the tool registry. It cannot initiate file operations or other host actions from chat in this build.</p></div><span class="privacy-tool-state is-planned">NOT CONNECTED</span></div>' +
           '<p class="shell-settings-footnote">No terminal, shell, clipboard, process-control, browser automation, folder deletion or unrestricted filesystem tool is exposed. Permanent deletion is not part of this tool.</p>' +
           '<div class="privacy-tool-launch"><div><strong>Prepare a reversible file action</strong><p>Choose one regular file. Sync will show the exact path and wait for your separate approval before moving it.</p></div>' +
@@ -68,7 +68,7 @@ async function mountPrivacyTools(root) {
         '<section class="privacy-history-section"><div class="privacy-history-heading"><div><p class="shell-section-kicker">PERSISTENT LOCAL JOURNAL</p><h2>Action history</h2></div><button type="button" data-tool-action="refresh" ' + (loading ? "disabled" : "") + '>Refresh</button></div>' +
           (loading ? '<p class="privacy-history-empty">Loading action history…</p>' : actions.length ? '<div class="privacy-action-list">' + actions.map(renderAction).join("") + '</div>' : '<div class="privacy-history-empty">No tool actions have been performed. Prepared requests and completed actions will appear here.</div>') +
         '</section>' +
-        '<p class="shell-settings-footnote">Recovery copies are kept in Sync AI\'s local Recovery Vault. Sync never overwrites an unexpected file at the original path; when it cannot safely restore automatically, it preserves the recovery copy and marks the action for attention.</p>' +
+        '<p class="shell-settings-footnote">Recovery copies remain in Sync AI\'s local Recovery Vault until restored, so they use local disk space. Sync never overwrites an unexpected file at the original path; when it cannot safely restore automatically, it preserves the recovery copy and marks the action for attention.</p>' +
       '</section>';
   }
 
