@@ -27,6 +27,7 @@ const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
 }[char]));
 const errorText = error => error instanceof Error ? error.message : String(error);
+const cleanModelText = value => String(value ?? "").replace(/&#(?:x0*20|0*32);/gi, " ");
 const fmtDate = value => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? String(value ?? "") : date.toLocaleString();
@@ -58,6 +59,6 @@ const downloadJson = (value, filename) => {
 };
 const pageEyebrow = text => '<div class="shell-page-eyebrow"><span class="shell-eyebrow-line"></span>' + esc(text) + '</div>';
 
-window.SyncAI.shared = { pageTitles, navigationSections, plannedPageCopy, esc, errorText, fmtDate, fmtDateShort, fmtBytes, fmtRam, makeId, setFeedback, downloadJson, pageEyebrow };
+window.SyncAI.shared = { pageTitles, navigationSections, plannedPageCopy, esc, errorText, cleanModelText, fmtDate, fmtDateShort, fmtBytes, fmtRam, makeId, setFeedback, downloadJson, pageEyebrow };
 
 })();
