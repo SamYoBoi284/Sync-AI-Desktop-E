@@ -78,6 +78,8 @@ async function mountChat(root, context, initialChatId = null) {
   let toolMenuIndex = 0;
   let toolActionBusy = false;
   let pendingToolAction = null;
+  let folderPromptOpen = false;
+  let folderNameDraft = "New Folder";
   const fileTools = [
     { id: "copy", label: "Copy file", hint: "Choose a file and destination", aliases: "duplicate clone" },
     { id: "move", label: "Move file", hint: "Move a file to another folder", aliases: "transfer relocate" },
@@ -117,6 +119,16 @@ async function mountChat(root, context, initialChatId = null) {
     if (markup) composer.insertAdjacentHTML("afterbegin", markup);
   }
 
+  function folderPromptMarkup() {
+    if (!folderPromptOpen) return "";
+    return '<div class="chat-tool-modal-backdrop"><section class="chat-tool-modal" role="dialog" aria-modal="true" aria-labelledby="chatFolderTitle">' +
+      '<div class="chat-tool-modal-kicker"><span>✦</span> SYNC TOOL SETUP <small>FOLDER CREATION</small></div>' +
+      '<h2 id="chatFolderTitle">Name the new folder</h2><p>Sync will ask Windows where to create it, then show the exact destination for approval.</p>' +
+      '<div class="chat-tool-modal-paths"><label><small>FOLDER NAME</small><input id="chatToolFolderName" class="chat-tool-folder-input" maxlength="180" value="' + esc(folderNameDraft) + '" placeholder="New Folder"></label></div>' +
+      '<div class="chat-tool-modal-actions"><button type="button" class="is-muted" data-chat-action="tool-folder-cancel">Cancel</button><button type="button" data-chat-action="tool-folder-continue">Choose location</button></div>' +
+      '</section></div>';
+  }
+
   function toolApprovalMarkup() {
     if (!pendingToolAction) return "";
     const action = pendingToolAction;
@@ -138,15 +150,18 @@ async function mountChat(root, context, initialChatId = null) {
       '</section></div>';
   }
 
-  async function selectFileTool(operation) {
+  async function selectFileTool(operation, chosenFolderName = null) {
     if (toolActionBusy || !fileTools.some(item => item.id === operation)) return;
     toolMenuOpen = false;
     inputValue = inputValue.replace(/(?:^|\s)@[a-z0-9_-]*$/i, "").trimEnd();
-    let folderName = "";
-    if (operation === "create-folder") {
-      folderName = window.prompt("Name for the new folder", "New Folder");
-      if (folderName === null || !folderName.trim()) { render(); return; }
+    if (operation === "create-folder" && chosenFolderName === null) {
+      folderPromptOpen = true;
+      folderNameDraft = "New Folder";
+      render();
+      return;
     }
+    const folderName = operation === "create-folder" ? String(chosenFolderName || "").trim() : "";
+    if (operation === "create-folder" && !folderName) { error = "Enter a folder name."; render(); return; }
     toolActionBusy = true;
     error = ""; notice = ""; render();
     try {
@@ -229,7 +244,7 @@ async function mountChat(root, context, initialChatId = null) {
           </div>
           <p class="shell-chat-composer-hint">Enter to send · Shift + Enter for a new line · Type @ to browse tools · queued messages run in order</p>
         </footer>
-      </section>` + toolApprovalMarkup();
+      </section>` + folderPromptMarkup() + toolApprovalMarkup();
     if (focused) {
       const nextInput = root.querySelector("#chatComposerInput");
       nextInput?.focus();
@@ -296,7 +311,8 @@ async function mountChat(root, context, initialChatId = null) {
       const result = await api.generateChat(memoryPrompt, memoryGenerationId);
       if (result?.diagnostics?.status === "error" || result?.diagnostics?.status === "cancelled") return;
       const learned = String(result.text || "").trim();
-      if (!learned || /^NO_CHANGES\b/i.test(learned)) return;
+      if (!learned) return;
+      if (/^NO_CHANGES\b/i.test(learned)) { notice = "No new long-term memory was identified in this conversation."; return; }
       await api.saveMemory({
         title: "Learned profile",
         content: learned.slice(0, 6000),
@@ -463,6 +479,14 @@ async function mountChat(root, context, initialChatId = null) {
       toolMenuOpen = true; toolMenuQuery = ""; toolMenuIndex = 0;
       render();
       root.querySelector("#chatComposerInput")?.focus();
+      return;
+    }
+    if (action === "tool-folder-cancel") { folderPromptOpen = false; render(); return; }
+    if (action === "tool-folder-continue") {
+      const folderName = root.querySelector("#chatToolFolderName")?.value || "";
+      folderNameDraft = folderName;
+      folderPromptOpen = false;
+      void selectFileTool("create-folder", folderName);
       return;
     }
     if (action === "tool-approve") { void executePendingTool(true); return; }
