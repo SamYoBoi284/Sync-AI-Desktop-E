@@ -449,7 +449,7 @@ class ActionManager {
 
   async recoverInterrupted() {
     const interrupted = this.database.list_tool_actions({ limit: 500 })
-      .filter(action => ["running", "restoring"].includes(action.state));
+      .filter(action => ["running", "restoring"].includes(action.state) && action.toolId === TOOL_ID);
     const recovered = [];
     for (let action of interrupted) {
       const details = action.details || {};
