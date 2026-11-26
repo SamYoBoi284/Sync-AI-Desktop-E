@@ -49,3 +49,32 @@ test("the native inference runtime and Windows process memory guard are wired in
   assert.match(job, /GetProcessMemoryInfo/);
   assert.match(job, /PROCESS_SYNCHRONIZE/);
 });
+
+test("inference worker releases each chat sequence and reports failed generation IDs", () => {
+  const worker = fs.readFileSync(path.join(__dirname, "inference-worker.mjs"), "utf8");
+  assert.match(worker, /session\.dispose\(\{\s*disposeSequence:\s*true\s*\}\)/);
+  assert.match(worker, /context\.sequencesLeft\s*<=\s*0/);
+  assert.match(worker, /message\.data\?\.generationId/);
+  assert.match(main, /function settleActiveGeneration\(/);
+  assert.match(main, /function enqueueGeneration\(/);
+  assert.match(main, /force_stop_generation:/);
+  assert.match(main, /queuedGenerations: generationQueue\.map/);
+});
+test("Runtime exposes context/batch controls and worker force-stop recovery", () => {
+  const runtimePage = fs.readFileSync(path.join(root, "renderer", "pages", "runtime.js"), "utf8");
+  assert.match(runtimePage, /runtimeContext/);
+  assert.match(runtimePage, /runtimeBatch/);
+  assert.match(runtimePage, /forceStopGeneration/);
+  assert.match(main, /getInferenceOptions\(\)/);
+  assert.match(main, /contextLength: inference\.contextLength, batchSize: inference\.batchSize/);
+});
+test("chat generation survives navigation and shows an animated state", () => {
+  const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
+  const styles = fs.readFileSync(path.join(root, "src", "styles.css"), "utf8");
+  assert.match(chat, /runtime\.activeGeneration/);
+  assert.match(chat, /runtime\.queuedGenerations/);
+  assert.match(chat, /while \(queue\.length\)/);
+  assert.match(chat, /shell-chat-streaming-dots/);
+  assert.match(styles, /@keyframes syncChatDot/);
+  assert.match(styles, /::-webkit-scrollbar-thumb/);
+});

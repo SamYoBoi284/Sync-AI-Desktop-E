@@ -56,76 +56,79 @@ async function loadModel(data) {
 async function generate(data) {
   if (!model || !context || !loaded) throw new Error("No GGUF model is loaded in the inference worker.");
   if (activeGeneration) throw new Error("Another generation is already running.");
-  if (typeof data.prompt !== "string" || !data.prompt.trim() || Buffer.byteLength(data.prompt) > 512 * 1024) {
-    throw new Error("The prompt is empty or exceeds the 512 KiB worker limit.");
-  }
-  if (typeof data.generationId !== "string" || !data.generationId.trim() || data.generationId.length > 128) {
-    throw new Error("Generation ID is invalid.");
-  }
+  if (typeof data.prompt !== "string" || !data.prompt.trim() || Buffer.byteLength(data.prompt) > 512 * 1024) throw new Error("The prompt is empty or exceeds the 512 KiB worker limit.");
+  if (typeof data.generationId !== "string" || !data.generationId.trim() || data.generationId.length > 128) throw new Error("Generation ID is invalid.");
+
   const generationId = data.generationId;
   const controller = new AbortController();
   const startedAt = new Date().toISOString();
   const clock = process.hrtime.bigint();
-  const promptTokens = model.tokenize(data.prompt, true).length;
-  const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: SYSTEM_PROMPT });
-  let generatedTokens = 0;
-  let promptEvalMs = null;
+  let sequence = null, session = null, generatedTokens = 0, promptTokens = 0, promptEvalMs = null, output = "", result = null;
   activeGeneration = { generationId, controller };
-  let output = "";
+
   try {
+    promptTokens = model.tokenize(data.prompt, true).length;
+    if (context.sequencesLeft <= 0) throw new Error("No context sequences are available. Use Force Stop Generation to restart the inference worker and reclaim them.");
+    sequence = context.getSequence();
+    session = new LlamaChatSession({ contextSequence: sequence, systemPrompt: SYSTEM_PROMPT });
     const response = await session.prompt(data.prompt, {
-      maxTokens: 512,
-      temperature: 0.7,
-      signal: controller.signal,
-      stopOnAbortSignal: true,
+      maxTokens: 512, temperature: 0.7, signal: controller.signal, stopOnAbortSignal: true,
       onTextChunk(chunk) {
         if (!chunk) return;
-        if (promptEvalMs == null) {
-          promptEvalMs = Number(process.hrtime.bigint() - clock) / 1e6;
-        }
+        if (promptEvalMs == null) promptEvalMs = Number(process.hrtime.bigint() - clock) / 1e6;
         output += chunk;
         send("GENERATION_EVENT", { event: { event: "token", generationId, token: chunk } });
       }
     });
+    output = response || output;
     generatedTokens = model.tokenize(response).length;
     const totalMs = Number(process.hrtime.bigint() - clock) / 1e6;
     const generationMs = Math.max(0, totalMs - (promptEvalMs ?? 0));
     const tokensPerSecond = generationMs > 0 ? generatedTokens / (generationMs / 1000) : null;
     const cancelled = controller.signal.aborted;
-    const diagnostics = {
-      generationId, modelId: loaded.modelId, modelLabel: loaded.modelName,
-      backend: "llama.cpp", backendVersion: "node-llama-cpp 3.22.3",
-      status: cancelled ? "cancelled" : "completed",
+    result = { text: output, diagnostics: {
+      generationId, modelId: loaded.modelId, modelLabel: loaded.modelName, backend: "llama.cpp",
+      backendVersion: "node-llama-cpp 3.22.3", status: cancelled ? "cancelled" : "completed",
       promptTokens, generatedTokens, promptEvalMs, generationMs, tokensPerSecond,
-      contextSize: context.contextSize, maxContextSize: loaded.contextLength, temperature: 0.7,
-      stopReason: cancelled ? "abort" : "completed", errorCode: null, errorMessage: null,
-      startedAt, finishedAt: new Date().toISOString()
-    };
-    send("GENERATION_RESULT", { generationId, result: { text: response, diagnostics } });
+      contextSize: context.contextSize, maxContextSize: loaded.contextLength, batchSize: loaded.batchSize,
+      temperature: 0.7, stopReason: cancelled ? "abort" : "completed",
+      errorCode: null, errorMessage: null, startedAt, finishedAt: new Date().toISOString()
+    }};
   } catch (error) {
     const totalMs = Number(process.hrtime.bigint() - clock) / 1e6;
     const generationMs = Math.max(0, totalMs - (promptEvalMs ?? 0));
     const tokensPerSecond = generationMs > 0 ? generatedTokens / (generationMs / 1000) : null;
     const cancelled = controller.signal.aborted;
-    const message = error instanceof Error ? error.message : String(error);
-    send("GENERATION_RESULT", {
-      generationId,
-      result: {
-        text: output,
-        diagnostics: {
-          generationId, modelId: loaded?.modelId ?? null, modelLabel: loaded?.modelName ?? null,
-          backend: "llama.cpp", backendVersion: "node-llama-cpp 3.22.3",
-          status: cancelled ? "cancelled" : "error",
-          promptTokens, generatedTokens, promptEvalMs, generationMs, tokensPerSecond,
-          contextSize: context?.contextSize ?? null, maxContextSize: loaded?.contextLength ?? null,
-          stopReason: cancelled ? "cancelled" : null, errorCode: cancelled ? null : "generation_failed",
-          errorMessage: cancelled ? null : message, startedAt, finishedAt: new Date().toISOString()
-        }
-      }
-    });
-  } finally { activeGeneration = null; }
+    result = { text: output, diagnostics: {
+      generationId, modelId: loaded?.modelId ?? null, modelLabel: loaded?.modelName ?? null,
+      backend: "llama.cpp", backendVersion: "node-llama-cpp 3.22.3",
+      status: cancelled ? "cancelled" : "error", promptTokens, generatedTokens, promptEvalMs, generationMs, tokensPerSecond,
+      contextSize: context?.contextSize ?? null, maxContextSize: loaded?.contextLength ?? null, batchSize: loaded?.batchSize ?? null,
+      temperature: 0.7, stopReason: cancelled ? "cancelled" : null,
+      errorCode: cancelled ? null : "generation_failed",
+      errorMessage: cancelled ? null : (error instanceof Error ? error.message : String(error)),
+      startedAt, finishedAt: new Date().toISOString()
+    }};
+  } finally {
+    let sequenceReleased = false, cleanupError = null;
+    if (session) {
+      try { session.dispose({ disposeSequence: true }); sequenceReleased = true; }
+      catch (error) { cleanupError = error instanceof Error ? error.message : String(error); }
+    }
+    if (sequence && !sequenceReleased) {
+      try { sequence.dispose(); sequenceReleased = true; }
+      catch (error) { cleanupError ||= error instanceof Error ? error.message : String(error); }
+    }
+    activeGeneration = null;
+    if (cleanupError && result?.diagnostics?.status === "completed") {
+      result.diagnostics.status = "error";
+      result.diagnostics.errorCode = "sequence_cleanup_failed";
+      result.diagnostics.errorMessage = "The response completed, but its inference sequence could not be released: " + cleanupError;
+      result.diagnostics.finishedAt = new Date().toISOString();
+    }
+  }
+  send("GENERATION_RESULT", { generationId, result });
 }
-
 async function shutdown() {
   if (activeGeneration) activeGeneration.controller.abort();
   await disposeModel();
@@ -150,7 +153,8 @@ parentPort.on("message", async event => {
     }
   } catch (error) {
     send(message.type === "LOAD_MODEL" ? "LOAD_ERROR" : "RUNTIME_ERROR", {
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
+      ...(message.type === "GENERATE" && message.data?.generationId ? { generationId: message.data.generationId } : {})
     });
   }
 });

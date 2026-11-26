@@ -73,6 +73,7 @@ async function mountChat(root, context, initialChatId = null) {
   let disposed = false;
   let poll = null;
   let currentGenerationUnsubscribe = null;
+  let runtimeTrackedGenerationId = null;
   let toolMenuOpen = false;
   let toolMenuQuery = "";
   let toolMenuIndex = 0;
@@ -228,7 +229,7 @@ async function mountChat(root, context, initialChatId = null) {
                 ${message.role === "assistant" && message.diagnostics ? '<div class="shell-chat-message-meta">' + esc(message.diagnostics.status || "saved") + (message.diagnostics.tokensPerSecond != null ? " · " + Number(message.diagnostics.tokensPerSecond).toFixed(1) + " tok/s" : "") + (message.diagnostics.generationMs != null ? " · " + elapsed(message.diagnostics.generationMs) : "") + "</div>" : ""}
                 ${message.role === "assistant" ? '<div class="shell-chat-message-tools"><button type="button" data-chat-action="save" data-message-id="' + esc(message.id) + '" ' + (savedArtifactIds.has(message.id) ? "disabled" : "") + ">" + (savedArtifactIds.has(message.id) ? "Saved to Workspace" : "Save to Workspace") + "</button></div>" : ""}
               </article>`).join("")}
-            ${preview ? '<article class="shell-chat-message is-assistant is-streaming"><div class="shell-chat-message-label">SYNC AI <span>GENERATING</span></div><p style="white-space:pre-wrap">' + esc(cleanModelText(preview.text || "…")) + "</p></article>" : ""}
+            ${preview ? '<article class="shell-chat-message is-assistant is-streaming"><div class="shell-chat-message-label">SYNC AI <span class="shell-chat-streaming-status ' + (preview.state === "queued" ? "is-queued" : "") + '"><span>' + (preview.state === "queued" ? "QUEUED" : "GENERATING") + '</span><span class="shell-chat-streaming-dots" aria-hidden="true"><i></i><i></i><i></i></span></span></div><p style="white-space:pre-wrap">' + esc(cleanModelText(preview.text || "…")) + "</p></article>" : ""}
           `}
         </div>
         <footer class="shell-chat-compose-area">
@@ -258,8 +259,26 @@ async function mountChat(root, context, initialChatId = null) {
   }
 
   async function refreshRuntime() {
-    try { runtime = await api.getRuntimeStatus(); }
-    catch { runtime = null; }
+    try {
+      runtime = await api.getRuntimeStatus();
+      const queuedForChat = (runtime.queuedGenerations || []).filter(item => item.chatId === chatId && item.purpose === "chat");
+      const activeForChat = runtime.activeGeneration?.chatId === chatId && runtime.activeGeneration?.purpose === "chat" ? runtime.activeGeneration : null;
+      const tracked = activeForChat || queuedForChat[0] || null;
+      if (tracked) {
+        runtimeTrackedGenerationId = tracked.generationId; activeGenerationId = tracked.generationId; stopAvailable = true;
+        preview = { generationId: tracked.generationId, text: tracked.text || "", state: tracked.state || (activeForChat ? "generating" : "queued"), runtimeTracked: true };
+      } else if (runtimeTrackedGenerationId) {
+        const completedId = runtimeTrackedGenerationId;
+        runtimeTrackedGenerationId = null;
+        if (preview?.generationId === completedId) preview = null;
+        if (activeGenerationId === completedId) { activeGenerationId = null; stopAvailable = false; }
+        if (chatId) {
+          try { const updated = await api.getChat(chatId); if (!disposed) applyChat(updated); } catch {}
+        }
+      }
+      queuedCount = Math.max(queue.length, queuedForChat.length);
+      generating = processing || Boolean(tracked);
+    } catch { runtime = null; }
     if (!disposed) render();
   }
 
@@ -308,7 +327,7 @@ async function mountChat(root, context, initialChatId = null) {
     notice = "Sync is refreshing its saved memory…";
     render();
     try {
-      const result = await api.generateChat(memoryPrompt, memoryGenerationId);
+      const result = await api.generateChat(memoryPrompt, memoryGenerationId, { chatId: chat.id, purpose: "memory" });
       if (result?.diagnostics?.status === "error") return;
       if (result?.diagnostics?.status === "cancelled") { notice = "Memory update stopped. Your existing saved memories are unchanged."; return; }
       const learned = String(result.text || "").trim().replace(/^[\s"\x27]+|[\s"\x27]+$/g, "");
@@ -329,9 +348,9 @@ async function mountChat(root, context, initialChatId = null) {
   }
 
   async function processQueue() {
-    if (processing || disposed) return;
+    if (processing) return;
     processing = true; generating = true; error = ""; render();
-    while (queue.length && !disposed) {
+    while (queue.length) {
       const job = queue.shift(); queuedCount = queue.length;
       const generationId = makeId();
       activeGenerationId = null; stopAvailable = false; cancelling = false;
@@ -348,17 +367,9 @@ async function mountChat(root, context, initialChatId = null) {
         catch { notice = "Saved memory could not be loaded; continuing without it."; render(); }
         const prompt = buildPrompt(currentChat.messages.slice(0, index + 1), workspaceContext, memoryContext);
         activeGenerationId = generationId; stopAvailable = true; render();
-        currentGenerationUnsubscribe = onGenerationEvent(event => {
-          if (event.generationId !== generationId || event.event !== "token" || !event.token) return;
-          preview = preview?.generationId === generationId ? { generationId, text: preview.text + event.token } : preview;
-          render();
+        const result = await api.generateChat(prompt, generationId, {
+          chatId: job.chatId, userMessageId: job.userMessageId, purpose: "chat"
         });
-        let result;
-        try { result = await api.generateChat(prompt, generationId); }
-        finally {
-          if (currentGenerationUnsubscribe) currentGenerationUnsubscribe();
-          currentGenerationUnsubscribe = null;
-        }
         const visibleText = cleanModelText(result.text || (result.diagnostics.status === "cancelled"
           ? "Generation stopped." : result.diagnostics.errorMessage
             ? "I couldn't complete that response: " + result.diagnostics.errorMessage : "The model returned an empty response."));
@@ -503,6 +514,29 @@ async function mountChat(root, context, initialChatId = null) {
     if (action === "models") context.navigate("models");
     if (action === "history") context.navigate("history");
     if (action === "save") void saveReply(button.dataset.messageId);
+  });
+
+  currentGenerationUnsubscribe = onGenerationEvent(event => {
+    if (!event || event.chatId !== chatId || event.purpose !== "chat") return;
+    if (event.event === "queued" || event.event === "started") {
+      runtimeTrackedGenerationId = event.generationId; activeGenerationId = event.generationId; stopAvailable = true; generating = true;
+      preview = { generationId: event.generationId, text: event.text || "", state: event.event, runtimeTracked: true };
+      render(); return;
+    }
+    if (event.event === "token" && event.token) {
+      if (preview?.generationId !== event.generationId) preview = { generationId: event.generationId, text: "", state: "generating", runtimeTracked: true };
+      preview.text += event.token; preview.state = "generating"; render(); return;
+    }
+    if (["finished", "failed", "cancelled"].includes(event.event)) {
+      if (runtimeTrackedGenerationId === event.generationId) runtimeTrackedGenerationId = null;
+      if (preview?.generationId === event.generationId) preview = null;
+      if (activeGenerationId === event.generationId) { activeGenerationId = null; stopAvailable = false; }
+      generating = processing;
+      if (!disposed && chatId) setTimeout(() => {
+        if (!disposed) api.getChat(chatId).then(updated => { if (!disposed) { applyChat(updated); render(); } }).catch(() => {});
+      }, 250);
+      render();
+    }
   });
 
   render();

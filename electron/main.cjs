@@ -41,7 +41,9 @@ let isQuitting = false;
 let inferenceWorker = null;
 let memoryJobProcess = null;
 let pendingLoad = null;
-let pendingGeneration = null;
+let activeGeneration = null;
+const generationQueue = [];
+let forceStoppingGeneration = false;
 let expectedWorkerExit = false;
 let runtimeState = {
   isLoading: false, isLoaded: false, isGenerating: false,
@@ -51,9 +53,34 @@ let runtimeState = {
   hardLimitSupported: false, lastErrorCode: null, lastError: null
 };
 
+function getInferenceOptions() {
+  const raw = database.get_setting({ key: "inference_context" });
+  let saved = {};
+  if (raw != null) {
+    try { saved = JSON.parse(raw); }
+    catch { throw new Error("Saved inference context settings are invalid JSON. Open Runtime and save them again."); }
+  }
+  const contextLength = Number(saved.contextLength ?? 2048);
+  const batchSize = Number(saved.batchSize ?? 128);
+  if (!Number.isInteger(contextLength) || contextLength < 512 || contextLength > 32768) throw new Error("Context length must be between 512 and 32,768 tokens.");
+  if (!Number.isInteger(batchSize) || batchSize < 16 || batchSize > 2048) throw new Error("Batch size must be between 16 and 2,048 tokens.");
+  return { contextLength, batchSize: Math.min(batchSize, contextLength) };
+}
+function generationSummary(job, includeText = false) {
+  return {
+    generationId: job.generationId, chatId: job.chatId, userMessageId: job.userMessageId,
+    purpose: job.purpose, state: job === activeGeneration ? "generating" : "queued",
+    startedAt: job.startedAt, queuedAt: job.queuedAt,
+    ...(includeText ? { text: job.text } : {})
+  };
+}
 const runtimeStatus = () => ({
   ...runtimeState,
   workerPid: inferenceWorker?.pid ?? null,
+  isForceStoppingGeneration: forceStoppingGeneration,
+  activeGeneration: activeGeneration ? generationSummary(activeGeneration, true) : null,
+  queuedGenerations: generationQueue.map(job => generationSummary(job)),
+  queuedGenerationCount: generationQueue.length,
   backend: runtimeState.isLoaded ? "llama.cpp · CPU · isolated utility process" : "llama.cpp · CPU · worker idle"
 });
 
@@ -67,6 +94,88 @@ function sendActionEvent(event) {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) window.webContents.send("sync:action-event", event);
   }
+}
+
+function generationFailureResult(job, error, status = "error") {
+  const cancelled = status === "cancelled";
+  return { text: job.text || "", diagnostics: {
+    generationId: job.generationId, modelId: runtimeState.loadedModelId, modelLabel: runtimeState.loadedModelName,
+    backend: "llama.cpp", backendVersion: "node-llama-cpp 3.22.3", status,
+    promptTokens: null, generatedTokens: null, promptEvalMs: null, generationMs: null, tokensPerSecond: null,
+    contextSize: runtimeState.contextLength, maxContextSize: runtimeState.contextLength, batchSize: runtimeState.batchSize,
+    temperature: 0.7, stopReason: cancelled ? "cancelled" : null,
+    errorCode: cancelled ? null : "worker_operation_failed",
+    errorMessage: cancelled ? null : (error instanceof Error ? error.message : String(error)),
+    startedAt: job.startedAt || job.queuedAt, finishedAt: new Date().toISOString()
+  }};
+}
+function settleActiveGeneration(job, result, continueQueue = true) {
+  if (!job || activeGeneration !== job) return;
+  activeGeneration = null;
+  runtimeState.isGenerating = false;
+  const diagnostics = result?.diagnostics || {};
+  if (diagnostics.status === "error") {
+    runtimeState.lastErrorCode = diagnostics.errorCode || "worker_operation_failed";
+    runtimeState.lastError = diagnostics.errorMessage || "The inference worker could not complete the response.";
+  } else if (diagnostics.status === "completed" || diagnostics.status === "cancelled") {
+    runtimeState.lastErrorCode = null; runtimeState.lastError = null;
+  }
+  if (typeof result?.text === "string") job.text = result.text;
+  const event = diagnostics.status === "error" ? "failed" : diagnostics.status === "cancelled" ? "cancelled" : "finished";
+  sendGenerationEvent({ ...generationSummary(job), event, text: job.text, diagnostics });
+  job.resolve(result);
+  if (continueQueue) startNextGeneration();
+}
+function startNextGeneration() {
+  if (activeGeneration || forceStoppingGeneration || generationQueue.length === 0) return;
+  if (!inferenceWorker || !runtimeState.isLoaded) {
+    const failure = new Error("The inference worker is unavailable; queued generations could not start.");
+    for (const job of generationQueue.splice(0)) {
+      sendGenerationEvent({ ...generationSummary(job), event: "failed", text: job.text });
+      job.resolve(generationFailureResult(job, failure));
+    }
+    return;
+  }
+  const job = generationQueue.shift();
+  job.startedAt = new Date().toISOString();
+  activeGeneration = job; runtimeState.isGenerating = true;
+  sendGenerationEvent({ ...generationSummary(job), event: "started", text: job.text });
+  try { inferenceWorker.postMessage({ type: "GENERATE", data: { prompt: job.prompt, generationId: job.generationId } }); }
+  catch (error) { settleActiveGeneration(job, generationFailureResult(job, error)); }
+}
+function enqueueGeneration({ prompt, generationId, chatId = null, userMessageId = null, purpose = "chat" }) {
+  if (activeGeneration?.generationId === generationId || generationQueue.some(job => job.generationId === generationId)) throw new Error("A generation with this ID is already active or queued.");
+  if (generationQueue.length >= 64) throw new Error("The local generation queue is full. Wait for a response to finish before adding more messages.");
+  return new Promise((resolve, reject) => {
+    const job = {
+      prompt, generationId, chatId: typeof chatId === "string" ? chatId : null,
+      userMessageId: typeof userMessageId === "string" ? userMessageId : null,
+      purpose: purpose === "memory" ? "memory" : "chat", queuedAt: new Date().toISOString(),
+      startedAt: null, text: "", resolve, reject
+    };
+    generationQueue.push(job);
+    if (activeGeneration) sendGenerationEvent({ ...generationSummary(job), event: "queued", text: "" });
+    startNextGeneration();
+  });
+}
+function failAllGenerations(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const active = activeGeneration; activeGeneration = null; runtimeState.isGenerating = false;
+  if (active) {
+    sendGenerationEvent({ ...generationSummary(active), event: "failed", text: active.text });
+    active.reject(new Error(message));
+  }
+  for (const job of generationQueue.splice(0)) {
+    sendGenerationEvent({ ...generationSummary(job), event: "failed", text: job.text });
+    job.reject(new Error(message));
+  }
+}
+function resetRuntimeAfterWorkerExit() {
+  runtimeState.isLoading = false; runtimeState.isLoaded = false; runtimeState.isGenerating = false;
+  runtimeState.loadingModelId = null; runtimeState.loadedModelId = null; runtimeState.loadedModelName = null;
+  runtimeState.loadedAt = null; runtimeState.estimatedMemoryBytes = null; runtimeState.contextLength = null; runtimeState.batchSize = null;
+  runtimeState.workerWorkingSetBytes = null; runtimeState.workerPrivateBytes = null;
+  runtimeState.memoryLimitBytes = null; runtimeState.hardLimitSupported = false;
 }
 
 function handleInferenceMessage(worker, event) {
@@ -92,21 +201,29 @@ function handleInferenceMessage(worker, event) {
       runtimeState.lastError = String(message.error || "The inference worker could not load the selected model.");
       if (pendingLoad) { pendingLoad.reject(new Error(runtimeState.lastError)); pendingLoad = null; }
       break;
-    case "GENERATION_EVENT":
-      if (message.event) sendGenerationEvent(message.event);
-      break;
-    case "GENERATION_RESULT":
-      runtimeState.isGenerating = false;
-      if (pendingGeneration && pendingGeneration.generationId === message.generationId) {
-        pendingGeneration.resolve(message.result);
-        pendingGeneration = null;
+    case "GENERATION_EVENT": {
+      if (message.event) {
+        const event = message.event, job = activeGeneration;
+        if (job && event.generationId === job.generationId) {
+          if (event.event === "token" && typeof event.token === "string") job.text = (job.text + event.token).slice(-512 * 1024);
+          sendGenerationEvent({ ...event, ...generationSummary(job), text: job.text });
+        } else sendGenerationEvent(event);
       }
       break;
-    case "RUNTIME_ERROR":
-      runtimeState.lastErrorCode = "worker_operation_failed";
-      runtimeState.lastError = String(message.error || "The inference worker reported an error.");
-      if (pendingLoad) { pendingLoad.reject(new Error(runtimeState.lastError)); pendingLoad = null; }
+    }
+    case "GENERATION_RESULT":
+      if (activeGeneration && activeGeneration.generationId === message.generationId) {
+        settleActiveGeneration(activeGeneration, message.result || generationFailureResult(activeGeneration, "The worker returned an empty generation result."));
+      }
       break;
+    case "RUNTIME_ERROR": {
+      const workerError = String(message.error || "The inference worker reported an error.");
+      if (pendingLoad) { pendingLoad.reject(new Error(workerError)); pendingLoad = null; }
+      const job = activeGeneration && (!message.generationId || activeGeneration.generationId === message.generationId) ? activeGeneration : null;
+      if (job) settleActiveGeneration(job, generationFailureResult(job, workerError));
+      else { runtimeState.lastErrorCode = "worker_operation_failed"; runtimeState.lastError = workerError; }
+      break;
+    }
     case "STOPPED":
       break;
   }
@@ -216,22 +333,9 @@ async function startInferenceWorker(memoryLimitBytes) {
       runtimeState.lastErrorCode = "worker_exited";
       runtimeState.lastError = message + " Exit code: " + code + ".";
       if (pendingLoad) { pendingLoad.reject(new Error(runtimeState.lastError)); pendingLoad = null; }
-      if (pendingGeneration) { pendingGeneration.reject(new Error(runtimeState.lastError)); pendingGeneration = null; }
     }
-    runtimeState.isLoading = false;
-    runtimeState.isLoaded = false;
-    runtimeState.isGenerating = false;
-    runtimeState.loadingModelId = null;
-    runtimeState.loadedModelId = null;
-    runtimeState.loadedModelName = null;
-    runtimeState.loadedAt = null;
-    runtimeState.estimatedMemoryBytes = null;
-    runtimeState.contextLength = null;
-    runtimeState.batchSize = null;
-    runtimeState.workerWorkingSetBytes = null;
-    runtimeState.workerPrivateBytes = null;
-    runtimeState.memoryLimitBytes = null;
-    runtimeState.hardLimitSupported = false;
+    if (!expectedWorkerExit && (activeGeneration || generationQueue.length)) failAllGenerations(new Error(runtimeState.lastError || "The inference worker exited before generation completed."));
+    resetRuntimeAfterWorkerExit();
   });
 
   if (process.platform === "win32") {
@@ -275,7 +379,8 @@ async function startInferenceWorker(memoryLimitBytes) {
 
 async function stopInferenceWorker() {
   const worker = inferenceWorker;
-  if (!worker) return;
+  if (!worker) { failAllGenerations(new Error("The inference worker was stopped.")); return; }
+  failAllGenerations(new Error("The inference worker is shutting down."));
   expectedWorkerExit = true;
   const exited = new Promise(resolve => worker.once("exit", resolve));
   try { worker.postMessage({ type: "SHUTDOWN" }); } catch {}
@@ -407,6 +512,57 @@ async function relinkLibraryFile({ fileId }) {
   return database.relink_library_file({ fileId, ...info });
 }
 
+async function forceStopGeneration() {
+  if (forceStoppingGeneration) throw new Error("A force-stop recovery is already in progress.");
+  const modelId = runtimeState.loadedModelId;
+  if (!modelId || !inferenceWorker) throw new Error("No loaded inference worker is available to restart.");
+  const model = database.list_models().find(item => item.id === modelId && item.isAvailable);
+  if (!model) throw new Error("The loaded model file is no longer available. Re-register it before recovering the worker.");
+  const memoryLimitBytes = savedMemoryLimitBytes(), inference = getInferenceOptions();
+  forceStoppingGeneration = true;
+  const active = activeGeneration;
+  if (active) settleActiveGeneration(active, generationFailureResult(active, null, "cancelled"), false);
+  runtimeState.isGenerating = false;
+
+  const oldWorker = inferenceWorker, exited = new Promise(resolve => oldWorker.once("exit", resolve));
+  expectedWorkerExit = true;
+  try { oldWorker.kill(); } catch {}
+  await Promise.race([exited, new Promise(resolve => setTimeout(resolve, 5000))]);
+  if (inferenceWorker === oldWorker) inferenceWorker = null;
+  if (memoryJobProcess && !memoryJobProcess.killed) {
+    try { memoryJobProcess.stdin.write("STOP\n"); } catch {}
+    try { memoryJobProcess.kill(); } catch {}
+    memoryJobProcess = null;
+  }
+  expectedWorkerExit = false;
+  resetRuntimeAfterWorkerExit();
+
+  try {
+    runtimeState.isLoading = true; runtimeState.loadingModelId = modelId; runtimeState.memoryLimitBytes = memoryLimitBytes;
+    const worker = await startInferenceWorker(memoryLimitBytes);
+    runtimeState.estimatedMemoryBytes = estimatePeakBytes(readGgufMetadata(model.filePath), model.sizeBytes);
+    const loadedPromise = new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        if (pendingLoad) { pendingLoad = null; reject(new Error("The inference worker did not reload the model within 180 seconds.")); }
+      }, 180000);
+      pendingLoad = { resolve: value => { clearTimeout(timeout); resolve(value); }, reject: error => { clearTimeout(timeout); reject(error); } };
+    });
+    worker.postMessage({ type: "LOAD_MODEL", data: { modelId, modelName: model.name, modelPath: model.filePath, memoryLimitBytes, ...inference } });
+    await loadedPromise;
+    runtimeState.loadingModelId = null; runtimeState.lastErrorCode = null; runtimeState.lastError = null;
+    forceStoppingGeneration = false;
+    startNextGeneration();
+    return runtimeStatus();
+  } catch (error) {
+    runtimeState.isLoading = false; runtimeState.isLoaded = false; runtimeState.loadingModelId = null;
+    runtimeState.lastErrorCode = "force_stop_recovery_failed";
+    runtimeState.lastError = error instanceof Error ? error.message : String(error);
+    failAllGenerations(new Error(runtimeState.lastError));
+    forceStoppingGeneration = false;
+    throw error;
+  }
+}
+
 const handlers = {
   get_app_info: () => ({ appName: "Sync AI Desktop", version: app.getVersion(), operatingSystem: process.platform, architecture: process.arch }),
   consume_startup_splash: () => { const show = splashAvailable; splashAvailable = false; return show; },
@@ -465,10 +621,11 @@ const handlers = {
     }
     const modelSizeBytes = model.sizeBytes;
     const estimatedPeakBytes = estimatePeakBytes(metadata, modelSizeBytes);
+    const inference = getInferenceOptions();
     return {
       modelSizeBytes, estimatedPeakBytes, availableRamBytes: os.freemem(),
       configuredLimitBytes: config.enabled ? Math.floor(config.limitGb * 1024 ** 3) : null,
-      contextLength: 2048, batchSize: 128,
+      contextLength: inference.contextLength, batchSize: inference.batchSize,
       estimateKind: "GGUF metadata-based informational estimate. The Windows Job Object enforces the configured worker private-memory ceiling."
     };
   },
@@ -481,6 +638,7 @@ const handlers = {
     if (!model.isAvailable) throw new Error("The original GGUF file is missing. Re-register it from its current location.");
     const metadata = readGgufMetadata(model.filePath);
     const memoryLimitBytes = savedMemoryLimitBytes();
+    const inference = getInferenceOptions();
     runtimeState.isLoading = true;
     runtimeState.loadingModelId = modelId;
     runtimeState.memoryLimitBytes = memoryLimitBytes;
@@ -505,7 +663,7 @@ const handlers = {
         type: "LOAD_MODEL",
         data: {
           modelId, modelName: model.name, modelPath: model.filePath,
-          memoryLimitBytes, contextLength: 2048, batchSize: 128
+          memoryLimitBytes, contextLength: inference.contextLength, batchSize: inference.batchSize
         }
       });
       await loadedPromise;
@@ -527,27 +685,26 @@ const handlers = {
     await stopInferenceWorker();
     return runtimeStatus();
   },
-  generate_chat: ({ prompt, generationId }) => {
+  generate_chat: ({ prompt, generationId, chatId = null, userMessageId = null, purpose = "chat" }) => {
     if (!inferenceWorker || !runtimeState.isLoaded) throw new Error("No local GGUF model is loaded. Load a model from Local models first.");
-    if (runtimeState.isGenerating) throw new Error("A generation is already active. Queue this message in the chat interface.");
-    if (typeof prompt !== "string" || !prompt.trim() || Buffer.byteLength(prompt) > 512 * 1024) {
-      throw new Error("The conversation prompt is empty or exceeds the 512 KiB limit.");
-    }
-    if (typeof generationId !== "string" || !generationId.trim() || generationId.length > 128) {
-      throw new Error("Generation ID is invalid.");
-    }
-    runtimeState.isGenerating = true;
-    return new Promise((resolve, reject) => {
-      pendingGeneration = { generationId, resolve, reject };
-      inferenceWorker.postMessage({ type: "GENERATE", data: { prompt, generationId } });
-    });
+    if (typeof prompt !== "string" || !prompt.trim() || Buffer.byteLength(prompt) > 512 * 1024) throw new Error("The conversation prompt is empty or exceeds the 512 KiB limit.");
+    if (typeof generationId !== "string" || !generationId.trim() || generationId.length > 128) throw new Error("Generation ID is invalid.");
+    return enqueueGeneration({ prompt, generationId, chatId, userMessageId, purpose });
   },
   cancel_generation: ({ generationId }) => {
-    if (!inferenceWorker || !runtimeState.isGenerating || pendingGeneration?.generationId !== generationId) {
-      throw new Error("That generation is no longer active.");
+    const index = generationQueue.findIndex(job => job.generationId === generationId);
+    if (index >= 0) {
+      const [job] = generationQueue.splice(index, 1);
+      const result = generationFailureResult(job, null, "cancelled");
+      sendGenerationEvent({ ...generationSummary(job), event: "cancelled", text: job.text });
+      job.resolve(result);
+      return { cancelRequested: true, queued: true };
     }
+    if (!inferenceWorker || !runtimeState.isGenerating || activeGeneration?.generationId !== generationId) throw new Error("That generation is no longer active.");
     inferenceWorker.postMessage({ type: "CANCEL_GENERATION", generationId });
+    return { cancelRequested: true, queued: false };
   },
+  force_stop_generation: () => forceStopGeneration(),
   list_workspace_artifacts: args => database.list_workspace_artifacts(args),
   get_workspace_artifact: args => database.get_workspace_artifact(args),
   create_workspace_artifact: args => database.save_workspace_artifact(args),
