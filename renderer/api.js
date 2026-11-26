@@ -8,6 +8,10 @@ function onGenerationEvent(callback) {
   if (!window.syncAI || typeof window.syncAI.onGenerationEvent !== "function") return () => {};
   return window.syncAI.onGenerationEvent(callback);
 }
+function onActionEvent(callback) {
+  if (!window.syncAI || typeof window.syncAI.onActionEvent !== "function") return () => {};
+  return window.syncAI.onActionEvent(callback);
+}
 const api = {
   getAppInfo: () => invoke("get_app_info"),
   consumeStartupSplash: () => invoke("consume_startup_splash"),
@@ -53,10 +57,18 @@ const api = {
   importLibraryFile: () => invoke("import_library_file"),
   relinkLibraryFile: fileId => invoke("relink_library_file", { fileId }),
   removeLibraryFile: fileId => invoke("remove_library_file", { fileId }),
+  getActionStatus: () => invoke("get_action_status"),
+  listToolActions: (limit = 100) => invoke("list_tool_actions", { limit }),
+  prepareFileRemoval: () => invoke("prepare_file_removal"),
+  approveFileRemoval: actionId => invoke("approve_file_removal", { actionId }),
+  cancelFileRemoval: actionId => invoke("cancel_file_removal", { actionId }),
+  stopActiveAction: () => invoke("stop_active_action"),
+  undoToolAction: actionId => invoke("undo_tool_action", { actionId }),
 };
 
 window.SyncAI = window.SyncAI || {};
 window.SyncAI.api = api;
 window.SyncAI.invoke = invoke;
 window.SyncAI.onGenerationEvent = onGenerationEvent;
+window.SyncAI.onActionEvent = onActionEvent;
 })();
