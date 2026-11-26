@@ -64,6 +64,14 @@
       {
         "from": "electron/inference-memory-job.ps1",
         "to": "electron/inference-memory-job.ps1"
+      },
+      {
+        "from": "assets/sync.ico",
+        "to": "assets/sync.ico"
+      },
+      {
+        "from": "assets/sync-tray.png",
+        "to": "assets/sync-tray.png"
       }
     ]
   },

@@ -6,7 +6,14 @@ const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const crypto = require("node:crypto");
 const { pathToFileURL } = require("node:url");
-const appIconPath = path.join(__dirname, "..", "assets", "sync.ico");
+const iconAssetDirectory = app.isPackaged
+  ? path.join(process.resourcesPath, "assets")
+  : path.join(__dirname, "..", "assets");
+const appIconPath = path.join(iconAssetDirectory, "sync.ico");
+const trayIconPath = path.join(iconAssetDirectory, "sync-tray.png");
+if (process.platform === "win32") {
+  app.setAppUserModelId("com.syncnullverox.syncai");
+}
 const { SyncDatabase } = require("./database.cjs");
 const { FileOperationManager } = require("./file-operation-manager.cjs");
 const { readGgufMetadata, estimatePeakBytes } = require("./gguf.cjs");
@@ -642,10 +649,17 @@ async function restoreMainWindow() {
 
 async function createTray() {
   if (tray) return;
-  let icon = nativeImage.createFromPath(appIconPath);
+  let icon = nativeImage.createFromPath(trayIconPath);
   if (icon.isEmpty()) {
+    logStartup("Tray PNG could not be loaded; trying the multi-size Windows icon.");
+    icon = nativeImage.createFromPath(appIconPath);
+  }
+  if (icon.isEmpty()) {
+    logStartup("Sync artwork could not be loaded for the tray; falling back to the executable icon.");
     try { icon = await app.getFileIcon(process.execPath, { size: "small" }); } catch {}
   }
+  if (icon.isEmpty()) logStartup("WARNING: Electron returned an empty tray icon.");
+  else logStartup("Loaded Sync tray artwork from " + (icon.isEmpty() ? "fallback" : trayIconPath));
   tray = new Tray(icon);
   tray.setToolTip("Sync AI Desktop");
   tray.setContextMenu(Menu.buildFromTemplate([
@@ -659,10 +673,18 @@ async function createTray() {
 
 async function createWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) return mainWindow;
+  let windowIcon = nativeImage.createFromPath(appIconPath);
+  if (windowIcon.isEmpty()) {
+    logStartup("Sync ICO could not be loaded at " + appIconPath + "; trying the executable icon.");
+    try { windowIcon = await app.getFileIcon(process.execPath, { size: "large" }); } catch {}
+  } else {
+    const dimensions = windowIcon.getSize();
+    logStartup("Loaded Sync taskbar/window icon from " + appIconPath + " (" + dimensions.width + "x" + dimensions.height + ").");
+  }
   mainWindow = new BrowserWindow({
     width: 1440, height: 920, minWidth: 980, minHeight: 680,
     backgroundColor: "#090a12", show: false,
-    icon: appIconPath,
+    icon: windowIcon.isEmpty() ? undefined : windowIcon,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true, nodeIntegration: false, sandbox: true,
