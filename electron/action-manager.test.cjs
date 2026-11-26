@@ -169,7 +169,10 @@ test("Stop during restoration leaves the verified Recovery Vault copy available"
 
     const restoring = f.manager.undoAction(request.id);
     await entered;
-    assert.equal(f.manager.getStatus().isRunning, true);
+    const activeStatus = f.manager.getStatus();
+    assert.equal(activeStatus.isRunning, true);
+    assert.equal(activeStatus.activeAction.state, "restoring");
+    assert.equal(activeStatus.activeAction.fileName, "restore-stop.txt");
     const stopping = f.manager.stopActiveAction();
     releaseRestore();
     const [result, stopResult] = await Promise.all([restoring, stopping]);
