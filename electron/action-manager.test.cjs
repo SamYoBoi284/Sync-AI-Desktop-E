@@ -118,7 +118,9 @@ test("undo never overwrites a different file created at the original path", asyn
     assert.equal(completed.state, "completed");
 
     fs.writeFileSync(original, "a different file\n");
-    await assert.rejects(f.manager.undoAction(request.id), /different file now exists/i);
+    const restoreResult = await f.manager.undoAction(request.id);
+    assert.equal(restoreResult.state, "recovery-required");
+    assert.match(restoreResult.error, /different file now exists/i);
 
     const saved = f.database.get_tool_action({ actionId: request.id });
     assert.equal(saved.state, "recovery-required");
