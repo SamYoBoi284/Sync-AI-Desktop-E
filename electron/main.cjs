@@ -419,10 +419,10 @@ const handlers = {
   list_memories: () => database.list_memories(),
   list_memory_context: () => {
     const raw = database.get_setting({ key: "memory_context_tokens" });
-    let tokenBudget = 512;
+    let tokenBudget = 256;
     try { if (raw != null) tokenBudget = Number(JSON.parse(raw)); } catch {}
-    if (!Number.isFinite(tokenBudget)) tokenBudget = 512;
-    tokenBudget = Math.min(1024, Math.max(128, Math.round(tokenBudget)));
+    if (!Number.isFinite(tokenBudget)) tokenBudget = 256;
+    tokenBudget = Math.min(512, Math.max(128, Math.round(tokenBudget)));
     return database.list_memory_context({ maxCharacters: tokenBudget * 4 });
   },
   save_memory: args => database.save_memory(args),
