@@ -164,8 +164,8 @@ This is the next immediate task and is intentionally handed to the user.
 
 ### Temporary Model Loading — NOT STARTED
 
-- Load a model temporarily when required.
-- Reuse an existing compatible loaded model whenever possible.
+- Load a model temporarily when Quick Ask Overlay is used and unload it when done
+- Reuse the recently loaded or small file-sized compatible loaded model whenever possible (configurable in settings)
 - Avoid unnecessary concurrent workers.
 - Safely unload temporary models after the Quick Ask session.
 - Preserve the user's normal model selection and runtime state.
@@ -220,7 +220,7 @@ Voice Mode remains deferred to Phase 7.
 - Capability results stored per model and exposed clearly to the user.
 - Conservative fallbacks for models that cannot reliably use tools.
 
-### Agent Mode — NOT STARTED
+### Agent Mode — NOT STARTED - MIGHT BE DEFERRED TO PHASE 7
 
 - Multi-step planning.
 - Tool selection and capability checks.
