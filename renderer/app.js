@@ -1,5 +1,5 @@
 (() => {
-const { api } = window.SyncAI;
+const { api, onAppAction } = window.SyncAI;
 const { pageTitles, navigationSections, esc, errorText } = window.SyncAI.shared;
 const { mountChat, mountHistory, mountFolders, mountModels, mountWorkspace, mountTasks, mountLibrary, mountRuntime, mountSettings, mountPrivacyTools, mountMemory, mountPreview, mountAppearance } = window.SyncAI.pages;
 
@@ -330,6 +330,9 @@ document.addEventListener("click", event => {
   if (!action) return;
   if (action.dataset.action === "new-chat") navigate("new-chat", null, { resetHistory: true });
   if (action.dataset.action === "go-history") navigate("history", null, { resetHistory: true });
+});
+onAppAction(payload => {
+  if (payload?.action === "new-chat") navigate("new-chat", null, { resetHistory: true });
 });
 window.SyncAI.onActionEvent(payload => {
   state.actionStatus = payload?.status || { isRunning: false, activeAction: null };
