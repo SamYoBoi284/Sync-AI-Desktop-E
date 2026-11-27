@@ -788,7 +788,7 @@ async function mountChat(root, context, initialChatId = null) {
       const id = await ensureChatId();
       const saved = await api.appendMessage(id, { role: "user", body });
       if (chatId === id) messages = [...messages, saved];
-      const hasGenericAutoTitle = /^(?:new conversation|conversation\\s*[·–-]\\s*(?:new chat|casual catch-up))$/i.test(chatTitle.trim());
+      const hasGenericAutoTitle = /^(?:new conversation|conversation\s*[·–-]\s*(?:new chat|casual catch-up))$/i.test(chatTitle.trim());
       if (hasGenericAutoTitle) {
         const title = buildChatTitle(body);
         if (title) {
