@@ -185,6 +185,7 @@ test("upgrades a populated version-7 database through version 10 without losing 
     // Reconstruct the schema shape immediately before migration v8.
     db.db.exec("DROP INDEX idx_memories_rank;");
     db.db.exec("DROP TABLE IF EXISTS model_profiles;");
+    db.db.exec("DROP TABLE IF EXISTS preference_observation_messages;");
     db.db.exec("DROP INDEX idx_memory_candidates_status_created;");
     db.db.exec("DROP TABLE memory_candidates;");
     db.db.exec("DROP TABLE conversation_summaries;");
@@ -206,7 +207,7 @@ test("upgrades a populated version-7 database through version 10 without losing 
     assert.equal(migratedMemory.pinned, false);
     assert.equal(db.get_chat({ chatId: chat.id }).messages[0].body, "Preserve this transcript.");
     assert.equal(db.get_note({ noteId: note.id }).content, "Preserve this note.");
-    assert.equal(Number(db.db.prepare("SELECT MAX(version) v FROM schema_migrations").get().v), 10);
+    assert.equal(Number(db.db.prepare("SELECT MAX(version) v FROM schema_migrations").get().v), 11);
     assert.deepEqual(db.get_conversation_summary({ chatId: chat.id }), null);
   } finally {
     try { db.close(); } catch {}
@@ -254,6 +255,39 @@ test("always includes the learned user profile for generic or unrelated new-chat
   assert.equal(selected[0].id, profile.id);
   assert.match(selected[0].content, /Name: Sam/);
   assert.equal(selected.some(item => item.title === "Unrelated cooking notes"), false);
+}));
+
+test("communication-style learning requires repeated evidence across multiple conversations", () => withDb(db => {
+  const chats = [1, 2, 3].map(number => db.create_chat({ title: "Conversation " + number }));
+  const add = (chatId, body) => db.append_message({ chatId, message: { role: "user", body } });
+  const first = add(chats[0].id, "hey bro, how's it going?");
+  add(chats[0].id, "thanks bro");
+  add(chats[0].id, "good morning");
+  add(chats[1].id, "yo bro");
+  add(chats[1].id, "that makes sense bro");
+  add(chats[1].id, "what do you think?");
+  let evidence = db.get_communication_style_evidence();
+  assert.equal(evidence.qualifiesForPreference, false);
+  assert.equal(evidence.conversationsWithBro, 2);
+
+  add(chats[2].id, "yooo bro");
+  add(chats[2].id, "appreciate it bro");
+  add(chats[2].id, "what does bro mean?");
+  evidence = db.get_communication_style_evidence();
+  assert.equal(evidence.qualifiesForPreference, true);
+  assert.equal(evidence.conversationsWithBro, 3);
+  assert.equal(evidence.messagesWithBro, 6);
+  assert.equal(evidence.totalMessages, 9);
+  assert.ok(evidence.messageRatio >= 0.5);
+
+  const repeated = db.get_communication_style_evidence();
+  assert.deepEqual(repeated, evidence, "re-indexing must not double-count existing messages");
+
+  db.edit_user_message({ chatId: chats[0].id, messageId: first.id, body: "good morning" });
+  const afterEdit = db.get_communication_style_evidence();
+  assert.equal(afterEdit.messagesWithBro, 5);
+  assert.equal(afterEdit.totalMessages, 9);
+  assert.equal(afterEdit.qualifiesForPreference, false);
 }));
 
 test("retrieves opted-in Notes independently from Workspace artifacts", () => withDb(db => {
