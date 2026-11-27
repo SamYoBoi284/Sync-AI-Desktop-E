@@ -38,7 +38,7 @@ const api = {
   listMemories: () => invoke("list_memories"),
   listMemorySources: memoryId => invoke("list_memory_sources", { memoryId }),
   listMemoryCandidates: (status = "pending", limit = 50) => invoke("list_memory_candidates", { status, limit }),
-  getCommunicationStyleEvidence: () => invoke("get_communication_style_evidence"),
+  getRecurringTopicEvidence: () => invoke("get_recurring_topic_evidence"),
   createMemoryCandidate: candidate => invoke("create_memory_candidate", candidate),
   reviewMemoryCandidate: (candidateId, decision) => invoke("review_memory_candidate", { candidateId, decision }),
   deleteMemoryCandidate: candidateId => invoke("delete_memory_candidate", { candidateId }),
