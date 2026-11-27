@@ -168,7 +168,7 @@ test("invalidates a conversation summary when a queued reply is inserted inside 
 }));
 
 
-test("upgrades a populated version-7 database through version 13 without losing user data", () => {
+test("upgrades a populated version-7 database through version 14 without losing user data", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sync-ai-v7-upgrade-"));
   const file = path.join(dir, "legacy-v7.sqlite3");
   let db = new SyncDatabase(file);
@@ -292,6 +292,43 @@ test("recurring topic evidence detects interests across chats and ignores one-of
 }));
 
 
+test("schema v14 cleans legacy auto-learned noise and resets untrusted provenance", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sync-ai-memory-cleanup-"));
+  const file = path.join(dir, "memory.sqlite3");
+  let db = new SyncDatabase(file);
+  try {
+    const chat = db.create_chat({ title: "Old learned profile source" });
+    const source = db.append_message({ chatId: chat.id, message: { role: "user", body: "yo bro" } });
+    const learned = db.save_memory({ memory: {
+      title: "Learned profile",
+      content: "* Name: Sam\n* Status: Doing good\n* Interests: Rocket League\n* Habits: Uses \"bro\" and \"yooo\" frequently\n* Other mentions cycling",
+      source: "Auto-learned from conversations",
+      category: "profile"
+    } });
+    const manual = db.save_memory({ memory: {
+      title: "Manual memory", content: "Keep its evidence.", source: "manual"
+    } });
+    db.add_memory_source({ memoryId: learned.id, chatId: chat.id, messageId: source.id });
+    db.add_memory_source({ memoryId: manual.id, chatId: chat.id, messageId: source.id });
+
+    // Simulate an existing v13 profile created before the cleanup migration.
+    db.db.prepare("DELETE FROM schema_migrations WHERE version>13").run();
+    db.close();
+    db = new SyncDatabase(file);
+
+    const cleaned = db.get_memory({ memoryId: learned.id });
+    assert.match(cleaned.content, /Name: Sam/);
+    assert.match(cleaned.content, /Interests: Rocket League/);
+    assert.doesNotMatch(cleaned.content, /Status:|Habits:|Other mentions/i);
+    assert.equal(cleaned.sources.length, 0, "unverified legacy learned-profile sources are cleared");
+    assert.equal(db.get_memory({ memoryId: manual.id }).sources.length, 1, "manual Memory provenance remains intact");
+    assert.equal(Number(db.db.prepare("SELECT MAX(version) v FROM schema_migrations").get().v), 14);
+  } finally {
+    try { db.close(); } catch {}
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("schema v13 clears stale topic observations so the filtered index is rebuilt", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sync-ai-topic-reindex-"));
   const file = path.join(dir, "topic.sqlite3");
@@ -303,7 +340,7 @@ test("schema v13 clears stale topic observations so the filtered index is rebuil
       .run(message.id, chat.id, JSON.stringify(["bro", "yooo"]), new Date().toISOString());
 
     // Simulate an existing v12 database carrying observations from the old tokenizer.
-    db.db.prepare("DELETE FROM schema_migrations WHERE version=13").run();
+    db.db.prepare("DELETE FROM schema_migrations WHERE version>12").run();
     db.close();
     db = new SyncDatabase(file);
 
