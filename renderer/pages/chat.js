@@ -8,6 +8,7 @@ const { esc, errorText, cleanModelText, fmtDate, makeId } = window.SyncAI.shared
 function fitPromptText(value, maxCharacters, keepEnd = false) {
   const text = String(value || "");
   const limit = Math.max(0, Number(maxCharacters) || 0);
+  if (limit <= 0) return "";
   if (text.length <= limit) return text;
   if (limit <= 36) return keepEnd ? text.slice(-limit) : text.slice(0, limit);
   const marker = "\n[… clipped to fit the active context budget …]\n";
@@ -493,7 +494,7 @@ async function mountChat(root, context, initialChatId = null) {
     const pendingCharacters = delta.reduce((sum, item) => sum + String(item.body || "").length, 0);
     const historyAfterSummary = messages.filter(item => Number(item.position) > cursor)
       .reduce((sum, item) => sum + String(item.body || "").length, 0);
-    const triggerCharacters = Math.max(1500, Math.floor(promptBudget * 0.70));
+    const triggerCharacters = Math.max(500, Math.floor(promptBudget * 0.70));
     if (historyAfterSummary < triggerCharacters) return;
     if (pendingCharacters < Math.min(700, Math.floor(triggerCharacters * 0.25))) return;
 
