@@ -1,6 +1,6 @@
 # Intelligence & Memory Architecture
 
-> Status: Baseline audit complete; implementation not started.
+> Status: Baseline audit complete; storage/API and Memory Center foundations in progress.
 > Date: 2026-11-26
 > Repository: `SamYoBoi284/Sync-AI-Desktop-E`, branch `main`
 
@@ -311,3 +311,20 @@ At minimum, add automated tests covering:
 Source inspection is not proof of runtime behavior. The audit did not launch Electron, run `npm test`, run `npm run build`, load a real GGUF model, or exercise the app on the target laptop.
 
 Record tests actually performed for each later implementation milestone. Do not claim a real-model test or target-machine test unless it occurred.
+
+
+## 10. Implementation checkpoint — 2026-11-26
+
+The original inventory above describes the baseline before implementation. The following updates supersede any baseline statements that say these pieces do not exist:
+
+- Migration v8 is implemented. It adds Memory category, importance, pinning, a `memory_sources` relation, and a `conversation_summaries` table.
+- The database layer now validates/persists Memory metadata and provenance, and supports storing, retrieving and deleting per-conversation summaries.
+- Summary cursors are invalidated when editing already summarized content or inserting a queued response into the covered history. Appending later turns preserves an older summary.
+- Main-process IPC handlers and renderer API wrappers expose the new data operations.
+- Auto-learned profiles now record the originating conversation and recent user-message sources.
+- Memory page UI now exposes category, importance, pinning, and source conversation/message excerpts.
+- Existing bounded Memory prompt selection prioritizes pinned entries, then importance, then recency. This is **not** yet relevance-based retrieval.
+- Phase Step 1 (data model/storage API) is **IN PROGRESS** pending a legacy-v7 upgrade fixture and further validation.
+- Phase Step 2 (Memory Center improvements) is **IN PROGRESS**; filtering/search, storage-use detail and candidate-review controls remain.
+- Conversation summary storage exists, but summary generation, automatic compaction and summary prompt integration are not yet implemented.
+- Latest CI on commit `d8ab68d20c75414fc624fb3a64b5fa8de9847f99`: new database tests passed on Windows and Ubuntu. Overall workflows failed on five existing unrelated assertions involving file-operation path/protection behavior and an inference source-contract regex. No target-machine UI/model test was performed.
