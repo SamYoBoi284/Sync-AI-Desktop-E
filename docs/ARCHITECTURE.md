@@ -73,7 +73,7 @@ To add a page:
 
 ## 5. Persistence
 
-The app uses Electron's built-in `node:sqlite` through `electron/database.cjs`, with migrations through schema version 7. Data includes chats, messages, per-message diagnostics, settings, GGUF model registry, Workspace artifacts, Tasks, Notes and File Library metadata.
+The app uses Electron's built-in `node:sqlite` through `electron/database.cjs`, with migrations through schema version 8. Data includes chats, messages, per-message diagnostics, settings, GGUF model registry, Workspace artifacts, Tasks, Notes and File Library metadata.
 
 Chat backups use a desktop-native, versioned JSON format. Import validates the payload, enforces limits and skips duplicate chat IDs instead of overwriting local conversations.
 
@@ -123,3 +123,13 @@ The current visual system is split across `src/styles.css`, `src/shell.css`, `sr
 A visual polish/animation pass is planned. The startup splash markup is in `renderer/app.js`, with styling in `src/styles.css`. Current renderer code reveals it after bootstrap work and uses an 850 ms remaining-minimum calculation; a readiness-aware 4–7 second minimum display lifecycle is still needed. The three-dot streaming indicator and several reduced-motion rules already exist.
 
 Future interaction work (not yet implemented) includes a centralized customizable shortcut manager, shortcut reference in Settings, global search, command palette, nested-interface Escape priority, removal of the visible composer @ button while preserving typed @, and inline composer editing with Cancel/Alt+C. Keep this work distinct from a visual-only pass.
+
+
+## 11. Phase 1 implementation update (2026-11-26)
+
+- Migration v8 introduces Memory category/importance/pinning, `memory_sources` provenance and a per-chat `conversation_summaries` table.
+- Auto-learned profile memories now link to the originating conversation and recent user messages.
+- Memory page supports category, importance and pinning controls, and displays source conversation/message excerpts.
+- Enabled memories are ordered pinned-first, then importance, then recency within the existing bounded prompt budget. This is not semantic or lexical relevance retrieval.
+- Summary storage and cursor invalidation are implemented; generating summaries and adding them to prompts remain future work.
+- Notes and Workspace context are still combined by the current shared retrieval method; independent Notes retrieval is pending.
