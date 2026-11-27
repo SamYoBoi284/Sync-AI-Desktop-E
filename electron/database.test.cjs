@@ -208,7 +208,7 @@ test("upgrades a populated version-7 database through version 14 without losing 
     assert.equal(migratedMemory.pinned, false);
     assert.equal(db.get_chat({ chatId: chat.id }).messages[0].body, "Preserve this transcript.");
     assert.equal(db.get_note({ noteId: note.id }).content, "Preserve this note.");
-    assert.equal(Number(db.db.prepare("SELECT MAX(version) v FROM schema_migrations").get().v), 13);
+    assert.equal(Number(db.db.prepare("SELECT MAX(version) v FROM schema_migrations").get().v), 14);
     assert.deepEqual(db.get_conversation_summary({ chatId: chat.id }), null);
   } finally {
     try { db.close(); } catch {}
