@@ -30,6 +30,20 @@ async function disposeModel() {
   loaded = null;
 }
 
+async function recoverContextSequences() {
+  if (!model || !loaded || !context) throw new Error("The inference context is not available for recovery.");
+  const previousContext = context;
+  context = null;
+  await previousContext.dispose();
+  context = await model.createContext({
+    contextSize: loaded.contextLength,
+    batchSize: loaded.batchSize
+  });
+  if (context.sequencesLeft <= 0) {
+    throw new Error("The inference context was rebuilt, but no context sequence is available.");
+  }
+}
+
 async function loadModel(data) {
   if (model) throw new Error("An inference model is already loaded in this worker.");
   if (typeof data.modelPath !== "string" || !data.modelPath.trim()) throw new Error("A valid GGUF model path is required.");
@@ -75,7 +89,8 @@ async function generate(data) {
     const availableOutputTokens = loaded.contextLength - promptTokens - systemPromptTokens - safetyReserveTokens;
     if (availableOutputTokens < 1) throw new Error("The prompt and Sync system instructions fill the model context window. Lower the prompt budget or shorten the conversation before generating.");
     maxOutputTokens = Math.min(loaded.maxOutputTokens || 512, availableOutputTokens);
-    if (context.sequencesLeft <= 0) throw new Error("No context sequences are available. Use Force Stop Generation to restart the inference worker and reclaim them.");
+    if (context.sequencesLeft <= 0) await recoverContextSequences();
+    if (context.sequencesLeft <= 0) throw new Error("No context sequence is available after Sync rebuilt the inference context. Use Force Stop Generation if the issue persists.");
     sequence = context.getSequence();
     session = new LlamaChatSession({ contextSequence: sequence, systemPrompt: SYSTEM_PROMPT });
     const response = await session.prompt(data.prompt, {
@@ -117,13 +132,13 @@ async function generate(data) {
       startedAt, finishedAt: new Date().toISOString()
     }};
   } finally {
-    let sequenceReleased = false, cleanupError = null;
+    let cleanupError = null;
     if (session) {
-      try { session.dispose({ disposeSequence: true }); sequenceReleased = true; }
+      try { session.dispose({ disposeSequence: false }); }
       catch (error) { cleanupError = error instanceof Error ? error.message : String(error); }
     }
-    if (sequence && !sequenceReleased) {
-      try { sequence.dispose(); sequenceReleased = true; }
+    if (sequence) {
+      try { await sequence.dispose(); }
       catch (error) { cleanupError ||= error instanceof Error ? error.message : String(error); }
     }
     activeGeneration = null;
