@@ -251,7 +251,7 @@ async function mountMemory(root) {
       const results = await Promise.allSettled([
         api.listMemories(), api.getSetting(AUTO_LEARN_KEY), api.getSetting(LEARNING_MODE_KEY),
         api.getSetting(MEMORY_BUDGET_KEY), api.listMemoryCandidates("pending", 50), api.getContextPolicy(), api.getSetting(AUTO_SUMMARY_KEY),
-        api.listConversationSummaries("", 200), api.getSetting(CROSS_SUMMARY_KEY), api.getRuntimeStatus()
+        api.listConversationSummaries(summarySearchQuery, 200), api.getSetting(CROSS_SUMMARY_KEY), api.getRuntimeStatus()
       ]);
       if (results[0].status !== "fulfilled") throw results[0].reason;
       memories = results[0].value || [];
@@ -422,7 +422,7 @@ async function mountMemory(root) {
       summaryBusy = true; renderSummaries();
       try {
         const saved = await api.saveConversationSummary(item.chatId, summaryDraft.trim(), item.throughPosition, item.formatVersion || 1);
-        conversationSummaries = await api.listConversationSummaries("", 200);
+        conversationSummaries = await api.listConversationSummaries(summarySearchQuery, 200);
         const next = conversationSummaries.find(value => value.chatId === saved.chatId);
         summaryDraft = next?.summary || saved.summary;
         message = "Conversation summary edits saved."; messageIsError = false;
@@ -436,7 +436,7 @@ async function mountMemory(root) {
       summaryBusy = true; renderSummaries();
       try {
         await api.deleteConversationSummary(id);
-        conversationSummaries = await api.listConversationSummaries("", 200);
+        conversationSummaries = await api.listConversationSummaries(summarySearchQuery, 200);
         selectedSummaryId = conversationSummaries[0]?.chatId || null;
         summaryDraft = conversationSummaries[0]?.summary || "";
         message = "Saved summary deleted. The original chat and all its messages remain intact."; messageIsError = false;
@@ -508,7 +508,7 @@ async function mountMemory(root) {
           messageIsError = false; render();
         }
         const saved = await api.saveConversationSummary(id, workingSummary, cursor, 1);
-        conversationSummaries = await api.listConversationSummaries("", 200);
+        conversationSummaries = await api.listConversationSummaries(summarySearchQuery, 200);
         selectedSummaryId = id;
         summaryDraft = saved.summary;
         message = "Summary rebuilt successfully from the original transcript. The newest eight messages remain outside the summary."; messageIsError = false;
