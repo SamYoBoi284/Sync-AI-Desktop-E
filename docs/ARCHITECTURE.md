@@ -133,3 +133,12 @@ Future interaction work (not yet implemented) includes a centralized customizabl
 - Enabled memories are ordered pinned-first, then importance, then recency within the existing bounded prompt budget. This is not semantic or lexical relevance retrieval.
 - Summary storage and cursor invalidation are implemented; generating summaries and adding them to prompts remain future work.
 - Notes and Workspace context are still combined by the current shared retrieval method; independent Notes retrieval is pending.
+
+
+## 12. Phase 1 context retrieval update (2026-11-26)
+
+- Added query-aware independent retrieval methods for Memory, opted-in Notes and opted-in Workspace artifacts.
+- Ranking is deterministic, lightweight lexical token matching; no embedding runtime or additional model process.
+- Chat prompt assembly labels Memory, Notes, Workspace, stored conversation summaries and recent transcript as distinct sources.
+- Stored summaries are consumed by prompt assembly when available, with already-covered transcript entries omitted and the latest queued user message preserved.
+- Summary generation, automatic compaction and cross-conversation summary retrieval remain unimplemented.
