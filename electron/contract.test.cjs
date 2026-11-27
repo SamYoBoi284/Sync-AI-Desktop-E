@@ -159,6 +159,22 @@ test("the learned profile is always included and Memory confirmations use Sync-t
   assert.equal(memoryPage.includes("window.confirm("), false);
 });
 
+test("recurring topic evidence is general-purpose and native dialog focus recovery is centralized", () => {
+  const database = fs.readFileSync(path.join(__dirname, "database.cjs"), "utf8");
+  const main = fs.readFileSync(path.join(__dirname, "main.cjs"), "utf8");
+  const preload = fs.readFileSync(path.join(__dirname, "preload.cjs"), "utf8");
+  const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
+  assert.match(database, /get_recurring_topic_evidence/);
+  assert.match(database, /topic_observation_messages/);
+  assert.match(main, /get_recurring_topic_evidence/);
+  assert.match(preload, /webFrame\.executeJavaScript/);
+  assert.match(preload, /restoreFocusAfterDialog/);
+  assert.match(main, /restoreRendererKeyboardFocus/);
+  assert.match(main, /target\.blur\(\);\s*target\.focus\(\);\s*target\.webContents\.focus\(\)/);
+  assert.match(chat, /summary\?\.relevantForQuery === false/);
+  assert.match(chat, /api\.getConversationSummary\(job\.chatId, retrievalQuery\)/);
+});
+
 test("overall prompt budgeting is bounded and leaves recent transcript context intact", () => {
   const memoryPage = fs.readFileSync(path.join(root, "renderer", "pages", "memory.js"), "utf8");
   const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
