@@ -168,7 +168,7 @@ test("invalidates a conversation summary when a queued reply is inserted inside 
 }));
 
 
-test("upgrades a populated version-7 database through version 10 without losing user data", () => {
+test("upgrades a populated version-7 database through version 12 without losing user data", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sync-ai-v7-upgrade-"));
   const file = path.join(dir, "legacy-v7.sqlite3");
   let db = new SyncDatabase(file);
@@ -186,6 +186,7 @@ test("upgrades a populated version-7 database through version 10 without losing 
     db.db.exec("DROP INDEX idx_memories_rank;");
     db.db.exec("DROP TABLE IF EXISTS model_profiles;");
     db.db.exec("DROP TABLE IF EXISTS preference_observation_messages;");
+    db.db.exec("DROP TABLE IF EXISTS topic_observation_messages;");
     db.db.exec("DROP INDEX idx_memory_candidates_status_created;");
     db.db.exec("DROP TABLE memory_candidates;");
     db.db.exec("DROP TABLE conversation_summaries;");
@@ -257,39 +258,39 @@ test("always includes the learned user profile for generic or unrelated new-chat
   assert.equal(selected.some(item => item.title === "Unrelated cooking notes"), false);
 }));
 
-test("communication-style learning requires repeated evidence across multiple conversations", () => withDb(db => {
-  const chats = [1, 2, 3].map(number => db.create_chat({ title: "Conversation " + number }));
+test("recurring topic evidence detects interests across chats and ignores one-off subjects", () => withDb(db => {
+  const chats = [1, 2, 3, 4].map(number => db.create_chat({ title: "Conversation " + number }));
   const add = (chatId, body) => db.append_message({ chatId, message: { role: "user", body } });
-  const first = add(chats[0].id, "hey bro, how's it going?");
-  const second = add(chats[0].id, "thanks bro");
-  add(chats[0].id, "good morning");
-  add(chats[1].id, "yo bro");
-  add(chats[1].id, "that makes sense bro");
-  add(chats[1].id, "what do you think?");
-  let evidence = db.get_communication_style_evidence();
-  assert.equal(evidence.qualifiesForPreference, false);
-  assert.equal(evidence.conversationsWithBro, 2);
+  const rocket1 = add(chats[0].id, "I've been playing Rocket League lately.");
+  add(chats[0].id, "Trying to learn Rocket League aerials.");
+  add(chats[0].id, "Good morning!");
+  add(chats[1].id, "Rocket League ranked has been fun.");
+  add(chats[1].id, "I keep coming back to Rocket League.");
+  add(chats[1].id, "I played chess once this week.");
+  add(chats[2].id, "I want to improve at Rocket League.");
+  add(chats[2].id, "Another Rocket League session tonight.");
+  add(chats[2].id, "Good morning!");
+  add(chats[3].id, "Rocket League is still my favorite.");
+  add(chats[3].id, "Good morning!");
 
-  add(chats[2].id, "yooo bro");
-  add(chats[2].id, "appreciate it bro");
-  add(chats[2].id, "what does bro mean?");
-  evidence = db.get_communication_style_evidence();
-  assert.equal(evidence.qualifiesForPreference, true);
-  assert.equal(evidence.conversationsWithBro, 3);
-  assert.equal(evidence.messagesWithBro, 6);
-  assert.equal(evidence.totalMessages, 9);
-  assert.ok(evidence.messageRatio >= 0.5);
+  const evidence = db.get_recurring_topic_evidence();
+  const rocketLeague = evidence.candidates.find(item => item.term === "rocket league");
+  assert.ok(rocketLeague, "recurring subject should be found across chats");
+  assert.ok(rocketLeague.conversationCount >= 3);
+  assert.ok(rocketLeague.messageCount >= 4);
+  assert.equal(evidence.candidates.some(item => item.term === "chess"), false, "one-off topics must not qualify");
+  assert.equal(evidence.candidates.some(item => item.term === "good morning"), false, "routine greetings are not interests");
 
-  const repeated = db.get_communication_style_evidence();
-  assert.deepEqual(repeated, evidence, "re-indexing must not double-count existing messages");
+  const secondPass = db.get_recurring_topic_evidence();
+  assert.deepEqual(secondPass, evidence, "re-indexing must not duplicate evidence");
 
-  db.edit_user_message({ chatId: chats[0].id, messageId: first.id, body: "good morning" });
-  db.edit_user_message({ chatId: chats[0].id, messageId: second.id, body: "thanks" });
-  const afterEdit = db.get_communication_style_evidence();
-  assert.equal(afterEdit.messagesWithBro, 5);
-  assert.equal(afterEdit.totalMessages, 9);
-  assert.equal(afterEdit.qualifiesForPreference, false);
+  db.edit_user_message({ chatId: chats[0].id, messageId: rocket1.id, body: "Good morning!" });
+  const afterEdit = db.get_recurring_topic_evidence();
+  const updatedRocketLeague = afterEdit.candidates.find(item => item.term === "rocket league");
+  assert.ok(updatedRocketLeague);
+  assert.equal(updatedRocketLeague.messageCount, rocketLeague.messageCount - 1);
 }));
+
 
 test("conversation summaries are omitted from unrelated topic prompts but retained for relevant and ambiguous follow-ups", () => withDb(db => {
   const chat = db.create_chat({ title: "Sync AI project" });
