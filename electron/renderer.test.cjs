@@ -39,3 +39,15 @@ test("chat learning requires explicit evidence and does not turn greetings into 
   assert.match(chat, /for \(const sourceMessage of selectedSources\)/);
   assert.match(chat, /if \(oldScroll == null \|\| wasNearBottom\) scrollTranscript\(\)/);
 });
+
+test("Quick Ask overlay has its own secure document and renderer entrypoint", () => {
+  const html = fs.readFileSync(path.join(root, "quick-ask.html"), "utf8");
+  const quickAsk = fs.readFileSync(path.join(root, "renderer", "quick-ask.js"), "utf8");
+  assert.match(html, /Content-Security-Policy/);
+  assert.match(html, /renderer\/api\.js/);
+  assert.match(html, /renderer\/quick-ask\.js/);
+  assert.match(quickAsk, /api\.quickAskPrepare\(\)/);
+  assert.match(quickAsk, /api\.quickAskSubmit\(/);
+  assert.match(quickAsk, /api\.quickAskStop\(\)/);
+});
+
