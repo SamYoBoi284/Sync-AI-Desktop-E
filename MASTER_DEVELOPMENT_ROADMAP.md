@@ -3,7 +3,7 @@
 **Repository:** SamYoBoi284/Sync-AI-Desktop-E  
 **Branch:** main  
 **Last reconciled:** 2026-11-26  
-**Roadmap baseline:** 43e57d284555487e04cdb053b171e2f38d908dff  
+**Roadmap baseline:** 5758d720eb5de611e5018804365bf541bde9bb56  
 **Current phase:** Phase 1 — Intelligence & Memory  
 **Current status:** Phase 1 implementation scope complete; final database, CI, Electron UI and real-GGUF validation remains outstanding.
 
@@ -34,6 +34,8 @@ Status meanings:
 - Explicit candidate approval and rejection.
 - Candidate approval updates the learned profile and attaches provenance; rejection does not modify the existing saved profile.
 - Backward compatibility with the legacy auto-learning setting.
+- Conservative learning: `NO_CHANGES` is a valid normal outcome; temporary moods, one-off actions, greetings, guesses and private details about others are not durable memories.
+- General-purpose recurring-topic evidence is indexed from user messages across conversations (not a fixed keyword list). A subject is only presented as a candidate signal after at least four separate user messages across at least three chats; the model must still judge whether the user shows real interest, curiosity, enjoyment or sustained activity before suggesting it.
 
 ### 2. Independent context retrieval — COMPLETE
 
@@ -52,11 +54,14 @@ Status meanings:
 - The effective prompt allowance and output reserve are shown in Memory settings.
 - Prompt assembly allocates bounded portions to the current chat summary, Memory, Notes, Workspace, optional cross-chat summaries and recent transcript.
 - Recent transcript text is preferentially preserved when the prompt must be clipped.
+- Rolling compaction uses the per-chat summary coverage cursor and keeps the newest eight user/assistant messages verbatim.
+- Topic-aware summary selection: a clearly unrelated new subject or generic greeting does not pull the older summary into the active prompt; relevant topics and ambiguous follow-ups can retrieve it again.
+- When an older summary is excluded as irrelevant, its already-covered transcript remains outside the active prompt too. This frees context for the new topic without deleting chat history or the saved summary.
 - Learning and summary prompts are also bounded by the active context allowance.
 - The inference worker tokenizes the application prompt and Sync system prompt, calculates the true remaining context and caps generation to the configured output ceiling and actual available tokens (maximum 512).
 - A clear error is returned when no output capacity remains.
 
-**Known design limitation:** Retrieval ranking and prompt allocation are still lightweight lexical and estimated-character approaches. The character budget is not a tokenizer measurement; worker-side token counting is the final context guard. Embeddings, semantic/vector retrieval and more advanced adaptive allocation are not implemented.
+**Known design limitation:** Topic switching and summary relevance currently use lightweight lexical matching plus explicit ambiguous-follow-up heuristics, not semantic embeddings. The character budget is not a tokenizer measurement; worker-side token counting is the final context guard. Embeddings, semantic/vector retrieval and more advanced adaptive allocation are not implemented.
 
 ### 4. Conversation summaries — IMPLEMENTATION COMPLETE
 
@@ -68,6 +73,8 @@ Status meanings:
 - Prefix-batched processing; the cursor advances only through messages actually included in the summary prompt.
 - Oversized earliest uncovered messages are not silently skipped.
 - Summary text is consumed during prompt assembly.
+- The active chat query is passed into summary retrieval; unrelated summaries are withheld while short referential follow-ups retain continuity.
+- The summary coverage cursor still removes covered old transcript turns from the active prompt even when that summary is not relevant to the new topic.
 - Memory now contains a Summary Center with full-index search, conversation selection, summary inspection, coverage metadata and manual editing.
 - Saved summaries can be deleted without deleting their original conversations.
 - Manual rebuild works from the original transcript, keeps the newest eight messages outside the summary, processes older messages in bounded batches and only saves the replacement after all batches succeed.
@@ -85,6 +92,7 @@ Status meanings:
 ### 6. Model Profiles — CORE IMPLEMENTATION COMPLETE
 
 - SQLite schema version 10 adds persistent profiles keyed to registered GGUF model IDs.
+- SQLite schema version 12 adds a local topic-observation index keyed to user message IDs; v12 replaces the temporary v11 communication-only evidence table with general topic/phrase evidence.
 - Each model can save its own:
   - Context window: 512–32,768 tokens.
   - Batch size: 16–2,048 tokens, constrained not to exceed the context window.
@@ -103,12 +111,16 @@ This is the next immediate task and is intentionally handed to the user.
 
 - Run the complete database and contract test suites.
 - Run the repository build/syntax checks and inspect the latest GitHub Actions results.
-- Verify the v7-to-v10 migration against populated user data.
+- Verify the v7-to-v12 migration against populated user data, including an existing v10/v11 installation and a fresh database.
+- Verify recurring-topic evidence with a repeated subject (for example Rocket League) across at least three chats and four user messages; a one-off subject (for example chess) and routine greetings must not qualify.
+- Verify Review first only proposes a subject when the user's examples show genuine interest or sustained engagement, and returns no suggestion for ordinary chatter or temporary activity.
+- Verify topic-aware rolling context: unrelated subject changes hide old summaries from the active prompt, relevant subjects retrieve them again, and ambiguous follow-ups keep continuity without deleting saved history.
 - Verify Memory candidate approval/rejection and source provenance.
 - Verify summary search, editing, deletion, rebuild, cancellation and cursor preservation.
 - Verify cross-chat retrieval remains disabled by default, excludes the active chat and stays within its prompt budget when enabled.
 - Verify model-profile persistence, validation, fallback defaults, reload behavior and deletion cascade.
 - Manually inspect the Electron UI at normal and constrained window sizes.
+- Verify ESM-style keyboard focus recovery after native `alert()`, `confirm()` and `prompt()` dialogs and after main-process Open/Save file pickers; test the chat composer, Memory editor, and other text inputs/textareas without Alt+Tab or clicking the title bar.
 - Load and test a real GGUF model, including context limits, output limits, profile application and worker recovery.
 - Verify behavior on the intended low-RAM target device and with the Windows worker memory limiter configured.
 
@@ -117,11 +129,13 @@ This is the next immediate task and is intentionally handed to the user.
 ### Phase 1 position
 
 - Repository/architecture audit: **COMPLETE**.
-- Data model and storage APIs: **COMPLETE**, schema v10.
+- Data model and storage APIs: **COMPLETE**, schema v12 (model profiles v10; general topic evidence v12).
 - Memory Center: **COMPLETE**.
 - Independent Memory / Notes / Workspace retrieval: **COMPLETE**.
 - Overall context orchestration and worker-side output guard: **COMPLETE for the current lexical/estimated-character design**.
-- Automatic summaries and compaction: **IMPLEMENTED**.
+- Automatic summaries and rolling compaction: **IMPLEMENTED — topic-aware summary selection; chat history remains intact**.
+- Conservative learning and general recurring-interest evidence: **IMPLEMENTED — 4 user messages across 3 conversations is the evidence threshold; model judgement remains required**.
+- Global renderer keyboard-focus recovery after native dialogs/file pickers: **IMPLEMENTED; manual Windows Electron verification pending**.
 - Summary Center and manual rebuild: **IMPLEMENTED**.
 - Cross-conversation summary retrieval: **IMPLEMENTED, opt-in by default**.
 - Per-GGUF inference profiles: **IMPLEMENTED**.
@@ -430,13 +444,16 @@ Further refinements can be scheduled as needed without blocking the Command Pale
 - Memory Center: **COMPLETE**.
 - Independent Notes and Workspace retrieval: **COMPLETE**.
 - Context orchestration/global budgeting: **COMPLETE for current lexical and estimated-character design**.
+- Topic-aware rolling context compaction: **IMPLEMENTED; lexical relevance and follow-up heuristic, non-destructive to saved history**.
+- Evidence-based recurring interests/preferences: **IMPLEMENTED; general topics/phrases, evidence threshold plus model judgement**.
+- Native dialog/file-picker keyboard-focus recovery: **IMPLEMENTED; manual Windows verification pending**.
 - Automatic summaries and compaction: **IMPLEMENTED**.
 - Summary Center and manual rebuild: **IMPLEMENTED**.
 - Cross-conversation summary retrieval: **IMPLEMENTED — opt-in, off by default**.
 - Per-GGUF inference profiles: **IMPLEMENTED**.
-- Final database/contract tests, CI review, migration verification, manual Electron UI and real-GGUF validation: **PENDING**.
+- Final database/contract test execution, CI review, v7-to-v12 migration verification, manual Electron UI and real-GGUF validation: **PENDING**.
 
-**Immediate next task:** Phase 1, item 7 — final validation.  
+**Immediate next task:** Phase 1, item 7 — final validation on the laptop: run the updated test suite/build, verify v7-to-v12 migration and the new topic-learning/context-compaction regressions, then manually test the native-dialog focus fix and real GGUF behavior.  
 **Next development phase after validation:** Phase 2 — Desktop Integration, beginning with Quick Ask Overlay and completion of the tray companion.
 
 **Continuity requirement:** Every future development session must inspect the current repository and this roadmap before starting new work. The implementation on the current branch takes precedence over this document if they disagree.
