@@ -180,7 +180,7 @@ async function saveQuickAskPreferences({ preferences } = {}) {
     throw new Error("Select an available registered GGUF model for Custom selection.");
   }
   const previous = getQuickAskPreferences();
-  if (shortcut !== previous.shortcut) registerQuickAskShortcut(shortcut);
+  if (shortcut !== quickAskShortcutRegistered) registerQuickAskShortcut(shortcut);
   const next = { shortcut, modelSelection: { mode, customModelId: mode === "custom" ? customModelId : null } };
   try {
     database.set_setting({ key: "quick_ask_preferences", valueJson: JSON.stringify(next) });
