@@ -158,6 +158,8 @@ test("overall prompt budgeting is bounded and leaves recent transcript context i
   assert.match(bridge, /setContextBudgetPercent:/);
   assert.match(memoryPage, /contextBudgetPercent/);
   assert.match(chat, /maxPromptCharacters/);
+  assert.match(chat, /if \(limit <= 0\) return ""/);
+  assert.match(chat, /Math.max\(500, Math.floor\(promptBudget \* 0.70\)\)/);
   assert.match(chat, /fitPromptText\(transcriptText[\s\S]*true\)/);
   assert.match(chat, /api\.getContextPolicy\(\)/);
   assert.match(main, /outputReserveTokens/);
