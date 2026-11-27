@@ -69,7 +69,7 @@ test("small-talk lead-ins do not pollute conversation titles or durable Memory e
   const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
   assert.match(chat, /function stripSmallTalkLeadIn/);
   assert.ok(chat.includes("(?:doing )?(?:good"), "small-talk status prefixes must be recognized");
-  assert.match(chat, /routineUtilityQuestion/);
+  assert.match(chat, /function isRoutineUtilityQuestion/);
   assert.match(chat, /what time is it/);
   assert.match(chat, /const raw = stripSmallTalkLeadIn/);
 });
