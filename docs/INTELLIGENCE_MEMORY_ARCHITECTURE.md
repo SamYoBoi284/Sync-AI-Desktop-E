@@ -415,3 +415,13 @@ This section supersedes earlier Phase 1 status notes that say Memory search/revi
 - Source-validation on commit `0810275cf5b8c50b96c1b7b688e87b002b496c62` passed the Memory/database tests; two failures were stale source assertions for the old inference class and summary cursor variable. Those assertions were updated in commits `6bc3bc129759cf8b9ed8afa35daad83ab342c01d` and `700541503116b7c9932576952dd5b7f2d98a5bf2`. CI for the latter is pending.
 - Earlier Windows safety runs also reported file-operation path failures caused by hosted temporary directories being detected as symbolic-link traversals. This is unrelated to the new Memory/context logic and remains an environment validation caveat.
 - No manual target-laptop UI test or real-GGUF conversation test has been performed in this milestone.
+
+
+## 2026-11-26 — Phase 1 remaining implementation completed
+
+- SQLite schema version 10 adds model_profiles, keyed by registered model ID with cascade deletion. Each profile validates its context window (512–32,768), batch size (16–2,048 and no larger than context), temperature (0–2) and maximum output (16–512 tokens).
+- Local Models now exposes a per-GGUF inference profile editor. Models without a custom profile continue to inherit the existing global Runtime context and batch settings. Profile values are applied on the next model load and also on force-stop worker recovery; they do not mutate an already-loaded worker.
+- Memory now contains a Summary Center with server-backed search, conversation selection, saved-summary inspection, manual editing, deletion, coverage metadata and rebuild-from-transcript.
+- Manual rebuild keeps the newest eight user/assistant messages verbatim, processes older messages in bounded batches and saves the replacement only after every batch succeeds. Cancelling, an empty model response or a failed batch leaves the previously saved summary intact.
+- Chat retrieval can include up to four lexically relevant summaries from other conversations, excluding the active conversation. Retrieval is enabled by default, can be disabled in Memory settings, and receives a bounded prompt allocation rather than being appended without limit.
+- Phase 1 implementation scope is now complete. The final validation pass (database/contract tests, CI review, manual Electron UI and real-GGUF checks) remains intentionally pending for the user to run. Syntax compilation was checked for the changed CommonJS and classic renderer modules; this does not replace the full validation pass.
