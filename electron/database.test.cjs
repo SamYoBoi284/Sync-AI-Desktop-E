@@ -235,6 +235,27 @@ test("retrieves Memory by lexical relevance while keeping pinned context availab
   assert.ok(!selected.some(item => item.id === unrelated.id));
 }));
 
+test("always includes the learned user profile for generic or unrelated new-chat queries", () => withDb(db => {
+  const profile = db.save_memory({ memory: {
+    title: "Learned profile",
+    content: "* Name: Sam\\n* Prefers casual greetings",
+    source: "Auto-learned from conversations",
+    category: "profile",
+    importance: 3,
+    pinned: false
+  } });
+  db.save_memory({ memory: {
+    title: "Unrelated cooking notes",
+    content: "Enjoys baking sourdough and experimenting with spices.",
+    source: "manual",
+    category: "interests"
+  } });
+  const selected = db.list_memory_context({ query: "hey, how are you?", maxCharacters: 1024 });
+  assert.equal(selected[0].id, profile.id);
+  assert.match(selected[0].content, /Name: Sam/);
+  assert.equal(selected.some(item => item.title === "Unrelated cooking notes"), false);
+}));
+
 test("retrieves opted-in Notes independently from Workspace artifacts", () => withDb(db => {
   const note = db.save_note({ note: {
     title: "Laptop upgrade", content: "Compare 512 GB SSD options.",
