@@ -187,8 +187,7 @@
 
 
 /* Theme contrast: the Appearance page itself must invert with the selected theme. */
-:root[data-sync-theme="light"],
-:root[data-sync-theme="system"] {
+:root[data-sync-theme="light"] {
   --text: #202236;
   --muted: #626780;
   --muted-strong: #4b5069;
@@ -220,6 +219,7 @@
 :root[data-sync-theme="light"] .appearance-footer .appearance-save { color: #fff; }
 :root[data-sync-theme="light"] .appearance-footer .appearance-reset { color: #555a73; }
 @media (prefers-color-scheme: light) {
+  :root[data-sync-theme="system"] { --text: #202236; --muted: #626780; --muted-strong: #4b5069; }
   :root[data-sync-theme="system"] .appearance-panel {
     background: linear-gradient(150deg, color-mix(in srgb, var(--interface) 5%, #fff), #fff 70%);
   }
