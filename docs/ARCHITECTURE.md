@@ -142,3 +142,13 @@ Future interaction work (not yet implemented) includes a centralized customizabl
 - Chat prompt assembly labels Memory, Notes, Workspace, stored conversation summaries and recent transcript as distinct sources.
 - Stored summaries are consumed by prompt assembly when available, with already-covered transcript entries omitted and the latest queued user message preserved.
 - Summary generation, automatic compaction and cross-conversation summary retrieval remain unimplemented.
+
+
+## 13. Current Phase 1 status
+
+- Complete: Memory metadata/provenance and conversation-summary storage/API.
+- Complete: independent, opt-in Notes retrieval and distinct Notes prompt section.
+- In progress: Memory Center filtering/search, usage accounting and auto-learn candidate review.
+- In progress: query-based context orchestration and an overall context ceiling.
+- In progress: automatic conversation-summary generation/refresh and compaction. Existing saved summaries are already consumed by prompts.
+- Not started: Model Profiles.
