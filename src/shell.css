@@ -758,3 +758,44 @@
   .shell-model-profile-actions { align-items:stretch; }
   .shell-model-profile-actions button { flex:1 1 auto; }
 }
+
+/* Quick Ask settings and non-layout chat feedback */
+.shell-chat-stage { position: relative; }
+.shell-chat-notice {
+  position: absolute;
+  z-index: 8;
+  top: 74px;
+  left: clamp(16px, 3vw, 38px);
+  right: clamp(16px, 3vw, 38px);
+  margin: 0;
+  pointer-events: none;
+  background: rgba(18, 19, 34, .96);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .24);
+}
+.quick-ask-setting-field {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(190px, .9fr);
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.quick-ask-setting-field strong,.quick-ask-setting-field small { display:block; }
+.quick-ask-setting-field strong { color:var(--text); font-size:11px; }
+.quick-ask-setting-field small { margin-top:4px; color:var(--muted); font-size:9px; line-height:1.5; }
+.quick-ask-setting-field input,.quick-ask-setting-field select {
+  width:100%;
+  min-width:0;
+  padding:9px 10px;
+  border:1px solid var(--border-strong);
+  border-radius:8px;
+  outline:none;
+  color:var(--text);
+  background:var(--surface-raised);
+  font:10px var(--mono);
+}
+.quick-ask-setting-field input:focus,.quick-ask-setting-field select:focus { border-color:var(--accent); }
+@media(max-width:680px) {
+  .quick-ask-setting-field { grid-template-columns:1fr; }
+  .shell-chat-notice { top: 112px; }
+}
