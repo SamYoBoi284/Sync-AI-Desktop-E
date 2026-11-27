@@ -43,7 +43,7 @@ test("the native inference runtime and Windows process memory guard are wired in
   assert.match(worker, /from "node-llama-cpp"/);
   assert.match(worker, /new LlamaChatSession/);
   assert.match(worker, /setRamCap\(memoryLimitBytes\)/);
-  assert.match(worker, /generateCompletionWithMeta/);
+  assert.match(worker, /session\.prompt\(data\.prompt/);
   assert.match(job, /JOB_OBJECT_LIMIT_PROCESS_MEMORY/);
   assert.match(job, /AssignProcessToJobObject/);
   assert.match(job, /GetProcessMemoryInfo/);
