@@ -604,8 +604,13 @@ const handlers = {
     if (!Number.isFinite(percent)) percent = 65;
     percent = Math.min(80, Math.max(40, Math.round(percent / 5) * 5));
     const contextWindowTokens = Number(runtimeState.contextLength) || 2048;
-    const promptBudgetTokens = Math.min(contextWindowTokens - 256, Math.max(256, Math.floor(contextWindowTokens * percent / 100)));
-    return { contextWindowTokens, percent, promptBudgetTokens, outputReserveTokens: contextWindowTokens - promptBudgetTokens, estimatedCharBudget: Math.floor(promptBudgetTokens * 3.2) };
+    const systemPromptReserveTokens = Math.min(128, Math.max(48, Math.floor(contextWindowTokens * 0.25)));
+    const safetyReserveTokens = 16;
+    const minimumOutputTokens = Math.min(64, Math.max(16, Math.floor(contextWindowTokens * 0.125)));
+    const maxPromptTokens = Math.max(256, contextWindowTokens - systemPromptReserveTokens - safetyReserveTokens - minimumOutputTokens);
+    const promptBudgetTokens = Math.min(maxPromptTokens, Math.max(256, Math.floor(contextWindowTokens * percent / 100)));
+    const outputReserveTokens = Math.max(minimumOutputTokens, Math.min(512, contextWindowTokens - promptBudgetTokens - systemPromptReserveTokens - safetyReserveTokens));
+    return { contextWindowTokens, percent, promptBudgetTokens, systemPromptReserveTokens, safetyReserveTokens, outputReserveTokens, estimatedCharBudget: Math.floor(promptBudgetTokens * 3.2) };
   },
   set_context_budget_percent: ({ percent } = {}) => {
     const value = Number(percent);
