@@ -144,3 +144,11 @@ The most recent review fetched and inspected GitHub source; it did not launch El
 - Automatic summaries default to enabled; toggle is in Memory settings. They reuse the loaded model and do not create another worker/model.
 - Latest source contract correction commit: `700541503116b7c9932576952dd5b7f2d98a5bf2`; CI pending. Previous full validation failures were from stale test contracts updated in that commit plus Windows hosted temp-path/file-action issues in earlier runs.
 - Do not claim target-device UI or real GGUF validation; neither was performed in this milestone.
+
+
+## Navigation and responsive layout checkpoint — 2026-11-26
+
+- Added an in-app Back stack and top-bar Back/ESC affordance for routes opened from within a page; selecting a root sidebar destination resets that stack.
+- Escape now resolves supported nested chat menus/dialogs before page navigation. Privacy & Tools approval dialogs keep their own keyboard/focus handler.
+- Horizontal overflow guards were added to the chat transcript and sidebar folder list; message-action tooltips now stay inside their side of the viewport.
+- This has not yet been manually exercised in the Electron UI at different window sizes.
