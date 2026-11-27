@@ -187,3 +187,22 @@ test("older conversation summaries are incrementally generated without summarizi
   assert.match(chat, /batchEntries\.push\(entry\)/);
   assert.match(chat, /saveConversationSummary\(chat\.id, updated\.slice\(0, 2200\), batchTarget\.position/);
 });
+
+
+test("subpages provide a Back route and Escape closes nested UI before navigating", () => {
+  const app = fs.readFileSync(path.join(root, "renderer", "app.js"), "utf8");
+  const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
+  const shell = fs.readFileSync(path.join(root, "src", "shell.css"), "utf8");
+  const motion = fs.readFileSync(path.join(root, "src", "motion.css"), "utf8");
+  assert.match(app, /navigationStack/);
+  assert.match(app, /function goBack\(/);
+  assert.match(app, /id="navigationBack"/);
+  assert.match(app, /event\.key === "Escape"/);
+  assert.match(app, /chat-tool-modal-backdrop/);
+  assert.match(app, /privacy-modal-backdrop/);
+  assert.match(chat, /event\.stopPropagation\(\)/);
+  assert.match(shell, /\.shell-chat-transcript\s*\{[\s\S]*?overflow-x:hidden/);
+  assert.match(shell, /\.shell-sidebar-content\s*\{[^}]*overflow-x:hidden/);
+  assert.match(motion, /shell-chat-message-wrap\.is-user[\s\S]*?right:0/);
+  assert.match(motion, /shell-chat-message-wrap\.is-assistant[\s\S]*?left:0/);
+});
