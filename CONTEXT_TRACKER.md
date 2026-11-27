@@ -1,22 +1,31 @@
 # Sync AI Desktop E — Project Context
 
-> This file is the current handoff record for the Electron repository. It supersedes the old Tauri/React/Vite context copied into this repository during the initial port. The separate Tauri project remains at https://github.com/SamYoBoi284/Sync-AI-Desktop and is not modified by this Electron port.
+> Updated: 2026-11-26. This is the current handoff record for the Electron repository. Verify source before relying on older summaries. The separate Tauri and Android repositories remain independent projects.
 
-## Current architecture (2026-11-14)
+## Current repository checkpoint
+
+- Repository: `SamYoBoi284/Sync-AI-Desktop-E`
+- Branch: `main`
+- Latest inspected commit: `63fa05e801bc1a108589924a18f87389e1dde11d` — `feat: add chat editing archive folders and sidebar menus` (2026-11-26).
+- Application version in `package.json`: `0.1.0`.
+- This checkpoint describes source present on GitHub. A source review does not equal an interactive Electron test or a real-model inference test.
+
+## Current architecture
 
 - **Desktop shell:** Electron.
-- **Renderer:** plain HTML, CSS and classic browser JavaScript.
-- **Entry point:** root `index.html`, loaded directly with Electron `BrowserWindow.loadFile()`.
-- **Styles:** existing stylesheet set under `src/`.
-- **Renderer modules:** ordered classic scripts under `renderer/`; no bundler, transpiler or development server.
-- **Main process:** `electron/main.cjs`.
-- **Preload:** `electron/preload.cjs`, exposing a narrow `window.syncAI` API.
-- **Persistence:** SQLite through Node's built-in `node:sqlite`.
-- **Inference:** CPU llama.cpp through `node-llama-cpp` inside an Electron UtilityProcess.
-- **Windows memory isolation:** optional Job Object private-commit ceiling applies to the inference worker, not the Electron UI process.
+- **Renderer entry:** root `index.html`, loaded directly with Electron `BrowserWindow.loadFile()`.
+- **Renderer:** plain HTML, CSS and classic JavaScript scripts. Page scripts are scoped IIFEs and register mount functions on `window.SyncAI.pages`. They are loaded with deferred script tags in dependency order; this is not a Vite/React/TypeScript renderer and does not use ES-module imports in the page files.
+- **Styles:** local CSS files under `src/`.
+- **Main process:** `electron/main.cjs`; owns native lifecycle and privileged operations.
+- **Preload:** `electron/preload.cjs`; exposes a restricted `window.syncAI` bridge.
+- **Renderer API:** `renderer/api.js`; wraps bridge commands. Do not expose Node APIs to the renderer.
+- **Persistence:** SQLite via Electron's built-in `node:sqlite`, implemented in `electron/database.cjs`; schema migrations through version 4.
+- **Inference:** CPU llama.cpp via `node-llama-cpp` in an Electron UtilityProcess (`electron/inference-worker.mjs`).
+- **Windows memory isolation:** optional Job Object private-commit ceiling applies to the inference worker, not the main/UI process.
 - **Packaging:** Electron Builder / NSIS.
+- **Runtime baseline in README:** Node.js 22.12+ and Windows 10/11 x64.
 
-React, React DOM, TypeScript, Vite, their configuration files, and the old TSX renderer have been removed from this repository. Do not reintroduce them for routine UI work. Prefer the existing ESM-style architecture: HTML markup, CSS and modular JavaScript, with privileged operations kept in the main process behind the preload bridge.
+React, React DOM, TypeScript, Vite, the old TSX renderer and a frontend development server are not part of this repository's current architecture. Do not reintroduce them for routine UI work. Keep privileged operations behind the main/preload boundary.
 
 ## Repository boundaries
 
@@ -24,9 +33,9 @@ React, React DOM, TypeScript, Vite, their configuration files, and the old TSX r
 - Original Tauri project: https://github.com/SamYoBoi284/Sync-AI-Desktop
 - Android companion/reference: https://github.com/SamYoBoi284/Sync-AI
 
-Keep these repositories separate. The Tauri and Android repositories must not be modified when working on this Electron edition.
+Do not mix these repositories or apply Electron changes to the Tauri or Android projects.
 
-## Source map
+## Current source map
 
 ~~~text
 index.html
@@ -44,12 +53,15 @@ renderer/
   pages/
     chat.js
     history.js
+    folders.js
     models.js
     workspace.js
     tasks.js
     library.js
-    settings.js
     runtime.js
+    settings.js
+    memory.js
+    privacy-tools.js
     preview.js
 electron/
   main.cjs
@@ -58,33 +70,207 @@ electron/
   gguf.cjs
   inference-worker.mjs
   inference-memory-job.ps1
+  ...tests and smoke-test helpers
+docs/
+  ARCHITECTURE.md
+  DEVELOPMENT_LOG.md
+  ELECTRON_PORT_AUDIT.md
+  ANDROID_TO_DESKTOP_SPEC.md
+  phase and data-contract notes
+CONTEXT_TRACKER.md
+IMPLEMENTATION_NOTES.md
+README.md
+package.json
 ~~~
 
-## Implemented source capabilities
+The active renderer page modules `folders.js`, `memory.js` and `privacy-tools.js` must be included when preparing a complete renderer handoff. Older source maps that omit them are incomplete.
 
-- Native Electron shell, secure preload bridge, local-file navigation restriction, popup denial and direct HTML loading.
-- Recent chat navigation and chat composer with sequential queueing, streamed tokens, cancellation and per-message diagnostics.
-- SQLite migrations through schema version 4, chat/message persistence, settings and per-message diagnostics.
-- Versioned chat backup export/import with validation and duplicate chat skipping.
-- Workspace artifacts, selected context, Tasks, Notes and File Library metadata persistence.
-- GGUF metadata parsing, SHA-256 identity, original-path model registry, duplicate relinking, default model selection and non-destructive registry removal.
-- Isolated CPU llama.cpp worker with model load/unload, streamed completion, cancellation and runtime telemetry.
-- Optional llama.cpp allocator cap and Windows Job Object hard private-memory ceiling for the worker.
-- Runtime settings and diagnostics UI.
+## Renderer loading and navigation
 
-The File Library currently stores metadata, canonical path and hash. It does not feed file contents to the model. The model is not granted arbitrary filesystem, shell or process access. Any future tool operation needs a separately designed, one-time approval boundary.
+`index.html` loads stylesheets in this order: `styles.css`, `shell.css`, `history.css`, `workspace.css`, `tasks-notes.css`, `library.css`.
+
+It loads the renderer scripts in this order: `api.js`, `shared.js`, page modules, then `app.js` last. Preserve this ordering unless the dependency graph is deliberately changed and verified.
+
+- `renderer/shared.js` defines page titles, navigation sections, preview copy and shared helpers.
+- `renderer/app.js` creates the persistent shell, owns global navigation/recent chats/action status, mounts and cleans up the active page, and performs bootstrap.
+- Each page module owns its page-specific local state, markup and delegated events.
+- `renderer/api.js` is the renderer-facing API wrapper. Its method/argument contracts must remain stable during visual-only work.
+
+Routes currently include New Chat, History, Archive, Folders, Local Models, Workspace, Tasks & Notes, File Library, Runtime, Settings, Memory and Privacy & Tools. Appearance currently routes to the preview/fallback page rather than a completed appearance settings implementation.
+
+## Implemented capabilities in the current source
+
+### Chat and conversation management
+
+- Local SQLite chat/message persistence, recent-chat list and date grouping.
+- Chat title generation with topic categories and a casual-catch-up special case.
+- Chat loading/switching, sequential generation queue, streamed token updates, cancellation and per-message generation diagnostics.
+- Runtime polling/event tracking so the chat view can recover current generation state when refreshed or revisited.
+- Edit-and-regenerate data flow exists: the renderer calls `api.editUserMessage(chatId, messageId, body)`, applies the returned chat, then queues regeneration from the edited user turn. The current UI still uses `window.prompt()`; the requested inline composer editing experience is not implemented yet.
+- History and Archive share the same page module with an archive filter.
+- Create, rename, pin/unpin, archive, restore, delete, move-to-top, move-to-folder and export actions.
+- Sidebar recent conversations, conversation search, folder shortcuts and contextual chat menus.
+- Versioned chat backup export/import with validation and duplicate-chat skipping.
+
+### Models and local inference
+
+- GGUF import/registration, bounded metadata parsing, SHA-256 identity/deduplication, original-path registration and missing-file detection/relinking.
+- Default model selection, model load/unload and informational resource estimates.
+- CPU llama.cpp inference in an isolated Electron UtilityProcess.
+- Token streaming, generation cancellation, queue state and stored diagnostics.
+- Runtime telemetry for worker PID, working set, private committed memory, memory ceiling, active/queued generations and worker errors.
+- Optional Windows Job Object private-memory limit for the worker. The Electron main/UI process stays outside that limit.
+- Runtime controls for context length and batch size; settings take effect on model reload.
+- Force-stop/restart recovery control is exposed through Runtime. A recent source change addresses inference generation recovery, but a passing target-machine stress test is not asserted by this tracker.
+
+### Memory
+
+- Persistent, user-editable memory records stored locally.
+- Memory import, create, edit, enable/disable and delete.
+- Enabled memories can be added to future local prompts within a configurable bounded budget (128–512 estimated tokens; hard UI cap 512).
+- Optional auto-learning from completed conversations; disabled by default.
+- Auto-learning uses bounded conversation text/profile size and excludes sensitive categories and credentials according to the prompt constraints implemented in the chat module.
+- Memory is managed in the Memory page and routed from Settings.
+
+### Composer tools and file-operation safety
+
+- The chat composer currently displays a visible `@` button and supports typed `@` autocomplete/filtering independently.
+- Current tool palette includes copy, move, rename, safe delete and create-folder operations.
+- Tool requests are prepared first and require explicit approval before execution.
+- Folder creation uses a themed in-app naming modal before native path selection.
+- Privacy & Tools provides action history, state labels, approval/cancel/undo dialogs, focus management and focus restoration.
+- Active file operations expose a global Stop & Restore / Stop & Rollback control.
+- File operations are scoped to selected paths and have separate main-process safety mechanisms. Never replace approval/safety behavior with decorative UI.
+
+### Productivity and local files
+
+- Workspace artifact CRUD/search, editor and explicit opt-in chat context.
+- Tasks CRUD/editing with status, priority and due date.
+- Notes CRUD, pinning and opt-in chat context.
+- File Library registration through native picker, canonical path, size and SHA-256, relinking and non-destructive registry removal.
+- File Library currently stores metadata/path/hash only; it does not read file contents into chat.
+- Workspace/Notes context is explicitly selected and bounded by the backend query limits documented in the phase notes.
+
+## Visual foundation and current UI review findings
+
+The visual language is dark navy/near-black with violet as primary accent, cyan as secondary accent, subtle gradients and monospaced technical labels.
+
+Stylesheet responsibilities:
+- `src/styles.css`: global tokens/base rules, original/general layout rules, splash visuals, responsive rules and chat streaming-dot animations.
+- `src/shell.css`: main shell and accumulated shell/page components, including navigation, chat, runtime, settings, model cards, memory, privacy modals, tool palette and folder menus.
+- `src/history.css`: History/Archive layout and message diagnostics.
+- `src/workspace.css`: Workspace/shared workspace controls and some shared message-tool styles.
+- `src/tasks-notes.css`: Tasks and Notes tabs, forms, task cards and note editor.
+- `src/library.css`: File Library cards, status, safety notice and empty state.
+
+The CSS has accumulated across multiple implementation phases. Some related selectors also exist in more than one stylesheet. Inspect actual markup/class usage and stylesheet order before consolidating or deleting rules. Do not remove unfamiliar styles solely because they look redundant.
+
+Existing motion support includes the Sync core/splash animations, shell/modal transitions, animated three-dot generation indicators and selected reduced-motion overrides. The visual pass should create a coherent, restrained, reusable motion system without continuously animating large surfaces or degrading lower-end hardware.
+
+### Splash screen finding — important
+
+The splash markup is generated in `renderer/app.js`; its visual rules and animations are in `src/styles.css`. It is guarded by the native `consumeStartupSplash()` first-startup handshake.
+
+Current renderer behavior:
+- Bootstrap initializes the bridge, refreshes recent chats and renders the page.
+- Only after that work, if the native startup flag is true, it reveals the splash.
+- The current timer uses `Math.max(850 - (Date.now() - started), 0)`.
+
+This does **not** meet the requested 4–7 second visible minimum. Merely replacing 850 with a larger number may not solve the lifecycle problem because the splash is currently revealed after renderer initialization. A correct adjustment must show it at the right time, keep it visible until the application is ready and the minimum display duration has elapsed, then transition smoothly without flashing an empty window. Preserve the existing artwork and branding.
+
+### Other visual observations
+
+- The generation indicator already has three animated dots in the streaming markup/CSS; preserve and improve it rather than accidentally replacing it with static text.
+- Reduced-motion handling already exists in several stylesheet sections; extend it consistently to new motion.
+- `src/styles.css` and `src/shell.css` contain accumulated/overlapping styling layers. Avoid wholesale replacement.
+- The privacy approval modal includes meaningful keyboard/focus behavior. Preserve its accessibility and approval semantics.
+- Runtime page refreshes telemetry every 1.5 seconds. Avoid visual rerender/focus regressions during updates.
+
+## Current visual-overhaul handoff
+
+The next visual pass is intended for Claude and is a presentation/UX polish pass, not a rebuild. The supplied set should include:
+
+**Visual foundation**
+- `index.html`
+- `src/styles.css`
+- `src/shell.css`
+- `src/history.css`
+- `src/workspace.css`
+- `src/tasks-notes.css`
+- `src/library.css`
+
+**Renderer interface**
+- `renderer/app.js`
+- `renderer/shared.js`
+- `renderer/pages/chat.js`
+- `renderer/pages/history.js`
+- `renderer/pages/folders.js`
+- `renderer/pages/models.js`
+- `renderer/pages/workspace.js`
+- `renderer/pages/tasks.js`
+- `renderer/pages/library.js`
+- `renderer/pages/runtime.js`
+- `renderer/pages/settings.js`
+- `renderer/pages/memory.js`
+- `renderer/pages/privacy-tools.js`
+- `renderer/pages/preview.js`
+
+**Project context**
+- `CONTEXT_TRACKER.md`
+- `README.md`
+- `package.json` (reference only)
+- `renderer/api.js` (reference only)
+
+The additional `folders.js`, `memory.js` and `privacy-tools.js` entries are deliberately called out because they exist and are active, even if an older file checklist omitted them.
+
+Visual-pass guardrails:
+- Preserve Electron + classic HTML/CSS/JavaScript architecture and all functional selectors/data attributes.
+- Do not edit `electron/main.cjs`, `electron/preload.cjs`, `electron/inference-worker.mjs`, database implementation, inference implementation or file-operation safety mechanisms.
+- Do not alter `renderer/api.js` contracts.
+- Keep splash artwork and brand identity; target a 4–7 second minimum visible interval while also waiting for real readiness.
+- Keep all existing page modules registered and all existing features functional.
+- Export modified/new files with original relative paths, plus an updated context tracker; report exactly which tests were executed and not executed.
+
+## Planned work — not implemented yet
+
+Keep these items separate from the visual-only Claude task.
+
+### Keyboard shortcuts and interaction manager
+
+- Build one centralized shortcut registry/manager rather than adding unrelated listeners to individual pages.
+- Add a keyboard-shortcuts reference opened by `Ctrl + ?` and also reachable from Settings.
+- Support enable/disable, customizable bindings, persistence across restarts, restore defaults, action search and conflict detection before saving.
+- Context-aware dispatch and input protection are required. Shortcuts must not hijack normal text entry.
+- Do not introduce application/window shortcuts such as Ctrl+W, Ctrl+Q or F11.
+- Current confirmed key intentions: `Ctrl + K` opens global search; `Ctrl + Shift + P` opens the command palette; `Esc` means Back/Cancel with priority handling for nested UI; `Alt + C` cancels message editing. Other mappings remain to be finalized and conflict-checked.
+
+### Global search and command palette
+
+- `Ctrl + K` should open application-wide local/offline-first search, not only conversation search.
+- Intended search areas: chat titles and message contents, settings names/descriptions, installed model metadata, folders, Library records/notes, Tasks, Workspace and available actions.
+- Separate navigating to a search result from executing an action.
+- `Ctrl + Shift + P` command palette executes commands such as New Chat, Switch Model, Open Runtime, Export Conversation, Archive Conversation and Toggle Theme.
+- Search and palette may share indexing/matching infrastructure but must retain distinct result types and behavior.
+
+### Composer and message editing
+
+- Remove only the visible `@` button from the composer; preserve typed `@` autocomplete and tool selection.
+- Replace the current `window.prompt()` message-edit UI with an inline composer editing state.
+- Load the selected original user message into the composer.
+- Show Cancel beside Send; Cancel exits without modifying the original.
+- `Alt + C` cancels editing.
+- Send must call the existing edit operation/update original message, not append a duplicate; preserve the current truncate-later-turns and regenerate-from-edited-turn behavior.
+- Preserve disabled/busy behavior while generation or queued messages are active.
 
 ## Run and test
 
-From the repository root:
-
+From repository root:
 ~~~cmd
 npm install
 npm run dev
 ~~~
 
-Useful validation commands:
-
+Validation commands:
 ~~~cmd
 npm test
 npm run test:inference-runtime
@@ -93,21 +279,21 @@ npm run build
 npm run dist
 ~~~
 
-There is no Vite server to start and no `npm run dev` dependency on a TCP port. Electron opens root `index.html` directly.
+The package scripts define these checks. This tracker does not claim that they were run during the 2026-11-26 source review.
 
 ## Validation boundaries
 
-The Windows GitHub Actions workflow validates renderer JavaScript syntax, SQLite and backup persistence tests, GGUF parser tests, IPC/security contracts, Windows Job Object stress tests, prebuilt native inference runtime initialization, complete application startup through a renderer-ready handshake, and NSIS packaging.
-
-Those tests do not prove that a real user GGUF model has been loaded and used for a full conversation on the target laptop. They also do not replace interactive testing of tray behavior or a hands-on review of each page with actual user data. State these limits accurately.
+- Automated project tests/CI described in `README.md` and `docs/ELECTRON_PORT_AUDIT.md` cover source syntax, persistence/backup, GGUF parsing, IPC/security contracts, memory enforcement, native runtime initialization, app startup handshake and packaging.
+- Those checks do not prove that a real user GGUF model was loaded and used for a full conversation on the target laptop.
+- Interactive tray/window behavior and hands-on page review still need target-machine testing.
+- During the latest GitHub source review, files were fetched and read; no local Electron launch, npm build, npm test, native model test or target-machine test was performed.
 
 ## Working conventions
 
-- Inspect the actual source and branch state before changing files.
-- Prefer one coherent implementation pass over repeated diagnostic-only commits.
-- Keep user data, model weights, local databases and secrets out of Git.
-- Preserve the main/UI process outside the inference worker's hard memory Job Object.
-- Never give the model unrestricted filesystem, shell or process APIs.
-- Validate the actual desktop entry point, not only syntax/build output.
-- Distinguish source implementation, CI verification and target-machine validation.
-- Keep this file, README and `docs/ELECTRON_PORT_AUDIT.md` synchronized when architecture changes.
+- Inspect the current branch/source before modifying files; do not rely on stale summaries.
+- Keep renderer markup changes minimal and preserve IDs, data attributes, delegated event hooks, accessibility attributes and functional selectors.
+- Keep native privileges in main/preload. Never grant the model unrestricted filesystem, shell or process access.
+- Preserve user data, model weights, local databases and secrets outside Git.
+- Keep Electron, Tauri and Android repositories separate.
+- Distinguish source implementation, CI evidence and target-machine validation.
+- Update this tracker, `IMPLEMENTATION_NOTES.md` and the relevant development log when architecture or feature status materially changes.
