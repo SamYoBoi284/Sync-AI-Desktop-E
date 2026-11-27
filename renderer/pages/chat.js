@@ -106,7 +106,7 @@ function sanitizeLearnedProfile(value) {
     .filter(line => {
       const entry = line.trim().replace(/^[-*•]\s*/, "");
       if (/^(?:current )?status\s*:/i.test(entry)) return false;
-      if (/^other mentions?\s*:/i.test(entry)) return false;
+      if (/^other mentions?\b/i.test(entry)) return false;
       if (/^(?:communication )?habits?\s*:/i.test(entry) &&
           /\b(?:bro|dude|yo+|yooo|hey|hello|sup|greeting|slang)\b/i.test(entry)) return false;
       return true;
