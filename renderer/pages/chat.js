@@ -106,9 +106,11 @@ function normalizeLowSignalText(value) {
 function isLowSignalLearningMessage(value) {
   const normalized = normalizeLowSignalText(value);
   if (!normalized) return true;
-  const greeting = /^(?:(?:yo+|hey+|hi+|hello+|heya|sup|morning|good morning|good afternoon|good evening)(?: (?:bro|dude|man|there|buddy))*(?: (?:how are you|how are u|hows it going|whats up|how have you been))?|how are you|how are u|hows it going|whats up|what is up|how you doing|how u doing|you good|sup(?: bro| dude)?)$/i;
+  const greeting = /^(?:(?:yo+|hey+|hi+|hello+|heya|sup|morning|good morning|good afternoon|good evening)(?: (?:bro|dude|man|there|buddy))*(?: (?:how are you|how are u|hows it going|whats up|how have you been))?|how are you|how are u|hows it going|whats up|what is up|how you doing|how u doing|how about you|wbu|you good|sup(?: bro| dude)?)$/i;
   const temporaryStatus = /^(?:(?:im|i am) )?(?:doing )?(?:good|great|fine|okay|ok|alright|not bad|cant complain)(?: (?:and you|what about you|wbu))?$/i;
-  return greeting.test(normalized) || temporaryStatus.test(normalized);
+  const stripped = normalizeLowSignalText(stripSmallTalkLeadIn(value));
+  const routineUtilityQuestion = /^(?:what time is it(?: right now| now| rn)?|whats the time(?: right now| now| rn)?|what is the time(?: right now| now| rn)?|what day is it|what date is it)$/i;
+  return greeting.test(normalized) || temporaryStatus.test(normalized) || routineUtilityQuestion.test(stripped);
 }
 
 function sanitizeLearnedProfile(value) {
