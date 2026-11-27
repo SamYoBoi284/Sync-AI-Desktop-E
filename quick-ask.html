@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#090a12">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self';">
+  <title>Sync Quick Ask</title>
+  <link rel="stylesheet" href="./src/quick-ask.css">
+  <script defer src="./renderer/api.js"></script>
+  <script defer src="./renderer/quick-ask.js"></script>
+</head>
+<body>
+  <main class="quick-ask-shell">
+    <header class="quick-ask-titlebar">
+      <div class="quick-ask-brand"><span class="quick-ask-mark"><i></i><i></i><i></i></span><span><strong>SYNC</strong><small>QUICK ASK</small></span></div>
+      <div class="quick-ask-window-actions">
+        <button type="button" id="quickAskClose" aria-label="Close Quick Ask" title="Close">×</button>
+      </div>
+    </header>
+    <section class="quick-ask-content">
+      <p class="quick-ask-eyebrow">A THOUGHT, WITHOUT OPENING THE FULL DESKTOP</p>
+      <h1>What’s on your mind<span>?</span></h1>
+      <p class="quick-ask-description">A lightweight local conversation. Sync reuses your loaded model, or temporarily loads the model selected in Settings.</p>
+      <div class="quick-ask-model-state" id="quickAskModelState" role="status" aria-live="polite">
+        <span class="quick-ask-state-dot"></span><span>Preparing local inference…</span>
+      </div>
+      <form id="quickAskForm">
+        <label for="quickAskPrompt">YOUR MESSAGE</label>
+        <textarea id="quickAskPrompt" rows="4" maxlength="64000" placeholder="Ask Sync something…" disabled></textarea>
+        <div class="quick-ask-form-footer">
+          <span>Enter to send · Shift + Enter for a new line</span>
+          <div>
+            <button type="button" id="quickAskStop" class="is-muted" hidden>Stop</button>
+            <button type="submit" id="quickAskSend" disabled>Ask Sync ↑</button>
+          </div>
+        </div>
+      </form>
+      <section class="quick-ask-answer-wrap" id="quickAskAnswerWrap" hidden>
+        <div class="quick-ask-answer-heading"><span>SYNC</span><span id="quickAskAnswerState">RESPONSE</span></div>
+        <div class="quick-ask-answer" id="quickAskAnswer" aria-live="polite"></div>
+      </section>
+      <p class="quick-ask-error" id="quickAskError" role="alert" hidden></p>
+    </section>
+    <footer class="quick-ask-footer"><span>LOCAL-FIRST · PRIVATE BY DEFAULT</span><span id="quickAskModelLabel">LOCAL MODEL</span></footer>
+  </main>
+</body>
+</html>
