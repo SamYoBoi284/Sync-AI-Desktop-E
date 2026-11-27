@@ -265,3 +265,13 @@ Chronological record of meaningful implementation sessions. Keep entries factual
 - Adjusted summary trigger to scale with the actual prompt budget so smaller context windows compact earlier.
 - Source parse checks passed. Latest Ubuntu source-validation on code checkpoint `1fd539ccbe213e50b75af9de658a29673ab5a2fc`: 56 passed, 1 failed, 1 skipped. All new Memory/candidate/context/summary tests passed; the remaining failure is the pre-existing inference source-contract assertion. The Windows hosted file-operation/path checks and full Electron runtime/package checks still need the newest run results.
 - No target-laptop manual test or real-GGUF conversation test was performed.
+
+
+## 2026-11-26 — Worker-level context enforcement and safe summary batching
+
+- Inference worker now tokenizes the app prompt and Sync system prompt, reserves safety capacity, and passes a dynamic `maxTokens` based on actual remaining context, capped at 512.
+- Main context policy accounts separately for system-prompt reserve, safety reserve and reply reserve; Memory UI displays the effective prompt allowance.
+- Automatic learning prompts and summary prompts are each clipped under the active context allowance.
+- Summary generation now chooses a bounded prefix of uncovered older messages and advances the cursor only through the last message actually included. A too-large earliest message remains uncovered rather than being silently skipped.
+- Added contract checks for dynamic output allocation, system/safety reserves, bounded side prompts and summary-batch cursor progression.
+- Updated stale contract expectations for the existing `LlamaChatSession` worker implementation and current `workerPid` handoff. Newest contract commit: `6bc3bc129759cf8b9ed8afa35daad83ab342c01d`.
