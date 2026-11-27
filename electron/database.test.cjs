@@ -140,3 +140,29 @@ test("keeps summaries valid when new turns are appended after their summarized c
   db.append_assistant_message_after({ chatId: chat.id, userMessageId: next.id, message: { role: "assistant", body: "New reply" } });
   assert.equal(db.get_conversation_summary({ chatId: chat.id }).summary, "Old turn summary");
 }));
+
+
+test("prioritizes pinned and important memories within the existing bounded context", () => withDb(db => {
+  db.save_memory({ memory: {
+    title: "Recent", content: "A newer but ordinary preference.", importance: 1, pinned: false
+  } });
+  const pinned = db.save_memory({ memory: {
+    title: "Pinned", content: "An older high-priority preference.", importance: 2, pinned: true
+  } });
+  const selected = db.list_memory_context({ maxCharacters: 80 });
+  assert.equal(selected[0].id, pinned.id);
+  assert.equal(selected[0].pinned, true);
+  assert.equal(selected[0].importance, 2);
+}));
+
+test("invalidates a conversation summary when a queued reply is inserted inside its covered history", () => withDb(db => {
+  const chat = db.create_chat({});
+  const first = db.append_message({ chatId: chat.id, message: { role: "user", body: "First user turn" } });
+  db.append_message({ chatId: chat.id, message: { role: "user", body: "Second user turn" } });
+  db.save_conversation_summary({ chatId: chat.id, summary: "Both user turns", throughPosition: 1 });
+  db.append_assistant_message_after({
+    chatId: chat.id, userMessageId: first.id,
+    message: { role: "assistant", body: "Inserted historical response" }
+  });
+  assert.equal(db.get_conversation_summary({ chatId: chat.id }), null);
+}));
