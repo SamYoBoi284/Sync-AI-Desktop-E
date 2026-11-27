@@ -100,3 +100,13 @@ The most recent review fetched and inspected GitHub source; it did not launch El
 - Existing saved conversation summaries can be consumed; automatic summary generation/compaction remains pending.
 - Database tests cover relevance ranking, source separation and opt-in behavior. Contract coverage checks the independent IPC and prompt boundaries.
 - CI for the latest commit 2209601e2487b8c37b59a23feba29788944be434 had not completed at this checkpoint; do not infer a passing build from source parsing alone.
+
+
+## Phase 1 substep status
+
+- Step 1 — data model/storage API: COMPLETE. Migration v8, Memory metadata/provenance, summary storage/invalidation, IPC/API and a populated v7 upgrade fixture are implemented. New DB tests pass in source-validation CI.
+- Step 2 — Memory Center: IN PROGRESS. Metadata/provenance UI is implemented; filtering/search, storage accounting and learning review remain.
+- Step 3 — independent Notes retrieval: COMPLETE. Notes are queried separately from Workspace and Memory, with opt-in preserved.
+- Step 4 — context orchestration: IN PROGRESS. Query-aware lexical selection and distinct prompt sections are wired; an overall context ceiling remains.
+- Step 5 — summaries/compaction: IN PROGRESS. Stored summaries are invalidated safely and consumed by prompts; generation/refresh/UI are pending.
+- Step 6 — Model Profiles: NOT STARTED.
