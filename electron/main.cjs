@@ -248,16 +248,21 @@ async function submitQuickAsk({ prompt, generationId } = {}) {
 }
 
 async function cleanupQuickAskSession(session) {
-  if (!session || session.cleanupStarted) return;
-  session.cleanupStarted = true;
+  if (!session) return;
   session.closed = true;
-  if (session.generationId) {
-    try { await handlers.cancel_generation({ generationId: session.generationId }); } catch {}
-    try { await session.generationPromise; } catch {}
+  if (!session.cleanupStarted) {
+    session.cleanupStarted = true;
+    if (session.generationId) {
+      try { await handlers.cancel_generation({ generationId: session.generationId }); } catch {}
+      try { await session.generationPromise; } catch {}
+    }
   }
+  // A close can race with temporary model loading. prepareQuickAskSession calls
+  // cleanup again after LOAD_MODEL resolves; allow that second pass to unload it.
   if (session.loadedTemporarily && runtimeState.isLoaded &&
       runtimeState.loadedModelId === session.modelId && !runtimeState.isGenerating &&
       !activeGeneration && generationQueue.length === 0) {
+    session.loadedTemporarily = false;
     try { await handlers.unload_model(); }
     catch (error) { logStartup("Quick Ask temporary model cleanup failed: " + error.message); }
   }
@@ -827,6 +832,10 @@ const handlers = {
     if (!quickAskSession?.generationId) return { cancelRequested: false };
     return handlers.cancel_generation({ generationId: quickAskSession.generationId });
   },
+  quick_ask_close: () => {
+    if (quickAskWindow && !quickAskWindow.isDestroyed()) quickAskWindow.close();
+    return { closing: true };
+  },
   list_chats: args => database.list_chats(args),
   create_chat: args => database.create_chat(args),
   get_chat: args => database.get_chat(args),
@@ -1108,8 +1117,11 @@ function registerIpc() {
   });
   ipcMain.handle("sync:invoke", async (event, command, args = {}) => {
     const senderUrl = event.senderFrame?.url || "";
-    const trustedFileUrl = pathToFileURL(path.join(__dirname, "..", "index.html")).href;
-    const allowed = senderUrl === trustedFileUrl;
+    const trustedUrls = [
+      pathToFileURL(path.join(__dirname, "..", "index.html")).href,
+      pathToFileURL(path.join(__dirname, "..", "quick-ask.html")).href
+    ];
+    const allowed = trustedUrls.includes(senderUrl);
     if (!allowed) throw new Error("Rejected IPC request from an untrusted renderer.");
     if (typeof command !== "string" || !Object.prototype.hasOwnProperty.call(handlers, command)) {
       throw new Error("Unsupported desktop command.");
