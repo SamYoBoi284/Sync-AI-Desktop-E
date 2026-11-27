@@ -154,3 +154,36 @@ Chronological record of meaningful implementation sessions. Keep entries factual
 - Added Rust unit-test source for lightweight summary/detail behavior, mismatched chat/message provenance and mismatched File Library relinking.
 - Re-ran a separate Python SQLite smoke test against the Phase 5 migration shape. It passed checks for tables/indexes, opt-in context query, 48 KiB clipping, summary-only query, FK nulling, task status/priority constraints and unique library path/hash constraints.
 - This SQL smoke test does not compile or test Rust. Frontend build, Cargo fmt/check/test, native picker, Tauri launch, worker and Windows runtime remain unverified.
+
+
+## 2026-11-14 — Electron renderer migration and current architecture
+
+- The maintained desktop repository transitioned from the initial Tauri/React/Vite prototype to the current Electron edition.
+- The current entry point is root `index.html`, opened with Electron `BrowserWindow.loadFile()`.
+- The renderer is plain HTML/CSS and classic JavaScript scripts loaded with `defer`; page modules register mount functions under `window.SyncAI.pages`.
+- Native operations remain in Electron main/preload behind a restricted IPC bridge. Persistence uses Electron's built-in `node:sqlite`; CPU llama.cpp inference runs in an isolated Electron UtilityProcess.
+- The old Tauri project and Android companion remain separate repositories. This Electron repo must not change their source.
+- The current architecture and security boundaries are documented in `README.md`, `docs/ARCHITECTURE.md`, `docs/ELECTRON_PORT_AUDIT.md` and `CONTEXT_TRACKER.md`.
+
+## 2026-11-26 — Memory, composer tools, runtime recovery and chat management
+
+- Added the persistent Memory management page with import, create, edit, enable/disable and delete controls; routed it from Settings.
+- Added saved-memory prompt injection, structured chat-title generation and optional automatic learning from completed conversations.
+- Added bounded memory handling: configured context budget is limited to 128–512 estimated tokens; conversation text and learned profile size are capped; auto-learning remains opt-in.
+- Added the composer `@` file-tool palette for copy, move, rename, safe delete and folder creation. Tool operations are prepared separately and require explicit user approval. Folder naming uses a themed in-app prompt.
+- Added/updated Privacy & Tools approval modal keyboard/focus behavior, action history, cancellation/undo paths and Stop & Restore / rollback controls.
+- Added inference-generation recovery and exposed force-stop/restart controls and runtime diagnostics.
+- Added supplied Sync artwork for the Windows taskbar/tray icon.
+- Added chat message editing data-layer support through the existing edit API, plus chat archive/folder/sidebar management: rename, move-to-top, archive, delete, pinning and folder assignment.
+- Latest inspected main commit: `63fa05e801bc1a108589924a18f87389e1dde11d` (`feat: add chat editing archive folders and sidebar menus`).
+- Source review finding: message editing already updates the original user message and queues regeneration from that turn, but the current interface uses `window.prompt()`. Inline composer editing with Cancel/Alt+C is still pending.
+- Source review finding: typed `@` autocomplete is already implemented independently of the visible composer `@` button.
+- Source review finding: splash markup and styling already exist, but the renderer reveals it after bootstrap and currently calculates its minimum using 850 ms. The requested 4–7 second visible minimum and readiness-aware lifecycle remain to be implemented.
+- Source review finding: only Ctrl+N is currently registered globally in `app.js`; a centralized shortcut system, universal Escape stack, global search and command palette are not implemented.
+- Validation: this entry is based on the inspected GitHub commit history and current source. No Electron launch, npm build, npm test, real GGUF conversation or target-machine test was performed as part of this review.
+
+## Planned follow-up — visual pass and interaction system
+
+- Visual pass (Claude): polish all existing pages and shared motion while preserving architecture, functionality, accessibility, API contracts and file-operation safety. Keep the splash artwork; fix its lifecycle to remain visible for approximately 4–7 seconds minimum and until the app is ready. Export edited files and an updated tracker.
+- After the visual pass: implement a centralized customizable shortcut manager, shortcut reference in Settings, global search (`Ctrl+K`), command palette (`Ctrl+Shift+P`), nested-interface Escape priority, visible @ button removal while preserving typed @, and inline composer message editing with Cancel and `Alt+C`.
+- These are requested future tasks, not claims of completed implementation. Other keyboard bindings must be validated for conflicts before they are finalized.
