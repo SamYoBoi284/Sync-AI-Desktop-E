@@ -197,3 +197,17 @@ Chronological record of meaningful implementation sessions. Keep entries factual
 - Saved preferences are applied during app bootstrap; page edits preview immediately and persist only after Save.
 - Added `src/appearance.css` after the motion stylesheet. Source-level checks confirmed the stylesheet is linked last, CSS braces balance, the page route is registered, and the obsolete coming-soon copy is removed.
 - Not yet verified in a running Electron window; run `npm run build` and `npm test`, then inspect both light and dark themes on the target machine.
+
+
+## 2026-11-26 — Intelligence and memory architecture baseline
+
+- Inspected the current main-branch SQLite schema, Memory page, Notes page, prompt builder, inference worker boundary, main-process command handlers, renderer API and existing persistence tests.
+- Confirmed the actual database schema ceiling is migration v7; older Architecture/Context documentation that said v4 was stale.
+- Confirmed Memory already supports local CRUD/import, a bounded 128–512 estimated-token prompt budget (default 256), and opt-in auto-learning. Current retrieval is enabled-memory, newest-first selection, not relevance ranking.
+- Confirmed Notes already have a separate table and CRUD UI, but opted-in Notes and Workspace artifacts are combined by `list_workspace_context()` and delivered together in the Workspace reference block.
+- Confirmed chat prompting uses the latest 24 user/assistant turns and has no persistent conversation-summary/compaction store.
+- Agreed architecture: Memory = durable user facts; Notes = user-authored saved information; Conversation Context = recent transcript plus separately persisted summaries. These remain separate stores and separate prompt sections, coordinated by a lightweight retrieval layer.
+- Added `docs/INTELLIGENCE_MEMORY_ARCHITECTURE.md` with the inventory, design decisions, proposed migration/API evolution, retrieval strategy, implementation sequence and acceptance tests.
+- Updated architecture and handoff documentation to reflect the verified schema and current Appearance implementation.
+- No database schema or runtime feature code was changed in this baseline milestone.
+- Validation: GitHub source files were fetched and reviewed. No Electron launch, `npm test`, `npm run build`, real GGUF conversation or target-machine test was performed.
