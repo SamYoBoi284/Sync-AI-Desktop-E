@@ -132,8 +132,8 @@ test("Memory learning review modes have persistent candidate storage and explici
   const memoryPage = fs.readFileSync(path.join(root, "renderer", "pages", "memory.js"), "utf8");
   const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
   assert.match(database, /if\(v<9\).*memory_candidates/s);
-  assert.match(database, /create_memory_candidate\\(/);
-  assert.match(database, /review_memory_candidate\\(/);
+  assert.match(database, /create_memory_candidate\(/);
+  assert.match(database, /review_memory_candidate\(/);
   assert.match(database, /status IN \('pending','approved','rejected'\)/);
   assert.match(main, /create_memory_candidate:/);
   assert.match(main, /review_memory_candidate:/);
