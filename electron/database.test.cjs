@@ -128,7 +128,7 @@ test("stores conversation summaries and invalidates stale summaries after editin
   assert.equal(summary.throughPosition, 1);
   assert.equal(db.get_conversation_summary({ chatId: chat.id }).summary, summary.summary);
   db.edit_user_message({ chatId: chat.id, messageId: first.id, body: "Corrected first detail" });
-  assert.equal(db.get_conversation_summary({ chatId: chat.id }).summary, "Old turn summary");
+  assert.equal(db.get_conversation_summary({ chatId: chat.id }), null);
 }));
 
 test("keeps summaries valid when new turns are appended after their summarized cursor", () => withDb(db => {
@@ -138,5 +138,5 @@ test("keeps summaries valid when new turns are appended after their summarized c
   db.save_conversation_summary({ chatId: chat.id, summary: "Old turn summary", throughPosition: 1 });
   const next = db.append_message({ chatId: chat.id, message: { role: "user", body: "New turn" } });
   db.append_assistant_message_after({ chatId: chat.id, userMessageId: next.id, message: { role: "assistant", body: "New reply" } });
-  assert.equal(db.get_conversation_summary({ chatId: chat.id }), null);
+  assert.equal(db.get_conversation_summary({ chatId: chat.id }).summary, "Old turn summary");
 }));
