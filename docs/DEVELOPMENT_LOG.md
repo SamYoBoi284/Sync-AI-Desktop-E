@@ -211,3 +211,17 @@ Chronological record of meaningful implementation sessions. Keep entries factual
 - Updated architecture and handoff documentation to reflect the verified schema and current Appearance implementation.
 - No database schema or runtime feature code was changed in this baseline milestone.
 - Validation: GitHub source files were fetched and reviewed. No Electron launch, `npm test`, `npm run build`, real GGUF conversation or target-machine test was performed.
+
+
+## 2026-11-26 — Phase 1 implementation: Memory metadata, provenance and summary storage
+
+- Added SQLite migration v8 with Memory category, importance, pinning, `memory_sources` and `conversation_summaries`.
+- Added validation and database methods for Memory metadata, source-link deduplication, source provenance snapshots and per-conversation summaries.
+- Added stale-summary invalidation when editing covered user turns or inserting a response into summarized history.
+- Added main-process handlers and renderer API wrappers.
+- Auto-learned profile memories now attach recent source user messages from the originating conversation.
+- Memory page now supports category, importance, pinning and source provenance display.
+- Bounded memory injection prioritizes pinned entries, then importance, then recency. Relevance retrieval is still pending.
+- Source-level JavaScript parsing passed for the changed database, main-process, renderer API, chat and Memory page files.
+- GitHub Actions on `d8ab68d20c75414fc624fb3a64b5fa8de9847f99`: the database test set passed on Windows and Ubuntu, including all new Memory/provenance/summary tests. Overall workflows failed on five other assertions: one file-operation protection check, three Windows file-operation tests rejecting the runner temp path as traversing a symbolic link, and one stale inference source-contract assertion.
+- No target-machine Electron UI test or real-GGUF inference test was run.
