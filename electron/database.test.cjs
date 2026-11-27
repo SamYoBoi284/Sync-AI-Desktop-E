@@ -309,6 +309,18 @@ test("schema v14 cleans legacy auto-learned noise and resets untrusted provenanc
       title: "Empty learned profile", content: "* Status: Doing good\n* Habits: Uses bro frequently\n* Other mentions cycling",
       source: "Auto-learned from conversations", category: "profile"
     } });
+    const pending = db.create_memory_candidate({
+      title: "Learned profile",
+      content: "* Name: Sam\n* Status: Doing good\n* Interests: Rocket League\n* Habits: Uses bro frequently",
+      sourceChatId: chat.id,
+      sourceMessages: [{ messageId: source.id, excerpt: "yo bro" }]
+    });
+    const emptyPending = db.create_memory_candidate({
+      title: "Learned profile",
+      content: "* Status: Doing good\n* Other mentions cycling",
+      sourceChatId: chat.id,
+      sourceMessages: [{ messageId: source.id, excerpt: "yo bro" }]
+    });
     const manual = db.save_memory({ memory: {
       title: "Manual memory", content: "Keep its evidence.", source: "manual"
     } });
@@ -326,6 +338,12 @@ test("schema v14 cleans legacy auto-learned noise and resets untrusted provenanc
     assert.match(cleaned.content, /Interests: Rocket League/);
     assert.doesNotMatch(cleaned.content, /Status:|Habits:|Other mentions/i);
     assert.equal(cleaned.sources.length, 0, "unverified legacy learned-profile sources are cleared");
+    const reviewedLater = db.get_memory_candidate({ candidateId: pending.id });
+    assert.match(reviewedLater.content, /Name: Sam/);
+    assert.doesNotMatch(reviewedLater.content, /Status:|Habits:/);
+    assert.equal(reviewedLater.sourceChatId, null);
+    assert.deepEqual(reviewedLater.sourceMessages, []);
+    assert.throws(() => db.get_memory_candidate({ candidateId: emptyPending.id }), /Memory candidate not found/);
     assert.throws(() => db.get_memory({ memoryId: emptyLearned.id }), /Memory entry not found/);
     assert.equal(db.get_memory({ memoryId: manual.id }).sources.length, 1, "manual Memory provenance remains intact");
     assert.equal(Number(db.db.prepare("SELECT MAX(version) v FROM schema_migrations").get().v), 14);
