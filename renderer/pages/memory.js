@@ -37,6 +37,7 @@ async function mountMemory(root) {
   let summaryBusy = false, summaryGenerationId = null, summaryModelLoaded = false, summaryRuntimeBusy = false, summarySearchRequest = 0;
   let searchQuery = "", categoryFilter = "all", statusFilter = "all";
   let message = "", messageIsError = false, disposed = false;
+  let pendingConfirmation = null, confirmationReturnFocus = null;
 
   function resetEditor() {
     editingId = null; title = ""; content = ""; source = "manual";
@@ -147,6 +148,105 @@ async function mountMemory(root) {
       '</div>';
   }
 
+  function confirmationMarkup() {
+    if (!pendingConfirmation) return "";
+    const kind = pendingConfirmation.kind;
+    const item = kind === "approve-candidate" ? candidates.find(value => value.id === pendingConfirmation.id)
+      : kind === "delete-memory" ? memories.find(value => value.id === pendingConfirmation.id)
+      : conversationSummaries.find(value => value.chatId === pendingConfirmation.id);
+    if (!item) return "";
+    const title = kind === "approve-candidate" ? "Approve learned suggestion?"
+      : kind === "delete-memory" ? "Delete this saved memory?"
+      : "Delete this conversation summary?";
+    const description = kind === "approve-candidate"
+      ? "This will save the suggestion as Sync’s learned user profile. It will become available to future conversations."
+      : kind === "delete-memory"
+        ? "This permanently removes the selected Memory item from this device. It does not delete its source conversation."
+        : "This removes only the saved summary. The original conversation and its messages remain unchanged.";
+    const action = kind === "approve-candidate" ? "Approve and save"
+      : kind === "delete-memory" ? "Delete memory" : "Delete summary";
+    const detail = kind === "approve-candidate" ? item.content
+      : kind === "delete-memory" ? item.title : (item.chatTitle || "Conversation");
+    return '<div class="privacy-modal-backdrop" data-memory-modal-backdrop>' +
+      '<section class="privacy-modal" role="dialog" aria-modal="true" aria-labelledby="memoryConfirmTitle" tabindex="-1">' +
+        '<div class="privacy-modal-top"><span class="privacy-modal-mark">✦</span><span>SYNC MEMORY</span><span class="privacy-modal-state">CONFIRMATION REQUIRED</span></div>' +
+        '<h2 id="memoryConfirmTitle">' + esc(title) + '</h2>' +
+        '<p class="privacy-modal-description">' + esc(description) + '</p>' +
+        '<div class="privacy-modal-paths"><div><small>SELECTED ITEM</small><code>' + esc(detail) + '</code></div></div>' +
+        '<div class="privacy-modal-actions"><button type="button" class="is-muted" data-memory-action="close-confirmation">Cancel</button><button type="button" data-memory-action="confirm-action">' + esc(action) + '</button></div>' +
+      '</section></div>';
+  }
+
+  function openConfirmation(kind, id, trigger) {
+    if (pendingConfirmation) return;
+    confirmationReturnFocus = { kind, id, element: trigger || null };
+    pendingConfirmation = { kind, id };
+    render();
+    requestAnimationFrame(() => root.querySelector('[data-memory-action="confirm-action"]')?.focus());
+  }
+
+  function closeConfirmation() {
+    const previous = confirmationReturnFocus;
+    pendingConfirmation = null;
+    confirmationReturnFocus = null;
+    render();
+    requestAnimationFrame(() => {
+      if (previous?.element?.isConnected) { previous.element.focus({ preventScroll: true }); return; }
+      const selectorAction = previous?.kind === "approve-candidate" ? "approve-candidate"
+        : previous?.kind === "delete-memory" ? "delete" : "delete-summary";
+      const target = Array.from(root.querySelectorAll("[data-memory-action]"))
+        .find(element => element.dataset.memoryAction === selectorAction &&
+          (element.dataset.id || "") === (previous?.id || ""));
+      target?.focus({ preventScroll: true });
+    });
+  }
+
+  async function confirmPendingAction() {
+    const current = pendingConfirmation;
+    if (!current) return;
+    pendingConfirmation = null;
+    confirmationReturnFocus = null;
+    if (current.kind === "approve-candidate") {
+      if (reviewing) return;
+      reviewing = true; render();
+      try {
+        await api.reviewMemoryCandidate(current.id, "approve");
+        await refresh();
+        message = "Suggestion approved. The learned profile has been saved to Memory.";
+        messageIsError = false;
+      } catch (cause) { message = errorText(cause); messageIsError = true; }
+      finally { reviewing = false; render(); }
+      return;
+    }
+    if (current.kind === "delete-memory") {
+      const item = memories.find(value => value.id === current.id);
+      if (!item) { render(); return; }
+      render();
+      try {
+        await api.deleteMemory(current.id);
+        if (editingId === current.id) resetEditor();
+        await refresh();
+        message = "Memory deleted from local storage.";
+        messageIsError = false; render();
+      } catch (cause) { message = errorText(cause); messageIsError = true; render(); }
+      return;
+    }
+    if (current.kind === "delete-summary") {
+      const item = conversationSummaries.find(value => value.chatId === current.id);
+      if (!item || summaryBusy) { render(); return; }
+      summaryBusy = true; render();
+      try {
+        await api.deleteConversationSummary(current.id);
+        conversationSummaries = await api.listConversationSummaries(summarySearchQuery, 200);
+        selectedSummaryId = conversationSummaries[0]?.chatId || null;
+        summaryDraft = conversationSummaries[0]?.summary || "";
+        message = "Saved summary deleted. The original chat and all its messages remain intact.";
+        messageIsError = false;
+      } catch (cause) { message = errorText(cause); messageIsError = true; }
+      finally { summaryBusy = false; render(); }
+    }
+  }
+
   function render() {
     if (disposed) return;
     const active = memories.filter(item => item.enabled).length;
@@ -239,7 +339,7 @@ async function mountMemory(root) {
           '</div>' +
           '<div id="memoryLibraryResults"></div>' +
         '</section>' +
-      '</section>';
+      '</section>' + confirmationMarkup();
     renderCandidates();
     renderMemoryResults();
     renderSummaries();
@@ -406,10 +506,13 @@ async function mountMemory(root) {
   });
 
   root.addEventListener("click", async event => {
+    if (event.target.matches("[data-memory-modal-backdrop]")) { closeConfirmation(); return; }
     const button = event.target.closest("[data-memory-action]");
     if (!button) return;
     const action = button.dataset.memoryAction;
     const id = button.dataset.id;
+    if (action === "close-confirmation") { closeConfirmation(); return; }
+    if (action === "confirm-action") { await confirmPendingAction(); return; }
     if (action === "refresh") { await refresh(); return; }
     if (action === "open-summary") {
       const item = conversationSummaries.find(value => value.chatId === id);
@@ -432,16 +535,8 @@ async function mountMemory(root) {
     }
     if (action === "delete-summary") {
       const item = conversationSummaries.find(value => value.chatId === id);
-      if (!item || summaryBusy || !window.confirm("Delete the saved summary for this conversation? The original conversation transcript will remain unchanged.")) return;
-      summaryBusy = true; renderSummaries();
-      try {
-        await api.deleteConversationSummary(id);
-        conversationSummaries = await api.listConversationSummaries(summarySearchQuery, 200);
-        selectedSummaryId = conversationSummaries[0]?.chatId || null;
-        summaryDraft = conversationSummaries[0]?.summary || "";
-        message = "Saved summary deleted. The original chat and all its messages remain intact."; messageIsError = false;
-      } catch (cause) { message = errorText(cause); messageIsError = true; }
-      finally { summaryBusy = false; render(); }
+      if (!item || summaryBusy) return;
+      openConfirmation("delete-summary", id, button);
       return;
     }
     if (action === "stop-summary-rebuild") {
@@ -555,27 +650,23 @@ async function mountMemory(root) {
     }
     if (action === "delete") {
       const item = memories.find(value => value.id === id);
-      if (!item || !window.confirm("Delete this saved memory from this device?\n\n" + item.title)) return;
-      try {
-        await api.deleteMemory(id);
-        if (editingId === id) resetEditor();
-        await refresh(); message = "Memory deleted from local storage."; messageIsError = false; render();
-      } catch (cause) { message = errorText(cause); messageIsError = true; render(); }
+      if (!item) return;
+      openConfirmation("delete-memory", id, button);
       return;
     }
     if (action === "approve-candidate" || action === "reject-candidate") {
       if (reviewing) return;
       const candidate = candidates.find(item => item.id === id);
       if (!candidate) return;
-      const approve = action === "approve-candidate";
-      if (approve && !window.confirm("Approve this suggestion and save it as the learned profile?\n\n" + candidate.title)) return;
+      if (action === "approve-candidate") {
+        openConfirmation("approve-candidate", id, button);
+        return;
+      }
       reviewing = true; render();
       try {
-        const result = await api.reviewMemoryCandidate(id, approve ? "approve" : "reject");
+        await api.reviewMemoryCandidate(id, "reject");
         await refresh();
-        message = approve
-          ? "Suggestion approved. The learned profile has been saved to Memory."
-          : "Suggestion rejected. Your existing memories were left unchanged.";
+        message = "Suggestion rejected. Your existing memories were left unchanged.";
         messageIsError = false;
       } catch (cause) { message = errorText(cause); messageIsError = true; }
       finally { reviewing = false; render(); }
@@ -593,8 +684,27 @@ async function mountMemory(root) {
     } catch (cause) { message = errorText(cause); messageIsError = true; render(); }
   });
 
+  const onKeyDown = event => {
+    if (!pendingConfirmation) return;
+    if (event.key === "Escape") {
+      event.preventDefault(); event.stopPropagation();
+      closeConfirmation(); return;
+    }
+    if (event.key === "Tab") {
+      const modal = root.querySelector(".privacy-modal");
+      const focusable = Array.from(modal?.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') || []);
+      if (!focusable.length) { event.preventDefault(); return; }
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) {
+        event.preventDefault(); first.focus();
+      }
+    }
+  };
+  window.addEventListener("keydown", onKeyDown);
   await refresh();
-  return () => { disposed = true; root.replaceChildren(); };
+  return () => { disposed = true; window.removeEventListener("keydown", onKeyDown); root.replaceChildren(); };
 }
 
 window.SyncAI.pages = window.SyncAI.pages || {};
