@@ -240,3 +240,14 @@ Chronological record of meaningful implementation sessions. Keep entries factual
 - Source parsing passed for database, database tests, main process, renderer API and chat page.
 - CI for the newest commit 2209601e2487b8c37b59a23feba29788944be434 was in progress at log time. Previous CI showed new DB tests passing but existing unrelated source-contract and Windows file-operation tests still failing.
 - No target-device Electron UI or real GGUF test was performed.
+
+
+## 2026-11-26 — Phase 1 substep checkpoint
+
+- Marked Step 1 (data model/storage API) COMPLETE after migration v8, API wiring, metadata/provenance tests, summary invalidation tests and a populated v7 database upgrade fixture were included in CI.
+- Marked Step 3 (independent Notes retrieval) COMPLETE after adding a dedicated Notes query, separate bounded retrieval, preserving the existing opt-in flag, and separating Notes from Workspace in prompt assembly.
+- Step 2 Memory Center remains IN PROGRESS: category, importance, pinning and provenance UI are implemented; search/filter, usage accounting and auto-learn candidate review remain.
+- Step 4 context orchestration remains IN PROGRESS: lexical ranking and separate source sections exist; overall context ceiling/tuning remain.
+- Step 5 summaries remain IN PROGRESS: persistence, invalidation and prompt consumption exist; automatic summary generation/refresh and summary UI remain.
+- Step 6 Model Profiles remains NOT STARTED.
+- Source-validation on code commit 2209601e2487b8c37b59a23feba29788944be434: Ubuntu 48 passed, 1 failed, 1 skipped; Windows 45 passed, 5 failed. New Memory, migration, retrieval and prompt-contract tests passed. Remaining failures are the existing inference source-contract assertion plus four Windows file-operation/path safety assertions in hosted temporary folders. This is not a green full-suite result.
