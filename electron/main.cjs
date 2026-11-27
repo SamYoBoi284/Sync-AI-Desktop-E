@@ -34,6 +34,32 @@ process.on("unhandledRejection", error => logStartup("Unhandled rejection: " + (
 let splashAvailable = true;
 let mainWindow = null;
 let tray = null;
+
+function restoreRendererKeyboardFocus() {
+  const target = mainWindow;
+  if (!target || target.isDestroyed() || !target.isVisible() || target.isMinimized()) return;
+  setTimeout(() => {
+    if (!target || target.isDestroyed() || !target.isVisible() || target.isMinimized()) return;
+    // A genuine blur -> focus transition makes Chromium re-sync keyboard
+    // input routing to the existing DOM active element after native dialogs.
+    target.blur();
+    target.focus();
+    target.webContents.focus();
+  }, 50);
+}
+
+async function awaitNativeDialogWithFocus(dialogPromise) {
+  try { return await dialogPromise; }
+  finally { restoreRendererKeyboardFocus(); }
+}
+
+function showOpenDialogWithFocus(options) {
+  return awaitNativeDialogWithFocus(dialog.showOpenDialog(mainWindow, options));
+}
+
+function showSaveDialogWithFocus(options) {
+  return awaitNativeDialogWithFocus(dialog.showSaveDialog(mainWindow, options));
+}
 let database = null;
 let actionManager = null;
 let waitingForActionShutdown = false;
@@ -429,7 +455,7 @@ async function inspectPickedFile(filePath, maxBytes = 512 * 1024 * 1024) {
 }
 
 async function importGguf() {
-  const picked = await dialog.showOpenDialog(mainWindow, { title: "Register a GGUF model", properties: ["openFile"], filters: [{ name: "GGUF model", extensions: ["gguf"] }] });
+  const picked = await showOpenDialogWithFocus({ title: "Register a GGUF model", properties: ["openFile"], filters: [{ name: "GGUF model", extensions: ["gguf"] }] });
   if (picked.canceled || !picked.filePaths[0]) return null;
   const filePath = await fsp.realpath(picked.filePaths[0]);
   const stat = await fsp.stat(filePath);
@@ -615,6 +641,7 @@ const handlers = {
     return { modelId, ...getInferenceOptions(), isCustomized: false };
   },
   list_memory_candidates: args => database.list_memory_candidates(args),
+  get_communication_style_evidence: () => database.get_communication_style_evidence(),
   create_memory_candidate: args => database.create_memory_candidate(args),
   review_memory_candidate: args => database.review_memory_candidate(args),
   delete_memory_candidate: args => database.delete_memory_candidate(args),
@@ -822,7 +849,7 @@ const handlers = {
       const defaultName = operation === "copy"
         ? "Copy of " + path.basename(sourcePath)
         : path.parse(sourcePath).name + " renamed" + path.extname(sourcePath);
-      const destination = await dialog.showSaveDialog(mainWindow, {
+      const destination = await showSaveDialogWithFocus({
         title: operation === "copy" ? "Choose where to save the copy" : "Choose the new file name",
         defaultPath: path.join(path.dirname(sourcePath), defaultName),
         buttonLabel: operation === "copy" ? "Choose copy destination" : "Rename file"
@@ -839,6 +866,11 @@ const handlers = {
 };
 
 function registerIpc() {
+  ipcMain.on("sync:restore-focus-after-dialog", event => {
+    const trustedFileUrl = pathToFileURL(path.join(__dirname, "..", "index.html")).href;
+    if (event.sender !== mainWindow?.webContents || (event.senderFrame?.url || "") !== trustedFileUrl) return;
+    restoreRendererKeyboardFocus();
+  });
   ipcMain.on("sync:renderer-ready", event => {
     const senderUrl = event.senderFrame?.url || "";
     const trustedFileUrl = pathToFileURL(path.join(__dirname, "..", "index.html")).href;
