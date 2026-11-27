@@ -341,7 +341,8 @@ async function mountChat(root, context, initialChatId = null) {
     let enabled = false;
     try { enabled = JSON.parse(await api.getSetting("memory_auto_learn") || "false") === true; } catch {}
     if (!enabled || !runtime?.isLoaded) return;
-    const userTurns = (chat.messages || []).filter(item => item.role === "user").slice(-8)
+    const sourceMessages = (chat.messages || []).filter(item => item.role === "user").slice(-8);
+    const userTurns = sourceMessages
       .map(item => "User shared: " + item.body.trim().slice(0, 500)).join("\n\n").slice(-3000);
     if (!userTurns) return;
 
@@ -378,13 +379,20 @@ async function mountChat(root, context, initialChatId = null) {
       const learned = String(result.text || "").trim().replace(/^[\s"\x27]+|[\s"\x27]+$/g, "");
       if (!learned) return;
       if (/^NO_CHANGES\b/i.test(learned)) { notice = "No new long-term memory was identified in this conversation."; return; }
-      await api.saveMemory({
+      const savedMemory = await api.saveMemory({
         title: "Learned profile",
         content: learned.slice(0, 1500),
         source: "Auto-learned from conversations",
         enabled: true
       }, savedProfile?.id || null);
-      notice = "Sync updated its saved memory from this conversation. Review or edit it in Settings → Memory.";
+      let sourceFailures = 0;
+      for (const sourceMessage of sourceMessages) {
+        try { await api.addMemorySource(savedMemory.id, chat.id, sourceMessage.id); }
+        catch { sourceFailures += 1; }
+      }
+      notice = sourceFailures
+        ? "Sync updated its saved memory, but " + sourceFailures + " source link(s) could not be recorded."
+        : "Sync updated its saved memory from this conversation. Review or edit it in Settings → Memory.";
     } finally {
       activeGenerationId = null;
       stopAvailable = false;
