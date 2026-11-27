@@ -5,7 +5,7 @@
 ## Current project
 
 - Repository: `SamYoBoi284/Sync-AI-Desktop-E`, branch `main`.
-- Latest inspected source commit: `63fa05e801bc1a108589924a18f87389e1dde11d`.
+- Latest reviewed application-source commit: `363647adbd113b829307a6110b58a60988ab7bff`. The intelligence/memory architecture baseline is documented at `ed26ba2d8cc4107aca3bdb86664fc78192ce3279`.
 - Electron application using root `index.html`, local CSS in `src/`, classic JavaScript renderer scripts in `renderer/`, restricted preload bridge, SQLite and isolated CPU llama.cpp UtilityProcess.
 - No React, Vue, Angular, TypeScript, Vite, TSX renderer or frontend development server.
 
@@ -15,7 +15,8 @@
 - Chat management: recent list/search, pinning, rename, move-to-top, folders, archive/restore, delete and export/import.
 - Message editing data operation exists and regenerates from the edited turn, but the current visible editor still uses `window.prompt()`; inline composer editing remains future work.
 - Local GGUF registry, metadata/hash validation, original-path tracking, relinking, model load/unload, worker telemetry and optional Windows Job Object private-memory ceiling.
-- Persistent Memory page, import/edit/enable/disable/delete, bounded prompt budget and optional bounded auto-learning.
+- Persistent Memory page, import/edit/enable/disable/delete, bounded prompt budget and optional bounded auto-learning. A Phase 1 baseline audit is complete; category/importance/pinning/provenance and relevance retrieval remain to be built.
+- Notes already have independent local persistence and CRUD, but Notes and Workspace context are currently combined at prompt assembly. Conversation summaries/compaction are not yet implemented.
 - Composer `@` tool palette, file operation preparation and explicit approvals; typed `@` works independently of the visible button.
 - Privacy & Tools action journal, modal approval/cancellation/undo, focus handling and global stop/rollback controls.
 - Workspace artifacts, Tasks, Notes and metadata-only File Library.
@@ -43,7 +44,7 @@
 - `renderer/pages/settings.js`: RAM limiter and page navigation.
 - `renderer/pages/memory.js`: persistent saved memory and auto-learning controls.
 - `renderer/pages/privacy-tools.js`: file-operation approvals, action journal and undo.
-- `renderer/pages/preview.js`: intentionally staged/preview pages, including Appearance.
+- `renderer/pages/preview.js`: Appearance preferences plus any remaining staged/preview pages.
 
 ## Important source-review findings for visual work
 
@@ -53,6 +54,13 @@
 4. Privacy approval dialogs include focus management, keyboard handling and focus restoration. Preserve these safety/accessibility behaviors.
 5. Runtime telemetry refreshes every 1.5 seconds; avoid focus loss and layout flicker.
 6. Include `folders.js`, `memory.js` and `privacy-tools.js` in a complete page-module handoff; older lists may omit these active modules.
+
+## Intelligence & memory baseline
+
+- See `docs/INTELLIGENCE_MEMORY_ARCHITECTURE.md` for the source-verified inventory, agreed data separation, retrieval design and Phase 1 implementation sequence.
+- Current SQLite schema is migration v7 (not v4).
+- Memory table exists; Notes table exists separately; conversation transcripts exist, but persistent conversation summaries do not.
+- The baseline audit changed documentation only. No database migration or runtime behavior was modified.
 
 ## Current visual pass
 
