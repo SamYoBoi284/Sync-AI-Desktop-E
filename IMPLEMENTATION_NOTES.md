@@ -123,3 +123,12 @@ The most recent review fetched and inspected GitHub source; it did not launch El
 - Step 2 COMPLETE; Step 4 COMPLETE for the current lexical/character-budget design; Step 5 IN PROGRESS for summary inspection/rebuild UI and cross-chat retrieval; Step 6 Model Profiles NOT STARTED.
 - Current Ubuntu source-validation: 56 pass, 1 fail, 1 skipped; only failure is the pre-existing inference source-contract assertion. Windows hosted file/path tests and the Electron runtime/package workflow have not all completed at this checkpoint.
 - Manual target-machine UI and real-GGUF tests remain outstanding.
+
+
+## Context-window enforcement refinement
+
+- Worker calculates output token allowance from actual loaded context size minus app-prompt tokens, system-prompt tokens and safety margin; output remains capped at 512 tokens.
+- Overall context policy reserves system prompt, safety and reply capacity. UI displays effective prompt budget/output reserve.
+- Automatic learning and summary prompts are budgeted too.
+- Summary cursor advances only through an older-message prefix actually included in the summary prompt, preventing skipped backlog content when a full delta does not fit.
+- Updated legacy source-contract assertions to match the actual `LlamaChatSession` API and `workerPid` memory-guard handoff. Latest commit `6bc3bc129759cf8b9ed8afa35daad83ab342c01d` is awaiting CI.
