@@ -641,7 +641,7 @@ const handlers = {
     return { modelId, ...getInferenceOptions(), isCustomized: false };
   },
   list_memory_candidates: args => database.list_memory_candidates(args),
-  get_communication_style_evidence: () => database.get_communication_style_evidence(),
+  get_recurring_topic_evidence: () => database.get_recurring_topic_evidence(),
   create_memory_candidate: args => database.create_memory_candidate(args),
   review_memory_candidate: args => database.review_memory_candidate(args),
   delete_memory_candidate: args => database.delete_memory_candidate(args),
