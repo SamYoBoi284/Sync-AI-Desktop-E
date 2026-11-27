@@ -150,7 +150,7 @@ function enqueueGeneration({ prompt, generationId, chatId = null, userMessageId 
     const job = {
       prompt, generationId, chatId: typeof chatId === "string" ? chatId : null,
       userMessageId: typeof userMessageId === "string" ? userMessageId : null,
-      purpose: purpose === "memory" ? "memory" : "chat", queuedAt: new Date().toISOString(),
+      purpose: ["memory", "summary"].includes(purpose) ? purpose : "chat", queuedAt: new Date().toISOString(),
       startedAt: null, text: "", resolve, reject
     };
     generationQueue.push(job);
@@ -593,6 +593,26 @@ const handlers = {
   get_conversation_summary: args => database.get_conversation_summary(args),
   save_conversation_summary: args => database.save_conversation_summary(args),
   delete_conversation_summary: args => database.delete_conversation_summary(args),
+  list_memory_candidates: args => database.list_memory_candidates(args),
+  create_memory_candidate: args => database.create_memory_candidate(args),
+  review_memory_candidate: args => database.review_memory_candidate(args),
+  delete_memory_candidate: args => database.delete_memory_candidate(args),
+  get_context_policy: () => {
+    const raw = database.get_setting({ key: "context_budget_percent" });
+    let percent = 65;
+    try { if (raw != null) percent = Number(JSON.parse(raw)); } catch {}
+    if (!Number.isFinite(percent)) percent = 65;
+    percent = Math.min(80, Math.max(40, Math.round(percent / 5) * 5));
+    const contextWindowTokens = Number(runtimeState.contextLength) || 2048;
+    const promptBudgetTokens = Math.min(contextWindowTokens - 256, Math.max(256, Math.floor(contextWindowTokens * percent / 100)));
+    return { contextWindowTokens, percent, promptBudgetTokens, outputReserveTokens: contextWindowTokens - promptBudgetTokens, estimatedCharBudget: Math.floor(promptBudgetTokens * 3.2) };
+  },
+  set_context_budget_percent: ({ percent } = {}) => {
+    const value = Number(percent);
+    if (!Number.isInteger(value) || value < 40 || value > 80 || value % 5 !== 0) throw new Error("Context budget must be between 40% and 80% in 5% steps.");
+    database.set_setting({ key: "context_budget_percent", valueJson: JSON.stringify(value) });
+    return handlers.get_context_policy();
+  },
   list_memory_context: ({ query = "" } = {}) => {
     const raw = database.get_setting({ key: "memory_context_tokens" });
     let tokenBudget = 256;
