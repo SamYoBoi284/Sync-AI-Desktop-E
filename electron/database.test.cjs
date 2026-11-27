@@ -168,7 +168,7 @@ test("invalidates a conversation summary when a queued reply is inserted inside 
 }));
 
 
-test("upgrades a populated version-7 database through version 12 without losing user data", () => {
+test("upgrades a populated version-7 database through version 13 without losing user data", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sync-ai-v7-upgrade-"));
   const file = path.join(dir, "legacy-v7.sqlite3");
   let db = new SyncDatabase(file);
@@ -208,7 +208,7 @@ test("upgrades a populated version-7 database through version 12 without losing 
     assert.equal(migratedMemory.pinned, false);
     assert.equal(db.get_chat({ chatId: chat.id }).messages[0].body, "Preserve this transcript.");
     assert.equal(db.get_note({ noteId: note.id }).content, "Preserve this note.");
-    assert.equal(Number(db.db.prepare("SELECT MAX(version) v FROM schema_migrations").get().v), 12);
+    assert.equal(Number(db.db.prepare("SELECT MAX(version) v FROM schema_migrations").get().v), 13);
     assert.deepEqual(db.get_conversation_summary({ chatId: chat.id }), null);
   } finally {
     try { db.close(); } catch {}
@@ -291,6 +291,31 @@ test("recurring topic evidence detects interests across chats and ignores one-of
   assert.equal(updatedRocketLeague.messageCount, rocketLeague.messageCount - 1);
 }));
 
+
+test("schema v13 clears stale topic observations so the filtered index is rebuilt", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sync-ai-topic-reindex-"));
+  const file = path.join(dir, "topic.sqlite3");
+  let db = new SyncDatabase(file);
+  try {
+    const chat = db.create_chat({ title: "Old indexed conversation" });
+    const message = db.append_message({ chatId: chat.id, message: { role: "user", body: "yo bro" } });
+    db.db.prepare("INSERT INTO topic_observation_messages(message_id,chat_id,terms_json,observed_at) VALUES(?,?,?,?)")
+      .run(message.id, chat.id, JSON.stringify(["bro", "yooo"]), new Date().toISOString());
+
+    // Simulate an existing v12 database carrying observations from the old tokenizer.
+    db.db.prepare("DELETE FROM schema_migrations WHERE version=13").run();
+    db.close();
+    db = new SyncDatabase(file);
+
+    assert.equal(Number(db.db.prepare("SELECT COUNT(*) n FROM topic_observation_messages").get().n), 0);
+    const rebuilt = db.get_recurring_topic_evidence();
+    assert.equal(rebuilt.candidates.length, 0);
+    assert.equal(Number(db.db.prepare("SELECT COUNT(*) n FROM topic_observation_messages").get().n), 1);
+  } finally {
+    try { db.close(); } catch {}
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test("recurring topic evidence ignores greeting, slang and routine status chatter", () => withDb(db => {
   const chats = [1, 2, 3].map(number => db.create_chat({ title: "Small talk " + number }));
