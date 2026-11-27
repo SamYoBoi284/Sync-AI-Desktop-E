@@ -121,7 +121,7 @@ test("Memory, Notes, Workspace and conversation summaries remain separate contex
   assert.match(chat, /api\.listMemoryContext\(retrievalQuery\)/);
   assert.match(chat, /api\.listNoteContext\(retrievalQuery\)/);
   assert.match(chat, /api\.listWorkspaceContext\(retrievalQuery\)/);
-  assert.match(chat, /api\.getConversationSummary\(job\.chatId\)/);
+  assert.match(chat, /api\.getConversationSummary\(job\.chatId, retrievalQuery\)/);
   assert.match(chat, /RELEVANT USER NOTES/);
   assert.match(chat, /SELECTED WORKSPACE MATERIAL/);
   assert.match(chat, /OLDER CONVERSATION SUMMARY/);
