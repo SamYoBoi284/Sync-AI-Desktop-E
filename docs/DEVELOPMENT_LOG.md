@@ -225,3 +225,18 @@ Chronological record of meaningful implementation sessions. Keep entries factual
 - Source-level JavaScript parsing passed for the changed database, main-process, renderer API, chat and Memory page files.
 - GitHub Actions on `d8ab68d20c75414fc624fb3a64b5fa8de9847f99`: the database test set passed on Windows and Ubuntu, including all new Memory/provenance/summary tests. Overall workflows failed on five other assertions: one file-operation protection check, three Windows file-operation tests rejecting the runner temp path as traversing a symbolic link, and one stale inference source-contract assertion.
 - No target-machine Electron UI test or real-GGUF inference test was run.
+
+
+## 2026-11-26 — Phase 1 independent context retrieval
+
+- Added bounded Unicode tokenization and lightweight deterministic lexical ranking for enabled Memory, opted-in Notes and opted-in Workspace artifacts.
+- Split the previous combined Notes/Workspace database method into independent list_note_context() and list_workspace_context() methods, each with its own context budget.
+- Added query-aware main-process handlers and renderer API wrappers for all three independent retrieval sources.
+- Chat generation now uses the latest queued user message as the retrieval query.
+- Prompt construction separates durable Memory, user-authored Notes, Workspace artifacts, older conversation summary and recent transcript into explicitly labelled context sections.
+- If a persisted summary is available, prompt construction skips transcript entries already covered by its cursor while always retaining the latest queued user message.
+- No summary generator, automatic compaction, embedding model, vector database or extra inference worker was added.
+- Added database tests for lexical relevance ranking, source separation, opt-in enforcement and empty-query fallback. Added an IPC/prompt contract test for the distinct context sources.
+- Source parsing passed for database, database tests, main process, renderer API and chat page.
+- CI for the newest commit 2209601e2487b8c37b59a23feba29788944be434 was in progress at log time. Previous CI showed new DB tests passing but existing unrelated source-contract and Windows file-operation tests still failing.
+- No target-device Electron UI or real GGUF test was performed.
