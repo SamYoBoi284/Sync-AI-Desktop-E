@@ -6,7 +6,7 @@ const { mountChat, mountHistory, mountFolders, mountModels, mountWorkspace, moun
 const root = document.getElementById("root");
 if (!root) throw new Error("The Sync AI Desktop root element is missing.");
 
-const state = { page: "new-chat", selectedChatId: null, selectedFolderId: null, info: null, bridge: "checking", cleanup: null, splash: false, actionStatus: { isRunning: false, activeAction: null }, stopActionBusy: false };
+const state = { page: "new-chat", selectedChatId: null, selectedFolderId: null, navigationStack: [], info: null, bridge: "checking", cleanup: null, splash: false, actionStatus: { isRunning: false, activeAction: null }, stopActionBusy: false };
 const appMarkup = () => `
   <div class="shell-root is-booting" id="appShell">
     <aside class="shell-sidebar" aria-label="Main navigation">
@@ -37,7 +37,10 @@ const appMarkup = () => `
     </aside>
     <main class="shell-main">
       <header class="shell-topbar">
-        <div class="shell-breadcrumb"><span>SYNC AI</span><span class="shell-breadcrumb-slash">/</span><strong id="breadcrumbTitle">NEW CHAT</strong></div>
+        <div class="shell-topbar-leading">
+          <button class="shell-back-button" id="navigationBack" type="button" hidden aria-label="Go back" title="Go back (Escape)"><span aria-hidden="true">←</span><span>Back</span><kbd>ESC</kbd></button>
+          <div class="shell-breadcrumb"><span>SYNC AI</span><span class="shell-breadcrumb-slash">/</span><strong id="breadcrumbTitle">NEW CHAT</strong></div>
+        </div>
         <div class="shell-topbar-meta"><span class="shell-action-running" id="actionRunningStatus" hidden>FILE ACTION RUNNING</span><button class="shell-stop-action" id="globalStopAction" type="button" hidden>STOP &amp; RESTORE</button><span class="shell-version-label" id="topbarVersion">BUILD 0.1.0</span><span class="shell-connection-pill is-checking" id="connectionPill"><span class="shell-connection-dot"></span>CONNECTING</span></div>
       </header>
       <div class="shell-page-scroll" id="pageHost"><p class="shell-chat-empty">Preparing your workspace…</p></div>
@@ -72,6 +75,8 @@ function updateTopbar() {
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-current", active ? "page" : "false");
   });
+  const backButton = document.getElementById("navigationBack");
+  if (backButton) backButton.hidden = state.navigationStack.length === 0;
   renderActionStatus();
 }
 
@@ -158,13 +163,35 @@ async function refreshRecent() {
     if (foldersHost) foldersHost.innerHTML = '<p class="shell-recent-empty">' + esc(errorText(error)) + "</p>";
   }
 }
-function navigate(page, chatId = null) {
+function navigate(page, chatId = null, options = {}) {
   if (!pageTitles[page]) return;
-  if (page === "history" || page === "archive" || page === "new-chat") state.selectedChatId = null;
-  if (page === "new-chat" && chatId) state.selectedChatId = chatId;
+  const nextChatId = page === "new-chat" ? (chatId || null) : (page === "history" || page === "archive" ? null : state.selectedChatId);
+  const sameLocation = state.page === page && state.selectedChatId === nextChatId;
+  if (options.resetHistory) {
+    state.navigationStack.length = 0;
+  } else if (!sameLocation) {
+    state.navigationStack.push({
+      page: state.page,
+      selectedChatId: state.selectedChatId,
+      selectedFolderId: state.selectedFolderId
+    });
+    if (state.navigationStack.length > 32) state.navigationStack.shift();
+  }
+  state.selectedChatId = nextChatId;
   state.page = page;
   updateTopbar();
   void renderPage();
+}
+
+function goBack() {
+  const previous = state.navigationStack.pop();
+  if (!previous) return false;
+  state.page = previous.page;
+  state.selectedChatId = previous.selectedChatId;
+  state.selectedFolderId = previous.selectedFolderId;
+  updateTopbar();
+  void renderPage();
+  return true;
 }
 
 // Motion hook: CSS keys all page-enter animation off .is-page-entering, which is
@@ -214,6 +241,7 @@ async function renderPage() {
 }
 
 document.addEventListener("click", event => {
+  if (event.target.closest("#navigationBack")) { goBack(); return; }
   if (event.target.closest("#globalStopAction")) { void stopActiveActionFromUi(); return; }
 
   const menuToggle = event.target.closest("[data-chat-menu-toggle]");
@@ -293,15 +321,15 @@ document.addEventListener("click", event => {
   }
 
   const openFolder = event.target.closest("[data-open-folder]");
-  if (openFolder) { state.selectedFolderId = openFolder.dataset.openFolder; navigate("folders"); return; }
+  if (openFolder) { state.selectedFolderId = openFolder.dataset.openFolder; navigate("folders", null, { resetHistory: true }); return; }
   const nav = event.target.closest("[data-nav]");
-  if (nav) { navigate(nav.dataset.nav); return; }
+  if (nav) { navigate(nav.dataset.nav, null, { resetHistory: true }); return; }
   const open = event.target.closest("[data-open-chat]");
   if (open) { navigate("new-chat", open.dataset.openChat); return; }
   const action = event.target.closest("[data-action]");
   if (!action) return;
-  if (action.dataset.action === "new-chat") navigate("new-chat");
-  if (action.dataset.action === "go-history") navigate("history");
+  if (action.dataset.action === "new-chat") navigate("new-chat", null, { resetHistory: true });
+  if (action.dataset.action === "go-history") navigate("history", null, { resetHistory: true });
 });
 window.SyncAI.onActionEvent(payload => {
   state.actionStatus = payload?.status || { isRunning: false, activeAction: null };
@@ -317,9 +345,38 @@ document.getElementById("clearRecentSearch").addEventListener("click", () => {
   document.getElementById("clearRecentSearch").hidden = true;
   void refreshRecent();
 });
-window.addEventListener("keydown", event => {
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !event.defaultPrevented) {
+    const chatModal = document.querySelector(".chat-tool-modal-backdrop");
+    if (chatModal) {
+      const cancel = chatModal.querySelector('[data-chat-action="tool-folder-cancel"], [data-chat-action="tool-cancel"]');
+      if (cancel && !cancel.disabled) cancel.click();
+      event.preventDefault();
+      return;
+    }
+
+    // Privacy & Tools owns its approval dialog's Escape/focus behavior.
+    if (document.querySelector(".privacy-modal-backdrop, [role=\"dialog\"][aria-modal=\"true\"], dialog[open]")) return;
+
+    const chatMenu = document.querySelector(".shell-chat-context-menu:not([hidden])");
+    if (chatMenu) { chatMenu.hidden = true; event.preventDefault(); return; }
+    const folderMenu = document.querySelector(".shell-chat-folder-options:not([hidden])");
+    if (folderMenu) { folderMenu.hidden = true; event.preventDefault(); return; }
+    const openDetails = document.querySelector("details[open]");
+    if (openDetails) { openDetails.open = false; event.preventDefault(); return; }
+
+    const active = document.activeElement;
+    if (active?.matches("select, input[type=file]") || active?.closest(".shell-chat-composer")) return;
+    if (state.navigationStack.length) {
+      event.preventDefault();
+      goBack();
+      return;
+    }
+  }
+
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") {
-    event.preventDefault(); navigate("new-chat");
+    event.preventDefault();
+    navigate("new-chat", null, { resetHistory: true });
   }
 });
 
