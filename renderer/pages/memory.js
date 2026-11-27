@@ -13,6 +13,15 @@ const CATEGORIES = [
   ["projects","Projects"],["technical","Technical"],["workflows","Workflows"],["interests","Interests"]
 ];
 const VALID_LEARNING_MODES = ["off","review","automatic"];
+function contextPromptBudgetFor(contextWindowTokens, percent) {
+  const windowSize = Math.max(512, Number(contextWindowTokens) || 2048);
+  const selectedPercent = Math.min(80, Math.max(40, Math.round(Number(percent) / 5) * 5));
+  const systemReserve = Math.min(128, Math.max(48, Math.floor(windowSize * 0.25)));
+  const safetyReserve = 16;
+  const minimumOutput = Math.min(64, Math.max(16, Math.floor(windowSize * 0.125)));
+  const maximumPrompt = Math.max(256, windowSize - systemReserve - safetyReserve - minimumOutput);
+  return Math.min(maximumPrompt, Math.max(256, Math.floor(windowSize * selectedPercent / 100)));
+}
 
 async function mountMemory(root) {
   let memories = [];
@@ -22,7 +31,7 @@ async function mountMemory(root) {
   let category = "general", importance = 3, pinned = false;
   let learningMode = "off", memoryTokenBudget = 256, contextBudgetPercent = 65;
   let autoSummaries = true;
-  let contextWindowTokens = 2048;
+  let contextWindowTokens = 2048, contextPromptBudgetTokens = 0, contextOutputReserveTokens = 0;
   let searchQuery = "", categoryFilter = "all", statusFilter = "all";
   let message = "", messageIsError = false, disposed = false;
 
@@ -111,9 +120,9 @@ async function mountMemory(root) {
         '<section class="shell-settings-panel memory-budget-panel">' +
           '<div class="shell-panel-heading"><div><p class="shell-section-kicker">TOTAL PROMPT RESOURCE LIMIT</p><h2>Overall context budget</h2></div><span class="shell-panel-tag">' + contextWindowTokens.toLocaleString() + ' TOKEN WINDOW</span></div>' +
           '<p class="shell-settings-intro">Controls the approximate share of the loaded model context Sync may use for the entire app-built prompt: recent conversation, summaries, Memory, Notes and selected Workspace material. The remaining capacity is reserved for the model reply and safety margin.</p>' +
-          '<label class="memory-budget-control"><div><span>Maximum prompt budget</span><strong id="contextBudgetValue">' + contextBudgetPercent + '% · about ' + Math.floor(contextWindowTokens * contextBudgetPercent / 100).toLocaleString() + ' tokens</strong></div>' +
+          '<label class="memory-budget-control"><div><span>Maximum prompt budget</span><strong id="contextBudgetValue">' + contextBudgetPercent + '% · about ' + contextPromptBudgetTokens.toLocaleString() + ' prompt tokens</strong></div>' +
             '<input id="contextBudgetPercent" type="range" min="40" max="80" step="5" value="' + contextBudgetPercent + '" ' + (saving || toggling ? "disabled" : "") + '>' +
-            '<div><small>' + (100 - contextBudgetPercent) + '% reserved for output/safety</small><small>Estimate uses characters, not the model tokenizer</small></div>' +
+            '<div><small>' + contextOutputReserveTokens.toLocaleString() + ' tokens reserved for reply after system/safety overhead</small><small>Estimate uses characters, not the model tokenizer</small></div>' +
           '</label>' +
           '<p class="memory-limit-note">This is a conservative application-level estimate, not an exact tokenizer measurement. Long conversations will be summarized and older turns compacted rather than growing without limit.</p>' +
           '<label class="memory-toggle-row"><span><strong>Automatically summarize older conversation turns</strong><small>Keep a rolling summary of older messages while the newest eight messages stay verbatim. This uses the loaded model only when the conversation grows beyond its context budget.</small></span><input id="autoSummaries" type="checkbox" ' + (autoSummaries ? 'checked' : '') + ' ' + (toggling ? 'disabled' : '') + '></label>' +
@@ -207,6 +216,8 @@ async function mountMemory(root) {
       if (results[5].status === "fulfilled" && results[5].value) {
         contextBudgetPercent = results[5].value.percent || 65;
         contextWindowTokens = results[5].value.contextWindowTokens || 2048;
+        contextPromptBudgetTokens = Number(results[5].value.promptBudgetTokens) || contextPromptBudgetFor(contextWindowTokens, contextBudgetPercent);
+        contextOutputReserveTokens = Number(results[5].value.outputReserveTokens) || 0;
       }
       try { autoSummaries = results[6].status !== "fulfilled" || results[6].value == null ? true : JSON.parse(results[6].value) !== false; } catch { autoSummaries = true; }
       if (!messageIsError) message = "";
@@ -227,8 +238,9 @@ async function mountMemory(root) {
     }
     if (event.target.id === "contextBudgetPercent") {
       const value = Number(event.target.value);
+      const promptTokens = contextPromptBudgetFor(contextWindowTokens, value);
       const label = root.querySelector("#contextBudgetValue");
-      if (label) label.textContent = value + "% · about " + Math.floor(contextWindowTokens * value / 100).toLocaleString() + " tokens";
+      if (label) label.textContent = value + "% · about " + promptTokens.toLocaleString() + " prompt tokens";
     }
     if (event.target.id === "memoryBudget") {
       const value = Number(event.target.value);
@@ -272,6 +284,8 @@ async function mountMemory(root) {
         const policy = await api.setContextBudgetPercent(next);
         contextBudgetPercent = policy.percent;
         contextWindowTokens = policy.contextWindowTokens;
+        contextPromptBudgetTokens = policy.promptBudgetTokens;
+        contextOutputReserveTokens = policy.outputReserveTokens;
         message = "Overall prompt budget saved. It will apply to the next message.";
         messageIsError = false;
       } catch (cause) { message = errorText(cause); messageIsError = true; }
