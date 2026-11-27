@@ -643,7 +643,7 @@ async function mountChat(root, context, initialChatId = null) {
         const conversationSummary = summaryResult.status === "fulfilled" ? summaryResult.value : null;
         const contextPolicy = policyResult.status === "fulfilled" ? policyResult.value : { estimatedCharBudget: 4096 };
         let crossConversationSummaries = [];
-        let crossSummaryEnabled = true;
+        let crossSummaryEnabled = false;
         if (crossSummarySettingResult.status === "fulfilled" && crossSummarySettingResult.value != null) {
           try { crossSummaryEnabled = JSON.parse(crossSummarySettingResult.value) !== false; } catch {}
         }
