@@ -285,3 +285,39 @@
   border-color:color-mix(in srgb,var(--interface) 28%,transparent);
   background:color-mix(in srgb,var(--interface) 9%,transparent);
 }
+
+
+/* Accent color owns interactive feedback throughout the application. */
+:root { accent-color:var(--accent); }
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible { outline-color:var(--accent); }
+a,.shell-page a { color:var(--accent); }
+.shell-nav-entry.is-active,
+.nav-item.is-active {
+  color:var(--accent);
+  border-color:color-mix(in srgb,var(--accent) 35%,transparent);
+  background:color-mix(in srgb,var(--accent) 10%,transparent);
+}
+.shell-chat-message.is-user {
+  border-color:color-mix(in srgb,var(--accent) 28%,var(--border));
+  background:color-mix(in srgb,var(--accent) 8%,var(--surface));
+}
+.shell-chat-composer:focus-within {
+  border-color:var(--accent);
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 13%,transparent);
+}
+.shell-chat-message-label,.shell-section-kicker,.shell-page-eyebrow .shell-eyebrow-line {
+  color:var(--accent);
+}
+.shell-chat-streaming-status,.shell-model-default { color:var(--accent); }
+* { scrollbar-color:var(--accent) color-mix(in srgb,var(--interface) 10%,var(--bg)); }
+*::-webkit-scrollbar-thumb {
+  background:linear-gradient(180deg,var(--accent),var(--interface)) padding-box;
+}
+*::-webkit-scrollbar-track {
+  border-color:color-mix(in srgb,var(--interface) 12%,transparent);
+  background:color-mix(in srgb,var(--interface) 8%,var(--bg));
+}
