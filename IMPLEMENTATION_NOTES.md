@@ -132,3 +132,15 @@ The most recent review fetched and inspected GitHub source; it did not launch El
 - Automatic learning and summary prompts are budgeted too.
 - Summary cursor advances only through an older-message prefix actually included in the summary prompt, preventing skipped backlog content when a full delta does not fit.
 - Updated legacy source-contract assertions to match the actual `LlamaChatSession` API and `workerPid` memory-guard handoff. Latest commit `6bc3bc129759cf8b9ed8afa35daad83ab342c01d` is awaiting CI.
+
+
+## Final Phase 1 handoff — 2026-11-26
+
+- Memory Center search/category/status filters and byte usage are implemented. Learning has Off, Review first and Automatic modes. Candidate suggestions remain outside saved Memory until approved; reject preserves the current profile.
+- Migration v9 persists candidate review history and source snapshots. Legacy auto-learn boolean remains supported as fallback.
+- Global context budget setting: 40–80%, step5, default65. Main-process policy reserves system instructions/safety/output. UI displays effective prompt cap and output reserve.
+- Inference worker tokenizes the prompt and Sync's system prompt, then caps generated tokens to actual remaining context (maximum512).
+- Chat, learning and summary prompts are bounded. Summaries are incrementally generated in message-prefix batches; cursor advances only through messages actually sent to the model; newest eight messages stay verbatim.
+- Automatic summaries default to enabled; toggle is in Memory settings. They reuse the loaded model and do not create another worker/model.
+- Latest source contract correction commit: `700541503116b7c9932576952dd5b7f2d98a5bf2`; CI pending. Previous full validation failures were from stale test contracts updated in that commit plus Windows hosted temp-path/file-action issues in earlier runs.
+- Do not claim target-device UI or real GGUF validation; neither was performed in this milestone.
