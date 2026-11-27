@@ -151,6 +151,7 @@ test("Memory learning review modes have persistent candidate storage and explici
 test("overall prompt budgeting is bounded and leaves recent transcript context intact", () => {
   const memoryPage = fs.readFileSync(path.join(root, "renderer", "pages", "memory.js"), "utf8");
   const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
+  const worker = fs.readFileSync(path.join(__dirname, "inference-worker.mjs"), "utf8");
   assert.match(main, /get_context_policy:/);
   assert.match(main, /set_context_budget_percent:/);
   assert.match(main, /estimatedCharBudget/);
@@ -163,6 +164,11 @@ test("overall prompt budgeting is bounded and leaves recent transcript context i
   assert.match(chat, /fitPromptText\(transcriptText[\s\S]*true\)/);
   assert.match(chat, /api\.getContextPolicy\(\)/);
   assert.match(main, /outputReserveTokens/);
+  assert.match(main, /systemPromptReserveTokens/);
+  assert.match(main, /safetyReserveTokens/);
+  assert.match(worker, /systemPromptTokens = model\.tokenize\(SYSTEM_PROMPT, true\)\.length/);
+  assert.match(worker, /availableOutputTokens = loaded\.contextLength - promptTokens - systemPromptTokens - safetyReserveTokens/);
+  assert.match(worker, /maxTokens: maxOutputTokens/);
 });
 
 test("older conversation summaries are incrementally generated without summarizing the newest eight messages", () => {
