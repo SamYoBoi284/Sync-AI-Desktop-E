@@ -152,3 +152,13 @@ The most recent review fetched and inspected GitHub source; it did not launch El
 - Escape now resolves supported nested chat menus/dialogs before page navigation. Privacy & Tools approval dialogs keep their own keyboard/focus handler.
 - Horizontal overflow guards were added to the chat transcript and sidebar folder list; message-action tooltips now stay inside their side of the viewport.
 - This has not yet been manually exercised in the Electron UI at different window sizes.
+
+
+## Phase 1 implementation completion — 2026-11-26
+
+- Schema v10 adds persistent per-model profiles with context window, batch size, temperature and maximum output-token settings. Validation is enforced in the SQLite API; deleting a model cascades its profile.
+- Local Models exposes profile editing per GGUF. Existing global Runtime context/batch settings remain the fallback for models without a custom profile. A saved profile is applied at next load/recovery, not retroactively to a running worker.
+- Memory Summary Center supports searching the summary index, viewing/editing stored text, reviewing its coverage cursor, deleting it and rebuilding from the original chat transcript.
+- Rebuilds keep the newest eight turns outside the summary, process older history in bounded batches, and persist a replacement only when the complete rebuild succeeds. Cancellation/failure preserves the previous saved version.
+- Cross-chat context retrieval is optional (enabled by default), relevance-ranked from the latest user message, excludes the active chat, and is bounded to four summaries / 6,000 source characters with a dedicated prompt allocation.
+- This completes the three remaining Phase 1 implementation areas. User will perform item 4: full database and contract suites, CI review, migration preservation, manual UI checks and actual GGUF inference testing.
