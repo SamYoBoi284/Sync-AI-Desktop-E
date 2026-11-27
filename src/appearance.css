@@ -3,6 +3,8 @@
   --sync-chat-font-size: 14px;
   --sync-accent: var(--accent, #a879ff);
 }
+:root[data-sync-theme="dark"],
+:root[data-sync-theme="system"] { color-scheme: dark; }
 :root[data-sync-density="compact"] .shell-nav-entry,
 :root[data-sync-density="compact"] .shell-recent-chat { min-height: 30px; }
 :root[data-sync-density="compact"] .shell-settings-panel,
