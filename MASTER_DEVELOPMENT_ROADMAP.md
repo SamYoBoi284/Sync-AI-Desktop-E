@@ -109,7 +109,7 @@ Status meanings:
 
 ### 7. Final Phase 1 validation — PENDING
 
-This remains a release-validation gate and can be completed alongside Phase 2 development; it is not a reason to leave Phase 1 implementation marked incomplete.
+This remains a release-validation gate and can be completed alongside Phase 2 development; it is not a reason to leave Phase 1 implementation marked incomplete. The current known blocker is the Windows file-action test suite described in the validation snapshot below.
 
 - Run the complete database and contract test suites.
 - Run the repository build/syntax checks and inspect the latest GitHub Actions results.
@@ -128,7 +128,7 @@ This remains a release-validation gate and can be completed alongside Phase 2 de
 - Load and test a real GGUF model, including context limits, output limits, profile application and worker recovery.
 - Verify behavior on the intended low-RAM target device and with the Windows worker memory limiter configured.
 
-**Validation snapshot (commit `d1b271fd`):** the Ubuntu source/action-safety workflow passed, including source syntax and the database, contract and renderer tests. Windows syntax/test, Electron startup, native GGUF runtime, UI automation and installer packaging remain in progress or pending. Earlier Windows test attempts failed in existing protected-path and symbolic-link file-action cases; those failures are tracked separately from the Memory/Quick Ask work. Do not mark Windows/runtime validation complete until the latest run and manual target-device checks have actually passed.
+**Validation snapshot (source commit `d1b271fd`):** the Ubuntu source/action-safety workflow passed, including source syntax and the full database, contract and renderer test set. Windows source syntax also passed. The Windows action-safety and Electron test jobs fail in four file-operation cases: protected application-data rejection and symbolic-link destination handling for copy/rename/move. Those failures prevent the Windows persistence stage from advancing, so native GGUF runtime verification, full Electron startup, renderer automation and installer packaging are skipped. These existing file-action failures are separate from the Memory/Quick Ask changes. Do not mark Windows/runtime validation complete until those Windows tests and manual target-device checks pass.
 
 ### Phase 1 position
 
