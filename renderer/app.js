@@ -1,7 +1,7 @@
 (() => {
 const { api } = window.SyncAI;
 const { pageTitles, navigationSections, esc, errorText } = window.SyncAI.shared;
-const { mountChat, mountHistory, mountFolders, mountModels, mountWorkspace, mountTasks, mountLibrary, mountRuntime, mountSettings, mountPrivacyTools, mountMemory, mountPreview } = window.SyncAI.pages;
+const { mountChat, mountHistory, mountFolders, mountModels, mountWorkspace, mountTasks, mountLibrary, mountRuntime, mountSettings, mountPrivacyTools, mountMemory, mountPreview, mountAppearance } = window.SyncAI.pages;
 
 const root = document.getElementById("root");
 if (!root) throw new Error("The Sync AI Desktop root element is missing.");
@@ -202,6 +202,7 @@ async function renderPage() {
       case "library": cleanup = await mountLibrary(pageHost, context); break;
       case "runtime": cleanup = await mountRuntime(pageHost, context); break;
       case "settings": cleanup = await mountSettings(pageHost, context); break;
+      case "appearance": cleanup = await mountAppearance(pageHost, context); break;
       case "memory": cleanup = await mountMemory(pageHost, context); break;
       case "privacy-tools": cleanup = await mountPrivacyTools(pageHost, context); break;
       default: cleanup = await mountPreview(pageHost, context, state.page); break;
@@ -377,6 +378,12 @@ async function bootstrap() {
       signalRendererReady(); // splash is painted: the window can be shown safely
     }
     state.info = await api.getAppInfo();
+    try {
+      const appearanceRaw = await api.getSetting("appearance_preferences");
+      let appearancePrefs = null;
+      try { appearancePrefs = appearanceRaw ? JSON.parse(appearanceRaw) : null; } catch {}
+      window.SyncAI.applyAppearancePreferences?.(appearancePrefs);
+    } catch { window.SyncAI.applyAppearancePreferences?.(null); }
     state.actionStatus = await api.getActionStatus();
     state.bridge = "connected";
   } catch (error) {
