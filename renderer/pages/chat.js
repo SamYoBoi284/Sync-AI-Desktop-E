@@ -476,6 +476,7 @@ async function mountChat(root, context, initialChatId = null) {
 
   async function maybeUpdateConversationSummary(chat) {
     if (!runtime?.isLoaded || !chat?.id) return;
+    try { if (JSON.parse(await api.getSetting("conversation_summary_auto") || "true") === false) return; } catch {}
     const messages = (chat.messages || []).filter(item => item.role === "user" || item.role === "assistant");
     const recentKeep = 8;
     if (messages.length <= recentKeep + 3) return;
