@@ -292,6 +292,22 @@ test("recurring topic evidence detects interests across chats and ignores one-of
 }));
 
 
+test("recurring topic evidence ignores greeting, slang and routine status chatter", () => withDb(db => {
+  const chats = [1, 2, 3].map(number => db.create_chat({ title: "Small talk " + number }));
+  const messages = [
+    [chats[0].id, ["yo bro", "yooo bro"]],
+    [chats[1].id, ["hey dude", "im doing good wbu"]],
+    [chats[2].id, ["how are you", "sup bro"]]
+  ];
+  for (const [chatId, bodies] of messages) {
+    for (const body of bodies) db.append_message({ chatId, message: { role: "user", body } });
+  }
+
+  const evidence = db.get_recurring_topic_evidence();
+  assert.equal(evidence.candidates.length, 0, "casual greetings and check-ins must not become recurring interests");
+  assert.ok(evidence.indexedMessages >= 6);
+}));
+
 test("conversation summaries are omitted from unrelated topic prompts but retained for relevant and ambiguous follow-ups", () => withDb(db => {
   const chat = db.create_chat({ title: "Sync AI project" });
   db.append_message({ chatId: chat.id, message: { role: "user", body: "We are working on model profiles and memory retrieval." } });
