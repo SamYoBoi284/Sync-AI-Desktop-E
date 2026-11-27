@@ -34,7 +34,7 @@ async function mountMemory(root) {
   let autoSummaries = true, crossChatSummaries = true;
   let contextWindowTokens = 2048, contextPromptBudgetTokens = 0, contextOutputReserveTokens = 0;
   let conversationSummaries = [], selectedSummaryId = null, summaryDraft = "", summarySearchQuery = "";
-  let summaryBusy = false, summaryGenerationId = null, summaryModelLoaded = false, summaryRuntimeBusy = false;
+  let summaryBusy = false, summaryGenerationId = null, summaryModelLoaded = false, summaryRuntimeBusy = false, summarySearchRequest = 0;
   let searchQuery = "", categoryFilter = "all", statusFilter = "all";
   let message = "", messageIsError = false, disposed = false;
 
@@ -305,6 +305,21 @@ async function mountMemory(root) {
     if (event.target.id === "summarySearch") {
       summarySearchQuery = event.target.value;
       renderSummaries();
+      const request = ++summarySearchRequest;
+      api.listConversationSummaries(summarySearchQuery, 200).then(rows => {
+        if (disposed || request !== summarySearchRequest) return;
+        conversationSummaries = rows || [];
+        if (!conversationSummaries.some(item => item.chatId === selectedSummaryId)) {
+          selectedSummaryId = conversationSummaries[0]?.chatId || null;
+          summaryDraft = conversationSummaries[0]?.summary || "";
+        }
+        renderSummaries();
+      }).catch(cause => {
+        if (disposed || request !== summarySearchRequest) return;
+        message = "Summary search failed: " + errorText(cause);
+        messageIsError = true;
+        render();
+      });
     }
     if (event.target.id === "conversationSummaryDraft") summaryDraft = event.target.value;
     if (event.target.id === "contextBudgetPercent") {
