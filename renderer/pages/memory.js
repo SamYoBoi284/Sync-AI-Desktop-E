@@ -31,7 +31,7 @@ async function mountMemory(root) {
   let editingId = null, title = "", content = "", source = "manual", enabled = true;
   let category = "general", importance = 3, pinned = false;
   let learningMode = "off", memoryTokenBudget = 256, contextBudgetPercent = 65;
-  let autoSummaries = true, crossChatSummaries = true;
+  let autoSummaries = true, crossChatSummaries = false;
   let contextWindowTokens = 2048, contextPromptBudgetTokens = 0, contextOutputReserveTokens = 0;
   let conversationSummaries = [], selectedSummaryId = null, summaryDraft = "", summarySearchQuery = "";
   let summaryBusy = false, summaryGenerationId = null, summaryModelLoaded = false, summaryRuntimeBusy = false, summarySearchRequest = 0;
@@ -281,7 +281,7 @@ async function mountMemory(root) {
       if (!selectedSummaryId || !conversationSummaries.some(item => item.chatId === selectedSummaryId)) selectedSummaryId = conversationSummaries[0]?.chatId || null;
       const selectedSummary = conversationSummaries.find(item => item.chatId === selectedSummaryId);
       if (selectedSummary && !summaryBusy) summaryDraft = selectedSummary.summary || "";
-      try { crossChatSummaries = results[8].status !== "fulfilled" || results[8].value == null ? true : JSON.parse(results[8].value) !== false; } catch { crossChatSummaries = true; }
+      try { crossChatSummaries = results[8].status === "fulfilled" && results[8].value != null ? JSON.parse(results[8].value) === true : false; } catch { crossChatSummaries = false; }
       if (results[9].status === "fulfilled" && results[9].value) {
         summaryModelLoaded = Boolean(results[9].value.isLoaded);
         summaryRuntimeBusy = Boolean(results[9].value.isLoading || results[9].value.isGenerating);
