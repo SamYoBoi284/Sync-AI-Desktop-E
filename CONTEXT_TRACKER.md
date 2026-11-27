@@ -442,3 +442,12 @@ None added. No frameworks, bundlers or animation libraries.
 - Step 2 Memory Center: COMPLETE. Step 4 Context orchestration: COMPLETE for lexical retrieval/estimated character budgets. Step 5 Summaries: IN PROGRESS (generation and prompt compaction work; summary inspection/rebuild UI and cross-chat retrieval remain). Step 6 Model Profiles: NOT STARTED.
 - Latest source-validation at `1fd539ccbe213e50b75af9de658a29673ab5a2fc`: Ubuntu 56 pass, 1 fail, 1 skipped. New Memory, candidate review, context-budget and summary tests passed; one pre-existing inference source-contract assertion remains. Windows job and Electron CI were still in progress at the time of update.
 - Source parsing passed for the changed JS modules. No manual target-laptop Electron UI or real-GGUF conversation test was performed.
+
+
+## Additional context-budget safeguards — 2026-11-26
+
+- Worker-side generation now counts app-prompt tokens and Sync's system-prompt tokens, subtracts a safety margin and dynamically caps output tokens to the actual remaining context (maximum 512).
+- Main policy reserves system-instruction and safety capacity; the Memory Center shows the effective prompt-token cap and output reserve.
+- Learning and summary prompts are also bounded by the active context allowance.
+- Automatic summaries process a prefix batch and persist only the cursor through messages actually included. Large uncovered messages are not silently marked summarized when they cannot fit.
+- Latest contract test corrections are in `6bc3bc129759cf8b9ed8afa35daad83ab342c01d`; its CI run is pending.
