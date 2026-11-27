@@ -246,6 +246,7 @@ async function mountMemory(root) {
     if (event.target.id === "memoryPinned") pinned = event.target.checked;
     if (event.target.id === "autoSummaries") {
       toggling = true; render();
+      const previous = autoSummaries;
       try {
         autoSummaries = event.target.checked;
         await api.setSetting(AUTO_SUMMARY_KEY, JSON.stringify(autoSummaries));
