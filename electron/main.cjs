@@ -79,6 +79,25 @@ let runtimeState = {
   hardLimitSupported: false, lastErrorCode: null, lastError: null
 };
 
+function getDeviceContext() {
+  const now = new Date();
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Local device time";
+  const localDate = new Intl.DateTimeFormat("en-US", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone
+  }).format(now);
+  const timeParts = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric", minute: "2-digit", second: "2-digit", timeZone, timeZoneName: "short"
+  }).formatToParts(now);
+  const localTime = timeParts.filter(part => ["hour", "minute", "second", "dayPeriod"].includes(part.type))
+    .map(part => part.value).join(" ").replace(/\s+([AP]M)/i, "$1");
+  const offsetMinutes = -now.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const absoluteOffset = Math.abs(offsetMinutes);
+  const utcOffset = "UTC" + sign + String(Math.floor(absoluteOffset / 60)).padStart(2, "0") +
+    ":" + String(absoluteOffset % 60).padStart(2, "0");
+  return { iso: now.toISOString(), localDate, localTime, timeZone, utcOffset };
+}
+
 function getInferenceOptions(modelId = null) {
   const raw = database.get_setting({ key: "inference_context" });
   let saved = {};
@@ -601,6 +620,7 @@ const handlers = {
   get_app_info: () => ({ appName: "Sync AI Desktop", version: app.getVersion(), operatingSystem: process.platform, architecture: process.arch }),
   consume_startup_splash: () => { const show = splashAvailable; splashAvailable = false; return show; },
   get_host_ram_info: () => ({ totalBytes: os.totalmem(), availableBytes: os.freemem() }),
+  get_device_context: () => getDeviceContext(),
   list_chats: args => database.list_chats(args),
   create_chat: args => database.create_chat(args),
   get_chat: args => database.get_chat(args),
