@@ -125,3 +125,51 @@ test("Memory, Notes, Workspace and conversation summaries remain separate contex
   assert.match(chat, /OLDER CONVERSATION SUMMARY/);
   assert.match(chat, /Number\(m\.position\) > cursor \|\| m\.id === latestMessageId/);
 });
+
+
+test("Memory learning review modes have persistent candidate storage and explicit approval", () => {
+  const database = fs.readFileSync(path.join(__dirname, "database.cjs"), "utf8");
+  const memoryPage = fs.readFileSync(path.join(root, "renderer", "pages", "memory.js"), "utf8");
+  const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
+  assert.match(database, /if\(v<9\).*memory_candidates/s);
+  assert.match(database, /create_memory_candidate:/);
+  assert.match(database, /review_memory_candidate:/);
+  assert.match(database, /status IN \('pending','approved','rejected'\)/);
+  assert.match(main, /create_memory_candidate:/);
+  assert.match(main, /review_memory_candidate:/);
+  assert.match(bridge, /createMemoryCandidate:/);
+  assert.match(bridge, /reviewMemoryCandidate:/);
+  assert.match(memoryPage, /memory_learning_mode/);
+  assert.match(memoryPage, /value="review"/);
+  assert.match(memoryPage, /approve-candidate/);
+  assert.match(memoryPage, /reject-candidate/);
+  assert.match(chat, /mode === "review"/);
+  assert.match(chat, /api\.createMemoryCandidate\(/);
+  assert.match(chat, /api\.reviewMemoryCandidate/);
+});
+
+test("overall prompt budgeting is bounded and leaves recent transcript context intact", () => {
+  const memoryPage = fs.readFileSync(path.join(root, "renderer", "pages", "memory.js"), "utf8");
+  const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
+  assert.match(main, /get_context_policy:/);
+  assert.match(main, /set_context_budget_percent:/);
+  assert.match(main, /estimatedCharBudget/);
+  assert.match(bridge, /getContextPolicy:/);
+  assert.match(bridge, /setContextBudgetPercent:/);
+  assert.match(memoryPage, /contextBudgetPercent/);
+  assert.match(chat, /maxPromptCharacters/);
+  assert.match(chat, /fitPromptText\(transcriptText[\s\S]*true\)/);
+  assert.match(chat, /api\.getContextPolicy\(\)/);
+  assert.match(chat, /outputReserveTokens/);
+});
+
+test("older conversation summaries are incrementally generated without summarizing the newest eight messages", () => {
+  const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
+  assert.match(chat, /maybeUpdateConversationSummary/);
+  assert.match(chat, /const recentKeep = 8/);
+  assert.match(chat, /throughMessages = messages\.slice\(0, -recentKeep\)/);
+  assert.match(chat, /position\) > cursor/);
+  assert.match(chat, /purpose: "summary"/);
+  assert.match(chat, /saveConversationSummary\(chat\.id, updated\.slice\(0, 2200\), target\.position/);
+  assert.match(chat, /conversation_summary_auto/);
+});
