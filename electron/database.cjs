@@ -76,13 +76,13 @@ class SyncDatabase {
       try{
         const learned=d.prepare("SELECT id,content FROM memories WHERE source='Auto-learned from conversations'").all();
         for(const item of learned){
-          const cleaned=String(item.content||"").split(/\\r?\\n/).filter(line=>{
-            const entry=line.trim().replace(/^[-*•]\\s*/,"");
-            if(/^(?:current )?status\\s*:/i.test(entry))return false;
-            if(/^other mentions?\\s*:/i.test(entry))return false;
-            if(/^(?:communication )?habits?\\s*:/i.test(entry)&&/\\b(?:bro|dude|yo+|yooo|hey|hello|sup|greeting|slang)\\b/i.test(entry))return false;
+          const cleaned=String(item.content||"").split(/\r?\n/).filter(line=>{
+            const entry=line.trim().replace(/^[-*•]\s*/,"");
+            if(/^(?:current )?status\s*:/i.test(entry))return false;
+            if(/^other mentions?\s*:/i.test(entry))return false;
+            if(/^(?:communication )?habits?\s*:/i.test(entry)&&/\b(?:bro|dude|yo+|yooo|hey|hello|sup|greeting|slang)\b/i.test(entry))return false;
             return true;
-          }).join("\\n").trim();
+          }).join("\n").trim();
           if(cleaned&&cleaned!==item.content)d.prepare("UPDATE memories SET content=?,updated_at=? WHERE id=?").run(cleaned,now(),item.id);
           // Prior auto-learning attached nearly every recent user turn. Those links
           // cannot be trusted as evidence, so rebuild them only from future cited IDs.
