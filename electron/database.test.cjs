@@ -261,7 +261,7 @@ test("communication-style learning requires repeated evidence across multiple co
   const chats = [1, 2, 3].map(number => db.create_chat({ title: "Conversation " + number }));
   const add = (chatId, body) => db.append_message({ chatId, message: { role: "user", body } });
   const first = add(chats[0].id, "hey bro, how's it going?");
-  add(chats[0].id, "thanks bro");
+  const second = add(chats[0].id, "thanks bro");
   add(chats[0].id, "good morning");
   add(chats[1].id, "yo bro");
   add(chats[1].id, "that makes sense bro");
@@ -284,10 +284,24 @@ test("communication-style learning requires repeated evidence across multiple co
   assert.deepEqual(repeated, evidence, "re-indexing must not double-count existing messages");
 
   db.edit_user_message({ chatId: chats[0].id, messageId: first.id, body: "good morning" });
+  db.edit_user_message({ chatId: chats[0].id, messageId: second.id, body: "thanks" });
   const afterEdit = db.get_communication_style_evidence();
   assert.equal(afterEdit.messagesWithBro, 5);
   assert.equal(afterEdit.totalMessages, 9);
   assert.equal(afterEdit.qualifiesForPreference, false);
+}));
+
+test("conversation summaries are omitted from unrelated topic prompts but retained for relevant and ambiguous follow-ups", () => withDb(db => {
+  const chat = db.create_chat({ title: "Sync AI project" });
+  db.append_message({ chatId: chat.id, message: { role: "user", body: "We are working on model profiles and memory retrieval." } });
+  db.save_conversation_summary({
+    chatId: chat.id,
+    summary: "The user is building Sync AI Desktop and has been discussing model profiles, memory retrieval and prompt budgets.",
+    throughPosition: 0
+  });
+  assert.equal(db.get_conversation_summary({ chatId: chat.id, query: "How do we adjust model profiles?" }).relevantForQuery, true);
+  assert.equal(db.get_conversation_summary({ chatId: chat.id, query: "good morning" }).relevantForQuery, false);
+  assert.equal(db.get_conversation_summary({ chatId: chat.id, query: "and then?" }).relevantForQuery, true);
 }));
 
 test("retrieves opted-in Notes independently from Workspace artifacts", () => withDb(db => {
