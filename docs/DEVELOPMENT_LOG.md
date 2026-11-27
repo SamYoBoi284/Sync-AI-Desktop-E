@@ -251,3 +251,17 @@ Chronological record of meaningful implementation sessions. Keep entries factual
 - Step 5 summaries remain IN PROGRESS: persistence, invalidation and prompt consumption exist; automatic summary generation/refresh and summary UI remain.
 - Step 6 Model Profiles remains NOT STARTED.
 - Source-validation on code commit 2209601e2487b8c37b59a23feba29788944be434: Ubuntu 48 passed, 1 failed, 1 skipped; Windows 45 passed, 5 failed. New Memory, migration, retrieval and prompt-contract tests passed. Remaining failures are the existing inference source-contract assertion plus four Windows file-operation/path safety assertions in hosted temporary folders. This is not a green full-suite result.
+
+
+## 2026-11-26 — Memory Center review workflow, global context budget and automatic summaries
+
+- Added SQLite schema migration v9 and persistent `memory_candidates` review storage with pending/approved/rejected states, source-conversation title snapshots and up to eight verified message excerpts.
+- Added validated main-process handlers and renderer API wrappers for candidate creation/list/review/deletion and context budget policy.
+- Added learning modes Off / Review first / Automatic. Legacy `memory_auto_learn` is preserved as a fallback. Review mode creates candidates without saving to Memory; approval updates the learned profile and records provenance; rejection leaves saved Memory unchanged.
+- Rebuilt the Memory Center UI with live search, category and active/disabled filters, 4 MiB/50-item storage meter, pending candidate queue, and the learning-mode control.
+- Added a global prompt budget control (40–80%, 5% step, default 65%) based on the loaded model context length with an output/safety reserve. The existing independent Memory context budget remains.
+- Reworked prompt clipping so all context sources share the overall estimated-character allowance and newest transcript text is preserved. Added a zero-budget clipping guard.
+- Added automatic per-conversation summary generation, enabled by default with a Memory settings toggle. It incrementally summarizes messages outside the newest eight, uses the loaded model, stores a cursor, and respects previous summary coverage/invalidation.
+- Adjusted summary trigger to scale with the actual prompt budget so smaller context windows compact earlier.
+- Source parse checks passed. Latest Ubuntu source-validation on code checkpoint `1fd539ccbe213e50b75af9de658a29673ab5a2fc`: 56 passed, 1 failed, 1 skipped. All new Memory/candidate/context/summary tests passed; the remaining failure is the pre-existing inference source-contract assertion. The Windows hosted file-operation/path checks and full Electron runtime/package checks still need the newest run results.
+- No target-laptop manual test or real-GGUF conversation test was performed.
