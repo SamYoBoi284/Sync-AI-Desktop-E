@@ -95,8 +95,7 @@ function getDeviceContext() {
   const timeParts = new Intl.DateTimeFormat("en-US", {
     hour: "numeric", minute: "2-digit", second: "2-digit", timeZone, timeZoneName: "short"
   }).formatToParts(now);
-  const localTime = timeParts.filter(part => ["hour", "minute", "second", "dayPeriod"].includes(part.type))
-    .map(part => part.value).join(" ").replace(/\s+([AP]M)/i, "$1");
+  const localTime = timeParts.map(part => part.value).join("").trim();
   const offsetMinutes = -now.getTimezoneOffset();
   const sign = offsetMinutes >= 0 ? "+" : "-";
   const absoluteOffset = Math.abs(offsetMinutes);
