@@ -36,7 +36,7 @@ test("the native inference runtime and Windows process memory guard are wired in
   const worker = fs.readFileSync(path.join(__dirname, "inference-worker.mjs"), "utf8");
   const job = fs.readFileSync(path.join(__dirname, "inference-memory-job.ps1"), "utf8");
   assert.match(main, /utilityProcess\.fork\(workerPath/);
-  assert.match(main, /attachWindowsJob\(worker\.pid, memoryLimitBytes\)/);
+  assert.match(main, /const guarded = await attachWindowsJob\(workerPid, memoryLimitBytes\)/);
   assert.match(main, /type: "LOAD_MODEL"/);
   assert.match(main, /type: "GENERATE"/);
   assert.match(main, /type: "CANCEL_GENERATION"/);
