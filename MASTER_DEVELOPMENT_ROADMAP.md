@@ -4,8 +4,8 @@
 **Branch:** main  
 **Last reconciled:** 2026-11-26  
 **Roadmap baseline:** 5758d720eb5de611e5018804365bf541bde9bb56  
-**Current phase:** Phase 1 — Intelligence & Memory  
-**Current status:** Phase 1 implementation scope complete; regression tests added for noise filtering and evidence provenance; execution, CI, Electron UI and real-GGUF validation remains outstanding.
+**Current phase:** Phase 2 — Desktop Integration  
+**Current status:** Phase 1 implementation is complete, including the chat-maintenance/scroll correction and device-local time context. Phase 1 release validation remains tracked as pending. Phase 2 has its first implementation slice: Quick Ask overlay, configurable temporary-model selection, device clock context and expanded tray actions; runtime validation is pending.
 
 Status meanings:
 - **COMPLETE** — implementation exists in the current repository.
@@ -152,23 +152,42 @@ This is the next immediate task and is intentionally handed to the user.
 ## PHASE 2 — DESKTOP INTEGRATION
 
 **Priority: High**  
-**Status: PARTIAL FOUNDATIONS; MAJOR FEATURES NOT STARTED**
+**Status: PARTIAL IMPLEMENTATION — Quick Ask and tray first slice committed; Low-Memory and remaining desktop integration work continue**
 
-### Quick Ask Overlay — NOT STARTED
+### Device-local context — IMPLEMENTED
 
-- Configurable global shortcut.
-- Lightweight floating window.
-- Reuse the already-loaded model where possible.
-- Quick conversation entry and response display.
-- Safe handling when no model is loaded.
+- The normal chat prompt receives the operating system's local date, time, IANA time-zone name and UTC offset as trusted, bounded metadata.
+- Present-time questions can be answered without network access; the model is instructed to use this metadata rather than guess.
+- Quick Ask receives the same device-local clock context.
 
-### Temporary Model Loading — NOT STARTED
+### Quick Ask Overlay — PARTIAL; FIRST IMPLEMENTATION SLICE COMPLETE
 
-- Load a model temporarily when Quick Ask Overlay is used and unload it when done
-- Reuse the recently loaded or small file-sized compatible loaded model whenever possible (configurable in settings)
-- Avoid unnecessary concurrent workers.
-- Safely unload temporary models after the Quick Ask session.
-- Preserve the user's normal model selection and runtime state.
+Implemented:
+- Configurable global shortcut, persisted in Quick Ask settings (default: `CommandOrControl+Shift+Space`).
+- Lightweight frameless, always-on-top floating window with its own scoped preload/IPC route and renderer.
+- Quick conversation entry, live response streaming, Stop and Close controls.
+- Reuses the already-loaded model and inference worker; it does not start a concurrent worker.
+- If no model is loaded, starts the selected temporary model and reports a clear error when no usable model is available.
+- Quick Ask is available from the configured global shortcut and the system tray.
+
+Remaining:
+- Manual Windows verification of shortcut conflicts, focus, overlay positioning, close/reopen behavior and streaming.
+- Verify all failure/cancellation/close races with a real GGUF model and the low-RAM target device.
+
+### Temporary Model Loading — PARTIAL; QUICK ASK LIFECYCLE IMPLEMENTED
+
+Implemented for Quick Ask:
+- Persistent Settings choices: **Default / Smallest / Most Recent / Custom**.
+- Default selects the registered default model; Smallest selects the smallest available registered GGUF by file size.
+- Most Recent selects the last model successfully loaded by Sync on this device; before one has been used, it falls back to the most recently imported available model.
+- Custom selects a specific available registered GGUF.
+- An already-loaded model always takes priority and is reused, regardless of the temporary selection rule.
+- A model loaded only for Quick Ask is unloaded when the overlay closes; the registered default model is never changed.
+- Temporary loading uses the existing isolated worker and refuses to start a second worker alongside a busy runtime.
+
+Remaining:
+- Runtime tests for model-resolution fallbacks, missing files, load failures, close-during-load, cancellation and unload behavior on Windows.
+- Resource-aware compatibility checks beyond registered-file availability and the existing worker/RAM-limit enforcement.
 
 ### Low-Memory Loading Preference — PARTIAL FOUNDATION
 
@@ -184,22 +203,20 @@ Remaining:
 - Clear recommendations based on detected device capacity.
 - Validation on the target low-RAM laptop.
 
-### System Tray Companion — PARTIAL; BASE TRAY IMPLEMENTED
+### System Tray Companion — PARTIAL; TRAY ACTIONS EXPANDED
 
 Already present:
 - Tray icon with application-icon fallback.
-- Open/restore Sync AI.
-- Hide Sync AI.
+- Open/restore Sync AI and Hide Sync AI.
 - Exit Sync AI.
+- New conversation from the tray.
+- Quick Ask from the tray.
 - Closing the main window hides it to the tray instead of quitting the application.
 
 Remaining:
-- New conversation from the tray.
-- Quick Ask from the tray.
 - Runtime/model status in the tray menu.
 - Configurable close-to-tray and exit behavior.
 - Explicit model-unload behavior when the user exits or closes the application, according to the chosen preference.
-- Temporary model lifecycle for Quick Ask.
 
 Voice Mode remains deferred to Phase 7.
 
@@ -444,7 +461,7 @@ Further refinements can be scheduled as needed without blocking the Command Pale
 **Phase 1 — Intelligence & Memory**
 
 - Repository and architecture audit: **COMPLETE**.
-- Data model and storage API: **COMPLETE — schema v10**.
+- Data model and storage API: **COMPLETE — schema v14**.
 - Memory Center: **COMPLETE**.
 - Independent Notes and Workspace retrieval: **COMPLETE**.
 - Context orchestration/global budgeting: **COMPLETE for current lexical and estimated-character design**.
@@ -455,9 +472,8 @@ Further refinements can be scheduled as needed without blocking the Command Pale
 - Summary Center and manual rebuild: **IMPLEMENTED**.
 - Cross-conversation summary retrieval: **IMPLEMENTED — opt-in, off by default**.
 - Per-GGUF inference profiles: **IMPLEMENTED**.
-- Final database/contract test execution, CI review, v7-to-v12 migration verification, manual Electron UI and real-GGUF validation: **PENDING**.
+- Phase 1 implementation: **COMPLETE**. Final database/contract test execution, CI review, v7-to-v14 migration verification, manual Electron UI and real-GGUF validation: **PENDING**.
 
-**Immediate next task:** Phase 1, item 7 — final validation on the laptop: run the updated test suite/build, verify v7-to-v12 migration and the new topic-learning/context-compaction regressions, then manually test the native-dialog focus fix and real GGUF behavior.  
-**Next development phase after validation:** Phase 2 — Desktop Integration, beginning with Quick Ask Overlay and completion of the tray companion.
+**Immediate next task:** Continue Phase 2 — finish the user-facing Low-Memory loading preference and remaining tray behavior, then extend Quick Ask settings and runtime diagnostics. Keep Phase 1, item 7 as a separate validation task: run the updated test suite/build, verify v7-to-v14 migration and topic-learning/context-compaction regressions, then manually test chat scrolling, the native-dialog focus fix, device-local time, Quick Ask and real-GGUF behavior on Windows. Phase 1 implementation is complete; validation must not be misreported as passed.
 
 **Continuity requirement:** Every future development session must inspect the current repository and this roadmap before starting new work. The implementation on the current branch takes precedence over this document if they disagree.
