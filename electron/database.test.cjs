@@ -168,7 +168,7 @@ test("invalidates a conversation summary when a queued reply is inserted inside 
 }));
 
 
-test("upgrades a populated version-7 database to version 8 without losing user data", () => {
+test("upgrades a populated version-7 database through version 9 without losing user data", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sync-ai-v7-upgrade-"));
   const file = path.join(dir, "legacy-v7.sqlite3");
   let db = new SyncDatabase(file);
