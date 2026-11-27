@@ -5,7 +5,7 @@
 **Last reconciled:** 2026-11-26  
 **Roadmap baseline:** 5758d720eb5de611e5018804365bf541bde9bb56  
 **Current phase:** Phase 1 — Intelligence & Memory  
-**Current status:** Phase 1 implementation scope complete; final database, CI, Electron UI and real-GGUF validation remains outstanding.
+**Current status:** Phase 1 implementation scope complete; regression tests added for noise filtering and evidence provenance; execution, CI, Electron UI and real-GGUF validation remains outstanding.
 
 Status meanings:
 - **COMPLETE** — implementation exists in the current repository.
@@ -34,8 +34,10 @@ Status meanings:
 - Explicit candidate approval and rejection.
 - Candidate approval updates the learned profile and attaches provenance; rejection does not modify the existing saved profile.
 - Backward compatibility with the legacy auto-learning setting.
-- Conservative learning: `NO_CHANGES` is a valid normal outcome; temporary moods, one-off actions, greetings, guesses and private details about others are not durable memories.
-- General-purpose recurring-topic evidence is indexed from user messages across conversations (not a fixed keyword list). A subject is only presented as a candidate signal after at least four separate user messages across at least three chats; the model must still judge whether the user shows real interest, curiosity, enjoyment or sustained activity before suggesting it.
+- Conservative learning: `NO_CHANGES` is a valid normal outcome; temporary moods, one-off actions, greetings, routine check-ins, casual slang/address habits, guesses and private details about others are not durable memories.
+- Learning filters greeting-only and temporary-status user messages before profile extraction. The model must return explicit source message IDs and a separate complete profile; only validated IDs belonging to supplied substantive user messages are linked as provenance. Missing/invalid evidence IDs or an empty profile leave Memory unchanged.
+- Existing learned-profile input is sanitized to exclude obvious temporary `Status`, slang-based `Habits` and miscellaneous `Other mentions` lines before the next model update; this does not automatically rewrite the currently saved local profile until a valid update occurs.
+- General-purpose recurring-topic evidence is indexed from user messages across conversations (not a fixed keyword list). A subject is only presented as a candidate signal after at least four separate user messages across at least three chats; the model must still judge whether the user shows real interest, curiosity, enjoyment or sustained activity before suggesting it. Generic greetings, check-ins and colloquial filler are excluded from evidence.
 
 ### 2. Independent context retrieval — COMPLETE
 
@@ -92,7 +94,7 @@ Status meanings:
 ### 6. Model Profiles — CORE IMPLEMENTATION COMPLETE
 
 - SQLite schema version 10 adds persistent profiles keyed to registered GGUF model IDs.
-- SQLite schema version 12 adds a local topic-observation index keyed to user message IDs; v12 replaces the temporary v11 communication-only evidence table with general topic/phrase evidence.
+- SQLite schema version 12 adds a local topic-observation index keyed to user message IDs; v12 replaces the temporary v11 communication-only evidence table with general topic/phrase evidence. Schema v13 clears prior cached observations so the new greeting/status/slang filters are applied to existing transcripts on next indexing.
 - Each model can save its own:
   - Context window: 512–32,768 tokens.
   - Batch size: 16–2,048 tokens, constrained not to exceed the context window.
@@ -112,8 +114,10 @@ This is the next immediate task and is intentionally handed to the user.
 - Run the complete database and contract test suites.
 - Run the repository build/syntax checks and inspect the latest GitHub Actions results.
 - Verify the v7-to-v12 migration against populated user data, including an existing v10/v11 installation and a fresh database.
-- Verify recurring-topic evidence with a repeated subject (for example Rocket League) across at least three chats and four user messages; a one-off subject (for example chess) and routine greetings must not qualify.
-- Verify Review first only proposes a subject when the user's examples show genuine interest or sustained engagement, and returns no suggestion for ordinary chatter or temporary activity.
+- Verify recurring-topic evidence with a repeated subject (for example Rocket League) across at least three chats and four substantive user messages; a one-off subject (for example chess), routine greetings, casual slang and check-ins must not qualify. Confirm schema v13 rebuilds observations cached by older versions.
+- Verify Review first only proposes a subject when the user's examples show genuine interest or sustained engagement, returns no suggestion for ordinary chatter or temporary activity, and links only the exact model-selected supporting message IDs rather than every recent user message.
+- Verify greeting-only openers leave a chat titled `New conversation` and the first meaningful subject later supplies the title.
+- Verify a reader at the transcript bottom remains at the bottom when streaming is replaced with a saved reply, while a reader who has manually scrolled up keeps their position.
 - Verify topic-aware rolling context: unrelated subject changes hide old summaries from the active prompt, relevant subjects retrieve them again, and ambiguous follow-ups keep continuity without deleting saved history.
 - Verify Memory candidate approval/rejection and source provenance.
 - Verify summary search, editing, deletion, rebuild, cancellation and cursor preservation.
@@ -129,12 +133,12 @@ This is the next immediate task and is intentionally handed to the user.
 ### Phase 1 position
 
 - Repository/architecture audit: **COMPLETE**.
-- Data model and storage APIs: **COMPLETE**, schema v12 (model profiles v10; general topic evidence v12).
+- Data model and storage APIs: **COMPLETE**, schema v13 (model profiles v10; general topic evidence v12; noise-filter cache rebuild v13).
 - Memory Center: **COMPLETE**.
 - Independent Memory / Notes / Workspace retrieval: **COMPLETE**.
 - Overall context orchestration and worker-side output guard: **COMPLETE for the current lexical/estimated-character design**.
 - Automatic summaries and rolling compaction: **IMPLEMENTED — topic-aware summary selection; chat history remains intact**.
-- Conservative learning and general recurring-interest evidence: **IMPLEMENTED — 4 user messages across 3 conversations is the evidence threshold; model judgement remains required**.
+- Conservative learning and general recurring-interest evidence: **IMPLEMENTED — substantive-message filtering, 4 user messages across 3 conversations threshold, model-selected validated provenance IDs, and v13 evidence-cache rebuild; model judgement remains required**.
 - Global renderer keyboard-focus recovery after native dialogs/file pickers: **IMPLEMENTED; manual Windows Electron verification pending**.
 - Summary Center and manual rebuild: **IMPLEMENTED**.
 - Cross-conversation summary retrieval: **IMPLEMENTED, opt-in by default**.
