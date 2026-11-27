@@ -171,3 +171,13 @@ Future interaction work (not yet implemented) includes a centralized customizabl
 - The global context policy reserves system prompt, safety and output space. The UI shows the effective prompt allowance after those reserves.
 - Automatic learning and summarization prompts obey the same estimated-character budget.
 - Summary backlog processing is incremental in bounded message-prefix batches; the stored cursor advances only through messages included in the summary request.
+
+
+## 16. Phase 1 final implementation state
+
+- Schema v9 includes the separate Memory candidate review queue.
+- Memory Center search, category/status filtering, storage accounting, Off/Review first/Automatic learning modes and explicit candidate review are implemented.
+- Overall prompt budget, system/safety/output reservations and worker-side dynamic output-token caps are implemented.
+- Learning and summary prompts use bounded context. Summary generation is incremental and cursor-safe: it summarizes only a prefix of uncovered older messages, keeping the newest eight messages verbatim.
+- Automatic summaries default to enabled and can be disabled. Summary inspection/rebuild UI and cross-conversation summary retrieval remain future work.
+- The latest source validation corrections are committed; the newest CI run is pending. The previously failing inference/summary source assertions were updated to match the current implementation. Earlier Windows hosted runner path checks remain a separate known issue.
