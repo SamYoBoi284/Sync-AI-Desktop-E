@@ -181,3 +181,12 @@ Future interaction work (not yet implemented) includes a centralized customizabl
 - Learning and summary prompts use bounded context. Summary generation is incremental and cursor-safe: it summarizes only a prefix of uncovered older messages, keeping the newest eight messages verbatim.
 - Automatic summaries default to enabled and can be disabled. Summary inspection/rebuild UI and cross-conversation summary retrieval remain future work.
 - The latest source validation corrections are committed; the newest CI run is pending. The previously failing inference/summary source assertions were updated to match the current implementation. Earlier Windows hosted runner path checks remain a separate known issue.
+
+
+## 17. Phase 1 completion — summary management, cross-chat context and model profiles
+
+- Schema v10 adds a model_profiles table keyed by local model ID, with validated context, batch, temperature and output-token settings. Profiles cascade when their model registration is removed.
+- Model cards expose profile controls. The active runtime retains its current settings until the model is next loaded; unprofiled models continue using global Runtime context and batch defaults.
+- Summary Center supports index search, summary inspection and editing, coverage metadata, deletion, and rebuilding from the source transcript. Rebuilds preserve the newest eight messages, process older history in bounded batches, and atomically replace the saved summary only after all batches succeed.
+- Cross-chat summary retrieval ranks summaries against the active user turn, excludes the active chat, retrieves at most four, and reserves a dedicated slice of the overall prompt budget. Users can disable this feature in Memory settings.
+- Phase 1 implementation deliverables are complete. Final database/contract/CI, manual Electron UI and real-GGUF validation is pending as a separate handoff.
