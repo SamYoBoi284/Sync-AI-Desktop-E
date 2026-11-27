@@ -494,8 +494,8 @@ async function mountChat(root, context, initialChatId = null) {
     const historyAfterSummary = messages.filter(item => Number(item.position) > cursor)
       .reduce((sum, item) => sum + String(item.body || "").length, 0);
     const triggerCharacters = Math.max(1500, Math.floor(promptBudget * 0.70));
-    if (historyAfterSummary < triggerCharacters && messages.length < 20) return;
-    if (pendingCharacters < 700 && messages.length < 28) return;
+    if (historyAfterSummary < triggerCharacters) return;
+    if (pendingCharacters < Math.min(700, Math.floor(triggerCharacters * 0.25))) return;
 
     const deltaTranscript = fitPromptText(delta.map(item =>
       (item.role === "user" ? "USER" : "ASSISTANT") + ":\n" + String(item.body || "").trim()
