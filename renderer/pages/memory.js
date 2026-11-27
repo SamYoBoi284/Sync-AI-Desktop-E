@@ -15,6 +15,9 @@ async function mountMemory(root) {
   let content = "";
   let source = "manual";
   let enabled = true;
+  let category = "general";
+  let importance = 3;
+  let pinned = false;
   let autoLearn = false;
   let tokenBudget = 256;
   let message = "";
@@ -27,6 +30,9 @@ async function mountMemory(root) {
     content = "";
     source = "manual";
     enabled = true;
+    category = "general";
+    importance = 3;
+    pinned = false;
   }
 
   function render() {
@@ -63,7 +69,16 @@ async function mountMemory(root) {
           '<div class="memory-editor-fields">' +
             '<label>Memory title<input id="memoryTitle" type="text" maxlength="160" placeholder="e.g. About me, preferences, ongoing projects" value="' + esc(title) + '" ' + (saving ? "disabled" : "") + '></label>' +
             '<label>Memory content<textarea id="memoryContent" rows="9" maxlength="1048576" placeholder="Paste exported memory or write background information here…"' + (saving ? " disabled" : "") + '>' + esc(content) + '</textarea></label>' +
-            '<label class="memory-enable-toggle"><input id="memoryEnabled" type="checkbox" ' + (enabled ? "checked" : "") + ' ' + (saving ? "disabled" : "") + '> <span><strong>Use this memory in responses</strong><small>Enabled entries are automatically added before local inference.</small></span></label>' +
+            '<div class="memory-metadata-fields">' +
+              '<label>Category<select id="memoryCategory" ' + (saving ? "disabled" : "") + '>' +
+                [['general','General'],['profile','Profile'],['preferences','Preferences'],['projects','Projects'],['technical','Technical'],['workflows','Workflows'],['interests','Interests']].map(([value,label]) => '<option value="' + value + '" ' + (category === value ? "selected" : "") + '>' + label + '</option>').join('') +
+              '</select></label>' +
+              '<label>Importance<select id="memoryImportance" ' + (saving ? "disabled" : "") + '>' +
+                [1,2,3,4,5].map(value => '<option value="' + value + '" ' + (importance === value ? "selected" : "") + '>' + value + (value === 1 ? ' · Low' : value === 5 ? ' · Critical' : value === 3 ? ' · Normal' : '') + '</option>').join('') +
+              '</select></label>' +
+            '</div>' +
+            '<label class="memory-enable-toggle"><input id="memoryPinned" type="checkbox" ' + (pinned ? "checked" : "") + ' ' + (saving ? "disabled" : "") + '> <span><strong>Pin this memory</strong><small>Pinned entries receive priority when relevant context is selected.</small></span></label>' +
+            '<label class="memory-enable-toggle"><input id="memoryEnabled" type="checkbox" ' + (enabled ? "checked" : "") + ' ' + (saving ? "disabled" : "") + '> <span><strong>Use this memory in responses</strong><small>Enabled entries can be retrieved for relevant prompts.</small></span></label>' +
             '<div class="memory-editor-actions">' +
               '<button type="button" data-memory-action="import" ' + (importing || saving ? "disabled" : "") + '>' + (importing ? "Importing…" : "Import memory file") + '</button>' +
               '<span class="memory-source-label">Source: ' + esc(source) + '</span><span class="memory-editor-spacer"></span>' +
@@ -80,6 +95,8 @@ async function mountMemory(root) {
                 '<div class="memory-card-heading"><div><strong>' + esc(item.title) + '</strong><small>' + esc(item.source || "manual") + ' · ' + esc(fmtDate(item.updatedAt)) + '</small></div>' +
                 '<label class="memory-card-toggle"><input type="checkbox" data-memory-toggle="' + esc(item.id) + '" ' + (item.enabled ? "checked" : "") + '><span>' + (item.enabled ? "ACTIVE" : "OFF") + '</span></label></div>' +
                 '<p>' + esc((item.content || "").slice(0, 420)) + ((item.content || "").length > 420 ? "…" : "") + '</p>' +
+                '<div class="memory-card-meta"><span>' + esc(item.category || "general") + '</span><span>Importance ' + Number(item.importance || 3) + '/5</span>' + (item.pinned ? '<span class="is-pinned">PINNED</span>' : '') + '</div>' +
+                ((item.sources || []).length ? '<div class="memory-provenance"><small>SOURCE CONVERSATIONS</small>' + item.sources.map(origin => '<div><strong>' + esc(origin.chatTitle || "Conversation") + '</strong>' + (origin.messageExcerpt ? '<p>' + esc(origin.messageExcerpt) + '</p>' : '') + '<small>' + esc(fmtDate(origin.createdAt)) + (origin.chatId ? ' · Linked' : ' · Original conversation deleted') + '</small></div>').join('') + '</div>' : '') +
                 '<div class="memory-card-footer"><span>' + (item.content || "").length.toLocaleString() + ' characters</span><div><button type="button" data-memory-action="edit" data-id="' + esc(item.id) + '">Edit</button><button type="button" class="is-danger" data-memory-action="delete" data-id="' + esc(item.id) + '">Delete</button></div></div>' +
               '</article>'
             ).join("") + '</div>' :
@@ -123,6 +140,9 @@ async function mountMemory(root) {
 
   root.addEventListener("change", async event => {
     if (event.target.id === "memoryEnabled") enabled = event.target.checked;
+    if (event.target.id === "memoryCategory") category = event.target.value;
+    if (event.target.id === "memoryImportance") importance = Number(event.target.value);
+    if (event.target.id === "memoryPinned") pinned = event.target.checked;
     if (event.target.id === "memoryBudget") {
       const next = Math.min(512, Math.max(128, Number(event.target.value) || 256));
       try {
@@ -161,7 +181,7 @@ async function mountMemory(root) {
     if (action === "edit") {
       const item = memories.find(value => value.id === id);
       if (!item) return;
-      editingId = item.id; title = item.title; content = item.content; source = item.source || "manual"; enabled = item.enabled;
+      editingId = item.id; title = item.title; content = item.content; source = item.source || "manual"; enabled = item.enabled; category = item.category || "general"; importance = Number(item.importance || 3); pinned = Boolean(item.pinned);
       message = "Editing " + item.title + ". Changes are saved only when you select Update memory.";
       messageIsError = false; render(); root.querySelector("#memoryTitle")?.focus(); return;
     }
@@ -172,7 +192,7 @@ async function mountMemory(root) {
         const imported = await api.importMemoryFile();
         if (imported) {
           await refresh();
-          editingId = imported.id; title = imported.title; content = imported.content; source = imported.source; enabled = imported.enabled;
+          editingId = imported.id; title = imported.title; content = imported.content; source = imported.source; enabled = imported.enabled; category = imported.category || "general"; importance = Number(imported.importance || 3); pinned = Boolean(imported.pinned);
           message = "Imported and saved locally. Review or edit it below; it will persist after restart.";
           messageIsError = false;
         }
@@ -184,9 +204,9 @@ async function mountMemory(root) {
       if (saving || !title.trim() || !content.trim()) return;
       saving = true; message = ""; messageIsError = false; render();
       try {
-        const saved = await api.saveMemory({ title: title.trim(), content, source, enabled }, editingId);
+        const saved = await api.saveMemory({ title: title.trim(), content, source, enabled, category, importance, pinned }, editingId);
         await refresh();
-        editingId = saved.id; title = saved.title; content = saved.content; source = saved.source; enabled = saved.enabled;
+        editingId = saved.id; title = saved.title; content = saved.content; source = saved.source; enabled = saved.enabled; category = saved.category; importance = saved.importance; pinned = saved.pinned;
         message = "Memory saved locally. It will be available automatically in future conversations.";
         messageIsError = false;
       } catch (cause) { message = errorText(cause); messageIsError = true; }
