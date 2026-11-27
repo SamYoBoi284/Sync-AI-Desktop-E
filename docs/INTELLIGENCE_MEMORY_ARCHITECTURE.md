@@ -233,51 +233,45 @@ Keep user preferences in the existing settings store unless there is a concrete 
 
 ### Step 1 — Data model and storage API
 
-**Status: NOT STARTED**
+**Status: COMPLETE**
 
-- Design migration v8 for Memory metadata and provenance.
-- Design a conversation-summary table and invalidation rules.
-- Extend database CRUD and main-process commands.
-- Add renderer API wrappers.
-- Add migration, preservation, provenance and validation tests.
+- Implemented migration v8 for Memory metadata/provenance and conversation-summary storage.
+- Added validated database methods, IPC handlers and renderer API wrappers.
+- Added summary cursor invalidation on covered edits and historical insertions.
+- Auto-learning records source-message provenance.
+- Added metadata, provenance, summary, ranking and populated version-7 upgrade tests. The DB tests passed in the latest source-validation CI run; unrelated full-suite failures remain documented below.
 
 ### Step 2 — Memory Center improvements
 
-**Status: NOT STARTED**
+**Status: IN PROGRESS**
 
-- Add category, importance and pin controls.
-- Show source/provenance.
-- Add filtering/search and improved storage usage.
-- Preserve import/edit/enable/disable/delete.
-- Improve auto-learning controls and candidate review.
+- Implemented category, importance and pin controls, source/provenance display, and existing import/edit/enable/disable/delete behavior.
+- Pending: filtering/search, richer storage accounting, and review/approve/edit/reject controls for auto-learned candidates.
 
 ### Step 3 — Independent Notes retrieval
 
-**Status: NOT STARTED**
+**Status: COMPLETE**
 
-- Add a dedicated Notes context query.
-- Keep Notes separate from Workspace artifacts and Memory in prompt assembly.
-- Respect explicit selection.
-- Add bounded relevance-based retrieval.
+- Added a dedicated Notes query and separate bounded retrieval API.
+- Notes, Memory and Workspace artifacts are distinct in prompt assembly.
+- Existing Notes opt-in selection is preserved.
+- Lightweight lexical relevance ranking is applied independently.
 
 ### Step 4 — Context orchestration and retrieval
 
-**Status: NOT STARTED**
+**Status: IN PROGRESS**
 
-- Add lightweight relevance ranking.
-- Return source-labelled retrieved items and reasons.
-- Use independent source budgets and an overall context ceiling.
-- Preserve recent transcript verbatim.
+- Implemented lightweight Unicode token ranking; retrieval items expose relevance scores.
+- Memory, Notes and Workspace are source-labelled separately in prompt assembly.
+- Independent source budgets are implemented; the combined overall context ceiling and tuning remain.
+- Recent transcript turns remain verbatim, and an existing conversation summary can replace older turns already covered by its cursor.
 
 ### Step 5 — Conversation summaries and context compaction
 
-**Status: NOT STARTED**
+**Status: IN PROGRESS**
 
-- Summarize older turns when approaching context limits.
-- Retain recent turns verbatim.
-- Track summary cursor and invalidation.
-- Add transparent summary inspection/rebuild behavior.
-- Evaluate cross-conversation summary retrieval later.
+- Implemented per-conversation summary storage, coverage cursor, invalidation on edits/historical insertions, and prompt consumption.
+- Pending: generate/refresh summaries as context grows, add summary inspection/rebuild UI, and evaluate cross-conversation summary retrieval.
 
 ### Step 6 — Model Profiles
 
@@ -323,10 +317,10 @@ The original inventory above describes the baseline before implementation. The f
 - Main-process IPC handlers and renderer API wrappers expose the new data operations.
 - Auto-learned profiles now record the originating conversation and recent user-message sources.
 - Memory page UI now exposes category, importance, pinning, and source conversation/message excerpts.
-- Existing bounded Memory prompt selection prioritizes pinned entries, then importance, then recency. This is **not** yet relevance-based retrieval.
-- Phase Step 1 (data model/storage API) is **IN PROGRESS** pending a legacy-v7 upgrade fixture and further validation.
+- Memory retrieval now uses lightweight lexical relevance scoring, with pinned and importance boosts. It remains a simple keyword method, not semantic/vector retrieval.
+- Phase Step 1 (data model/storage API) is **COMPLETE**; a populated version-7 upgrade fixture and preservation assertions were added and passed in CI.
 - Phase Step 2 (Memory Center improvements) is **IN PROGRESS**; filtering/search, storage-use detail and candidate-review controls remain.
-- Conversation summary storage exists, but summary generation, automatic compaction and summary prompt integration are not yet implemented.
+- Conversation summary storage, invalidation and prompt consumption are implemented. Summary generation and automatic compaction remain pending.
 - Latest CI on commit `d8ab68d20c75414fc624fb3a64b5fa8de9847f99`: new database tests passed on Windows and Ubuntu. Overall workflows failed on five existing unrelated assertions involving file-operation path/protection behavior and an inference source-contract regex. No target-machine UI/model test was performed.
 
 
@@ -344,3 +338,17 @@ The following changes supersede the baseline gaps above:
 - Added database tests for query-ranked Memory, independent Notes/Workspace retrieval, respect for opt-in flags and empty-query fallback. Added a renderer/IPC contract test to guard the distinct source sections.
 - Latest source commit at this checkpoint: 2209601e2487b8c37b59a23feba29788944be434.
 - Latest CI was still running at the time of this documentation update. The previous source-validation run showed all new database tests passing (47 passed, one skipped); the remaining failure was the known inference source-contract assertion. Windows also retains the previously identified file-operation environment failures. Recheck the latest run before any green-build claim.
+
+
+## 11. Implementation checkpoint — independent relevance retrieval (2026-11-26)
+
+- Added lightweight lexical token ranking for Memory, opted-in Notes and opted-in Workspace artifacts. It uses normalized Unicode word tokens, a bounded 24-term query and deterministic scoring. No embedding model, vector database, extra inference or background worker is used.
+- Memory, Notes and Workspace now have independent database retrieval methods and separate bounded character budgets.
+- Notes continue to respect the existing include_in_context opt-in; Workspace artifacts continue to respect their own selection flag.
+- The active queued user message is passed as the retrieval query to each source.
+- Prompt assembly has distinct sections for durable Memory, user-authored Notes, selected Workspace material, an older conversation summary and recent transcript turns.
+- If a stored conversation summary exists, the prompt uses it and omits transcript turns at or before its summary cursor, while retaining the queued user message.
+- Summary generation and automatic compaction are not implemented yet.
+- Added database tests for query-ranked Memory, independent Notes/Workspace retrieval, opt-in behavior and empty-query fallback; added an IPC/prompt contract test.
+- Latest source commit at this checkpoint: 2209601e2487b8c37b59a23feba29788944be434.
+- Source-validation on that commit: Ubuntu 48 passed, 1 failed, 1 skipped; Windows 45 passed, 5 failed. The new Memory, migration, retrieval and prompt-contract tests passed. Remaining failures are the existing inference source-contract assertion on both platforms plus four Windows file-operation/path checks in hosted temporary folders. This is not a green full-suite result.
