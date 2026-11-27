@@ -353,3 +353,29 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); }
 @media (prefers-reduced-motion: reduce) {
   .shell-chat-message-tools .shell-chat-icon-action::after { transition-delay: 0ms; }
 }
+
+
+/* Keep action tooltips inside the transcript edge instead of creating overflow. */
+.shell-chat-message-tools .shell-chat-icon-action::after {
+  max-width:min(190px,calc(100vw - 28px));
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+.shell-chat-message-wrap.is-user .shell-chat-message-tools .shell-chat-icon-action::after {
+  left:auto;
+  right:0;
+  transform:translateY(3px);
+}
+.shell-chat-message-wrap.is-user .shell-chat-message-tools .shell-chat-icon-action:hover::after,
+.shell-chat-message-wrap.is-user .shell-chat-message-tools .shell-chat-icon-action:focus-visible::after {
+  transform:translateY(0);
+}
+.shell-chat-message-wrap.is-assistant .shell-chat-message-tools .shell-chat-icon-action::after {
+  left:0;
+  right:auto;
+  transform:translateY(3px);
+}
+.shell-chat-message-wrap.is-assistant .shell-chat-message-tools .shell-chat-icon-action:hover::after,
+.shell-chat-message-wrap.is-assistant .shell-chat-message-tools .shell-chat-icon-action:focus-visible::after {
+  transform:translateY(0);
+}
