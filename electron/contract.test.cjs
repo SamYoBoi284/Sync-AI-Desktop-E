@@ -286,3 +286,53 @@ test("model profiles persist per GGUF and drive worker inference options", () =>
   assert.match(worker, /temperature: loaded\.temperature/);
   assert.match(worker, /Math\.min\(loaded\.maxOutputTokens \|\| 512, availableOutputTokens\)/);
 });
+
+test("device-local date and time are supplied as trusted chat context", () => {
+  const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
+  assert.match(main, /get_device_context:\s*\(\)\s*=>\s*getDeviceContext\(\)/);
+  assert.match(main, /Intl\.DateTimeFormat\(\)\.resolvedOptions\(\)\.timeZone/);
+  assert.match(bridge, /getDeviceContext:\s*\(\)\s*=>\s*invoke\("get_device_context"\)/);
+  assert.match(chat, /CURRENT DEVICE LOCAL DATE AND TIME/);
+  assert.match(chat, /api\.getDeviceContext\(\)/);
+  assert.match(chat, /deviceContext:\s*deviceContextResult\.status === "fulfilled"/);
+});
+
+test("Quick Ask has a scoped overlay, configurable model policy and safe temporary worker lifecycle", () => {
+  const quickAskHtml = fs.readFileSync(path.join(root, "quick-ask.html"), "utf8");
+  const quickAskRenderer = fs.readFileSync(path.join(root, "renderer", "quick-ask.js"), "utf8");
+  const quickAskCss = fs.readFileSync(path.join(root, "src", "quick-ask.css"), "utf8");
+  const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+  assert.match(main, /globalShortcut\.register/);
+  assert.match(main, /function openQuickAskOverlay\(/);
+  assert.match(main, /function prepareQuickAskSession\(/);
+  assert.match(main, /function cleanupQuickAskSession\(/);
+  assert.match(main, /quick_ask_preferences/);
+  assert.match(main, /"smallest"/);
+  assert.match(main, /"most-recent"/);
+  assert.match(main, /"custom"/);
+  assert.match(main, /loadedTemporarily/);
+  assert.match(main, /quick_ask_prepare:/);
+  assert.match(main, /quick_ask_submit:/);
+  assert.match(main, /quick_ask_close:/);
+  assert.match(main, /quick-ask\.html/);
+  assert.match(bridge, /setQuickAskPreferences/);
+  assert.match(bridge, /quickAskPrepare/);
+  assert.match(bridge, /quickAskSubmit/);
+  assert.match(preload, /onAppAction/);
+  assert.match(quickAskHtml, /renderer\/quick-ask\.js/);
+  assert.match(quickAskHtml, /src\/quick-ask\.css/);
+  assert.match(quickAskRenderer, /api\.quickAskPrepare\(\)/);
+  assert.match(quickAskRenderer, /api\.quickAskSubmit\(/);
+  assert.match(quickAskCss, /\.quick-ask-shell/);
+  assert.ok(packageJson.build.files.includes("quick-ask.html"));
+});
+
+test("tray New conversation action is handled by the main renderer", () => {
+  const app = fs.readFileSync(path.join(root, "renderer", "app.js"), "utf8");
+  assert.match(main, /label: "New conversation"/);
+  assert.match(main, /sync:app-action/);
+  assert.match(preload, /onAppAction/);
+  assert.match(bridge, /onAppAction/);
+  assert.match(app, /payload\?\.action === "new-chat"/);
+});
+
