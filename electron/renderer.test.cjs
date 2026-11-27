@@ -26,3 +26,13 @@ test("renderer API uses only the narrow preload bridge for native commands", () 
   assert.match(preload, /contextBridge\.exposeInMainWorld\("syncAI"/);
   assert.doesNotMatch(api, /node:|child_process|fs\.readFile/);
 });
+
+test("chat learning requires explicit evidence and does not turn greetings into titles", () => {
+  const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
+  assert.match(chat, /function isLowSignalLearningMessage/);
+  assert.match(chat, /if \(!raw \|\| isLowSignalLearningMessage\(raw\)\) return null/);
+  assert.match(chat, /EVIDENCE_IDS/);
+  assert.match(chat, /sourceMessages:\s*selectedSources\.map/);
+  assert.match(chat, /for \(const sourceMessage of selectedSources\)/);
+  assert.match(chat, /if \(oldScroll == null \|\| wasNearBottom\) scrollTranscript\(\)/);
+});
