@@ -12,6 +12,10 @@ function onActionEvent(callback) {
   if (!window.syncAI || typeof window.syncAI.onActionEvent !== "function") return () => {};
   return window.syncAI.onActionEvent(callback);
 }
+function onAppAction(callback) {
+  if (!window.syncAI || typeof window.syncAI.onAppAction !== "function") return () => {};
+  return window.syncAI.onAppAction(callback);
+}
 const api = {
   getAppInfo: () => invoke("get_app_info"),
   consumeStartupSplash: () => invoke("consume_startup_splash"),
@@ -61,6 +65,12 @@ const api = {
   importMemoryFile: () => invoke("import_memory_file"),
   getHostRamInfo: () => invoke("get_host_ram_info"),
   getDeviceContext: () => invoke("get_device_context"),
+  getQuickAskPreferences: () => invoke("get_quick_ask_preferences"),
+  setQuickAskPreferences: preferences => invoke("set_quick_ask_preferences", { preferences }),
+  quickAskPrepare: () => invoke("quick_ask_prepare"),
+  quickAskSubmit: (prompt, generationId) => invoke("quick_ask_submit", { prompt, generationId }),
+  quickAskStop: () => invoke("quick_ask_stop"),
+  quickAskClose: () => invoke("quick_ask_close"),
   listModels: () => invoke("list_models"),
   getModelProfile: modelId => invoke("get_model_profile", { modelId }),
   saveModelProfile: (modelId, profile) => invoke("save_model_profile", { modelId, profile }),
@@ -105,4 +115,5 @@ window.SyncAI.api = api;
 window.SyncAI.invoke = invoke;
 window.SyncAI.onGenerationEvent = onGenerationEvent;
 window.SyncAI.onActionEvent = onActionEvent;
+window.SyncAI.onAppAction = onAppAction;
 })();
