@@ -73,7 +73,7 @@ To add a page:
 
 ## 5. Persistence
 
-The app uses Electron's built-in `node:sqlite` through `electron/database.cjs`, with migrations through schema version 4. Data includes chats, messages, per-message diagnostics, settings, GGUF model registry, Workspace artifacts, Tasks, Notes and File Library metadata.
+The app uses Electron's built-in `node:sqlite` through `electron/database.cjs`, with migrations through schema version 7. Data includes chats, messages, per-message diagnostics, settings, GGUF model registry, Workspace artifacts, Tasks, Notes and File Library metadata.
 
 Chat backups use a desktop-native, versioned JSON format. Import validates the payload, enforces limits and skips duplicate chat IDs instead of overwriting local conversations.
 
@@ -107,11 +107,14 @@ A full response using a real user GGUF model and interactive tray behavior still
 
 - Chat includes streamed generation, sequential queueing, cancellation, diagnostics, saved-memory/workspace prompt context and an existing edit-and-regenerate data operation. The current edit UI still uses `window.prompt()`; composer-based editing is planned, not complete.
 - Recent-chat/sidebar management includes search, date grouping, pinning, rename, move-to-top, archive/restore, deletion, export and folder assignment.
-- The Memory page supports persistent user-managed entries, import/edit/enable/disable/delete, a bounded prompt-injection budget and optional bounded auto-learning.
+- The Memory page supports persistent user-managed entries, import/edit/enable/disable/delete, a bounded prompt-injection budget and optional bounded auto-learning. Memory records currently lack category/importance/pinning/provenance metadata and are injected newest-first rather than relevance-ranked.
+- Notes have their own SQLite table and CRUD UI, but opted-in Notes and Workspace artifacts are currently combined by `list_workspace_context()` and delivered in one prompt reference section.
+- The chat prompt currently includes the latest 24 user/assistant turns; persisted conversation summaries and context compaction are not implemented yet.
+- The detailed baseline and proposed separation/retrieval design are documented in `docs/INTELLIGENCE_MEMORY_ARCHITECTURE.md`.
 - The composer has a typed-`@` file-tool palette for copy, move, rename, safe delete and folder creation. The visible `@` button is still present. Prepared file actions require explicit approval.
 - Privacy & Tools provides a journal, approval/cancel/undo dialogs and stop/rollback controls. Preserve its focus management and safety semantics.
 - Runtime displays worker telemetry and offers context/batch settings plus a force-stop/restart recovery control.
-- Appearance is still a preview/fallback route rather than a completed appearance settings page.
+- Appearance is implemented with saved theme, linked/separate accent and interface colors, density, chat style, font size and motion preferences.
 
 ## 10. Visual and interaction work status
 
