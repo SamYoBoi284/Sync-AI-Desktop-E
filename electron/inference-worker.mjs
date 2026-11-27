@@ -38,6 +38,8 @@ async function loadModel(data) {
   const memoryLimitBytes = Number.isSafeInteger(data.memoryLimitBytes) && data.memoryLimitBytes > 0 ? data.memoryLimitBytes : null;
   const contextLength = Math.max(512, Math.min(32768, Number(data.contextLength) || 2048));
   const batchSize = Math.max(16, Math.min(2048, Number(data.batchSize) || 128));
+  const temperature = Math.max(0, Math.min(2, Number.isFinite(Number(data.temperature)) ? Number(data.temperature) : 0.7));
+  const maxOutputTokens = Math.max(16, Math.min(512, Math.floor(Number(data.maxOutputTokens) || 512)));
   llama = await getLlama({
     gpu: false, maxThreads: Math.max(1, Math.min(4, os.cpus().length)),
     logLevel: "error", build: "never", skipDownload: true
@@ -47,7 +49,7 @@ async function loadModel(data) {
   context = await model.createContext({ contextSize: contextLength, batchSize });
   loaded = {
     modelId: data.modelId, modelName: data.modelName, loadedAt: new Date().toISOString(),
-    modelSizeBytes: stat.size, contextLength: context.contextSize, batchSize,
+    modelSizeBytes: stat.size, contextLength: context.contextSize, batchSize, temperature, maxOutputTokens,
     workerRssBytes: process.memoryUsage().rss, workerPid: process.pid
   };
   send("MODEL_LOADED", { model: loaded });
@@ -72,12 +74,12 @@ async function generate(data) {
     const safetyReserveTokens = 16;
     const availableOutputTokens = loaded.contextLength - promptTokens - systemPromptTokens - safetyReserveTokens;
     if (availableOutputTokens < 1) throw new Error("The prompt and Sync system instructions fill the model context window. Lower the prompt budget or shorten the conversation before generating.");
-    maxOutputTokens = Math.min(512, availableOutputTokens);
+    maxOutputTokens = Math.min(loaded.maxOutputTokens || 512, availableOutputTokens);
     if (context.sequencesLeft <= 0) throw new Error("No context sequences are available. Use Force Stop Generation to restart the inference worker and reclaim them.");
     sequence = context.getSequence();
     session = new LlamaChatSession({ contextSequence: sequence, systemPrompt: SYSTEM_PROMPT });
     const response = await session.prompt(data.prompt, {
-      maxTokens: maxOutputTokens, temperature: 0.7, signal: controller.signal, stopOnAbortSignal: true,
+      maxTokens: maxOutputTokens, temperature: loaded.temperature ?? 0.7, signal: controller.signal, stopOnAbortSignal: true,
       onTextChunk(chunk) {
         if (!chunk) return;
         if (promptEvalMs == null) promptEvalMs = Number(process.hrtime.bigint() - clock) / 1e6;
@@ -96,7 +98,7 @@ async function generate(data) {
       backendVersion: "node-llama-cpp 3.22.3", status: cancelled ? "cancelled" : "completed",
       promptTokens, systemPromptTokens, maxOutputTokens, generatedTokens, promptEvalMs, generationMs, tokensPerSecond,
       contextSize: context.contextSize, maxContextSize: loaded.contextLength, batchSize: loaded.batchSize,
-      temperature: 0.7, stopReason: cancelled ? "abort" : "completed",
+      temperature: loaded.temperature ?? 0.7, stopReason: cancelled ? "abort" : "completed",
       errorCode: null, errorMessage: null, startedAt, finishedAt: new Date().toISOString()
     }};
   } catch (error) {
@@ -109,7 +111,7 @@ async function generate(data) {
       backend: "llama.cpp", backendVersion: "node-llama-cpp 3.22.3",
       status: cancelled ? "cancelled" : "error", promptTokens, systemPromptTokens, maxOutputTokens, generatedTokens, promptEvalMs, generationMs, tokensPerSecond,
       contextSize: context?.contextSize ?? null, maxContextSize: loaded?.contextLength ?? null, batchSize: loaded?.batchSize ?? null,
-      temperature: 0.7, stopReason: cancelled ? "cancelled" : null,
+      temperature: loaded?.temperature ?? 0.7, stopReason: cancelled ? "cancelled" : null,
       errorCode: cancelled ? null : "generation_failed",
       errorMessage: cancelled ? null : (error instanceof Error ? error.message : String(error)),
       startedAt, finishedAt: new Date().toISOString()
