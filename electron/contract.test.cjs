@@ -41,7 +41,7 @@ test("the native inference runtime and Windows process memory guard are wired in
   assert.match(main, /type: "GENERATE"/);
   assert.match(main, /type: "CANCEL_GENERATION"/);
   assert.match(worker, /from "node-llama-cpp"/);
-  assert.match(worker, /new LlamaCompletion/);
+  assert.match(worker, /new LlamaChatSession/);
   assert.match(worker, /setRamCap\(memoryLimitBytes\)/);
   assert.match(worker, /generateCompletionWithMeta/);
   assert.match(job, /JOB_OBJECT_LIMIT_PROCESS_MEMORY/);
@@ -178,7 +178,7 @@ test("older conversation summaries are incrementally generated without summarizi
   assert.match(chat, /throughMessages = messages\.slice\(0, -recentKeep\)/);
   assert.match(chat, /position\) > cursor/);
   assert.match(chat, /purpose: "summary"/);
-  assert.match(chat, /saveConversationSummary\(chat\.id, updated\.slice\(0, 2200\), target\.position/);
+  assert.match(chat, /saveConversationSummary\(chat\.id, updated\.slice\(0, 2200\), batchTarget\.position/);
   assert.match(chat, /conversation_summary_auto/);
   assert.match(chat, /learningPromptBudget/);
   assert.match(chat, /fitPromptText\(userTurns, userBudget, true\)/);
