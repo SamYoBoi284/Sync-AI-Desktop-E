@@ -6,7 +6,7 @@
 
 - Repository: `SamYoBoi284/Sync-AI-Desktop-E`
 - Branch: `main`
-- Latest inspected commit: `63fa05e801bc1a108589924a18f87389e1dde11d` — `feat: add chat editing archive folders and sidebar menus` (2026-11-26).
+- Latest inspected commit at this documentation checkpoint: `ed26ba2d8cc4107aca3bdb86664fc78192ce3279` — `docs: establish intelligence and memory architecture` (2026-11-26). The latest application-source commit reviewed before the documentation update is `363647adbd113b829307a6110b58a60988ab7bff`.
 - Application version in `package.json`: `0.1.0`.
 - This checkpoint describes source present on GitHub. A source review does not equal an interactive Electron test or a real-model inference test.
 
@@ -19,7 +19,7 @@
 - **Main process:** `electron/main.cjs`; owns native lifecycle and privileged operations.
 - **Preload:** `electron/preload.cjs`; exposes a restricted `window.syncAI` bridge.
 - **Renderer API:** `renderer/api.js`; wraps bridge commands. Do not expose Node APIs to the renderer.
-- **Persistence:** SQLite via Electron's built-in `node:sqlite`, implemented in `electron/database.cjs`; schema migrations through version 4.
+- **Persistence:** SQLite via Electron's built-in `node:sqlite`, implemented in `electron/database.cjs`; schema migrations through version 7 (confirmed in `electron/database.cjs`; migration v7 adds chat folders and chat archive/pin metadata).
 - **Inference:** CPU llama.cpp via `node-llama-cpp` in an Electron UtilityProcess (`electron/inference-worker.mjs`).
 - **Windows memory isolation:** optional Job Object private-commit ceiling applies to the inference worker, not the main/UI process.
 - **Packaging:** Electron Builder / NSIS.
@@ -46,6 +46,8 @@ src/
   workspace.css
   tasks-notes.css
   library.css
+  motion.css
+  appearance.css
 renderer/
   api.js
   shared.js
@@ -83,11 +85,11 @@ README.md
 package.json
 ~~~
 
-The active renderer page modules `folders.js`, `memory.js` and `privacy-tools.js` must be included when preparing a complete renderer handoff. Older source maps that omit them are incomplete.
+The active renderer page modules `folders.js`, `memory.js` and `privacy-tools.js` must be included when preparing a complete renderer handoff. The intelligence/memory design document is `docs/INTELLIGENCE_MEMORY_ARCHITECTURE.md`. Older source maps that omit them are incomplete.
 
 ## Renderer loading and navigation
 
-`index.html` loads stylesheets in this order: `styles.css`, `shell.css`, `history.css`, `workspace.css`, `tasks-notes.css`, `library.css`.
+`index.html` loads stylesheets in this order: `styles.css`, `shell.css`, `history.css`, `workspace.css`, `tasks-notes.css`, `library.css`, `motion.css`, `appearance.css`.
 
 It loads the renderer scripts in this order: `api.js`, `shared.js`, page modules, then `app.js` last. Preserve this ordering unless the dependency graph is deliberately changed and verified.
 
@@ -96,7 +98,7 @@ It loads the renderer scripts in this order: `api.js`, `shared.js`, page modules
 - Each page module owns its page-specific local state, markup and delegated events.
 - `renderer/api.js` is the renderer-facing API wrapper. Its method/argument contracts must remain stable during visual-only work.
 
-Routes currently include New Chat, History, Archive, Folders, Local Models, Workspace, Tasks & Notes, File Library, Runtime, Settings, Memory and Privacy & Tools. Appearance currently routes to the preview/fallback page rather than a completed appearance settings implementation.
+Routes currently include New Chat, History, Archive, Folders, Local Models, Workspace, Tasks & Notes, File Library, Runtime, Settings, Memory, Privacy & Tools and Appearance. Appearance is implemented with persisted System/Dark/Light, linked or separate accent/interface colors, density, chat style, font size and motion preferences.
 
 ## Implemented capabilities in the current source
 
@@ -125,12 +127,25 @@ Routes currently include New Chat, History, Archive, Folders, Local Models, Work
 
 ### Memory
 
-- Persistent, user-editable memory records stored locally.
+- Persistent, user-editable memory records stored locally in the `memories` table (migration v6).
 - Memory import, create, edit, enable/disable and delete.
-- Enabled memories can be added to future local prompts within a configurable bounded budget (128–512 estimated tokens; hard UI cap 512).
-- Optional auto-learning from completed conversations; disabled by default.
-- Auto-learning uses bounded conversation text/profile size and excludes sensitive categories and credentials according to the prompt constraints implemented in the chat module.
-- Memory is managed in the Memory page and routed from Settings.
+- The current memory library is capped at 50 records and 4 MiB total content; individual entries are capped at 1 MiB.
+- Enabled memories are selected newest-first and injected within a configurable 128–512 estimated-token budget (default 256; approximate character-based limit).
+- Optional auto-learning from completed conversations; disabled by default. It runs an additional inference, examines up to eight recent user turns (capped at 3,000 characters), and updates one `Learned profile` record capped at 1,500 characters.
+- Auto-learning prompt constraints exclude sensitive personal categories and credentials, but provenance and category/importance metadata are not stored yet.
+- Memory is managed in `renderer/pages/memory.js` and routed from Settings.
+
+### Intelligence and memory audit (2026-11-26)
+
+A full source-level baseline review has been completed and the implementation design is recorded in `docs/INTELLIGENCE_MEMORY_ARCHITECTURE.md`.
+
+- Memory, Notes and conversations already have distinct storage foundations: `memories`, `notes`, and `chats`/`messages`.
+- Notes are user-authored and have pinning plus an opt-in context flag. Workspace artifacts also have an opt-in context flag.
+- Current `list_workspace_context()` combines opted-in Notes and Workspace artifacts into one bounded result (48 KiB), then `buildPrompt()` places them in the same Workspace reference section with kind labels.
+- Current `list_memory_context()` injects every enabled memory newest-first; it does not rank by relevance, category, importance or pinning.
+- Current prompt builder includes the last 24 user/assistant turns. No persistent conversation-summary/compaction table exists yet.
+- The next Phase 1 work is a non-destructive schema/API design for memory metadata/provenance and conversation summaries, followed by independent Notes retrieval and relevance-based context orchestration.
+- No database or runtime code was changed during the baseline audit. No Electron launch, `npm test`, `npm run build`, or real-GGUF test was performed.
 
 ### Composer tools and file-operation safety
 
