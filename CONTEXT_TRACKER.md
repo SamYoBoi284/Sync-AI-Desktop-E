@@ -451,3 +451,17 @@ None added. No frameworks, bundlers or animation libraries.
 - Learning and summary prompts are also bounded by the active context allowance.
 - Automatic summaries process a prefix batch and persist only the cursor through messages actually included. Large uncovered messages are not silently marked summarized when they cannot fit.
 - Latest contract test corrections are in `6bc3bc129759cf8b9ed8afa35daad83ab342c01d`; its CI run is pending.
+
+
+## Final Memory + context implementation checkpoint — 2026-11-26
+
+- Step 2 Memory Center: COMPLETE — search, category/status filters, UTF-8 content usage display, Off/Review first/Automatic modes, persisted candidate queue and approval/rejection.
+- Step 4 Context orchestration: COMPLETE for the current local lexical/character-budget design — independent retrieval and source budgets, overall prompt cap, explicit system/safety/output reserves, and worker-enforced dynamic output-token cap.
+- Step 5 Summaries: IN PROGRESS — incremental summary generation, prompt consumption, cursor invalidation and prefix batching are implemented; summary inspection/rebuild UI and cross-conversation retrieval remain.
+- Step 6 Model Profiles: NOT STARTED.
+- Schema version: 9. Memory candidate suggestions are separate from saved Memory until approved; rejection leaves the current learned profile unchanged.
+- Learning setting: `memory_learning_mode` = Off / Review first / Automatic; old `memory_auto_learn` is retained as fallback for existing installations.
+- Global prompt budget: 40–80%, 5% increments, default 65%; effective prompt cap includes system prompt and safety reserves. Worker output cap is dynamically calculated from actual token counts.
+- Automatic per-chat summaries are on by default, can be disabled in Memory settings, retain the newest eight messages verbatim, and only advance their cursor through messages included in the summary request.
+- Latest source contract corrections: `700541503116b7c9932576952dd5b7f2d98a5bf2`. CI for this commit has been triggered but not yet completed. Last completed Ubuntu run had the new database/candidate tests passing; its failures were stale source assertions that have since been corrected. Windows hosted path/file-action failures have occurred in earlier runs.
+- No manual target-device Electron UI or real GGUF inference test has been performed.
