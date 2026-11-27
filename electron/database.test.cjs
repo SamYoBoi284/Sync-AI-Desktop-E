@@ -79,3 +79,64 @@ test("supports archive, pin, folders, edit-from-turn and single-chat export", ()
   db.delete_chat_folder({ folderId: folder.id });
   assert.equal(db.get_chat({ chatId: chat.id }).folderId, null);
 }));
+
+
+test("persists memory metadata and validates category, importance and pinning", () => withDb(db => {
+  const memory = db.save_memory({ memory: {
+    title: "Preferences", content: "Prefers lightweight software", source: "manual",
+    enabled: true, category: "preferences", importance: 5, pinned: true
+  } });
+  assert.equal(memory.category, "preferences");
+  assert.equal(memory.importance, 5);
+  assert.equal(memory.pinned, true);
+  assert.throws(() => db.save_memory({ memory: {
+    title: "Invalid category", content: "x", category: "unknown"
+  } }), /Invalid memory category/);
+  assert.throws(() => db.save_memory({ memory: {
+    title: "Invalid importance", content: "x", importance: 6
+  } }), /importance/);
+  const updated = db.save_memory({ memory: { title: "Preferences", content: "Prefers low-resource apps" }, memoryId: memory.id });
+  assert.equal(updated.category, "preferences");
+  assert.equal(updated.importance, 5);
+  assert.equal(updated.pinned, true);
+}));
+
+test("records memory provenance separately and preserves source snapshots after chat deletion", () => withDb(db => {
+  const chat = db.create_chat({ title: "Laptop preferences" });
+  const source = db.append_message({ chatId: chat.id, message: { role: "user", body: "I prefer lightweight applications on my laptop." } });
+  const memory = db.save_memory({ memory: { title: "Software preferences", content: "Prefers lightweight applications" } });
+  db.add_memory_source({ memoryId: memory.id, chatId: chat.id, messageId: source.id });
+  db.add_memory_source({ memoryId: memory.id, chatId: chat.id, messageId: source.id });
+  const linked = db.get_memory({ memoryId: memory.id });
+  assert.equal(linked.sources.length, 1);
+  assert.equal(linked.sources[0].chatTitle, "Laptop preferences");
+  assert.match(linked.sources[0].messageExcerpt, /lightweight applications/);
+  db.delete_chat({ chatId: chat.id });
+  const afterDelete = db.get_memory({ memoryId: memory.id }).sources[0];
+  assert.equal(afterDelete.chatId, null);
+  assert.equal(afterDelete.messageId, null);
+  assert.equal(afterDelete.chatTitle, "Laptop preferences");
+}));
+
+test("stores conversation summaries and invalidates stale summaries after editing covered turns", () => withDb(db => {
+  const chat = db.create_chat({ title: "Context compaction" });
+  const first = db.append_message({ chatId: chat.id, message: { role: "user", body: "First detail" } });
+  db.append_message({ chatId: chat.id, message: { role: "assistant", body: "First response" } });
+  const summary = db.save_conversation_summary({
+    chatId: chat.id, summary: "The user discussed the first detail.", throughPosition: 1
+  });
+  assert.equal(summary.throughPosition, 1);
+  assert.equal(db.get_conversation_summary({ chatId: chat.id }).summary, summary.summary);
+  db.edit_user_message({ chatId: chat.id, messageId: first.id, body: "Corrected first detail" });
+  assert.equal(db.get_conversation_summary({ chatId: chat.id }), null);
+}));
+
+test("keeps summaries valid when new turns are appended after their summarized cursor", () => withDb(db => {
+  const chat = db.create_chat({});
+  const first = db.append_message({ chatId: chat.id, message: { role: "user", body: "Old turn" } });
+  db.append_message({ chatId: chat.id, message: { role: "assistant", body: "Old reply" } });
+  db.save_conversation_summary({ chatId: chat.id, summary: "Old turn summary", throughPosition: 1 });
+  const next = db.append_message({ chatId: chat.id, message: { role: "user", body: "New turn" } });
+  db.append_assistant_message_after({ chatId: chat.id, userMessageId: next.id, message: { role: "assistant", body: "New reply" } });
+  assert.equal(db.get_conversation_summary({ chatId: chat.id }), null);
+}));
