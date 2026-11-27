@@ -197,8 +197,14 @@ async function mountChat(root, context, initialChatId = null) {
     } finally { toolActionBusy = false; render(); }
   }
 
-  // Motion bookkeeping: render() rebuilds the whole stage (also on every streamed
-  // token), so entrance animation is applied only to genuinely new messages.
+  // Message entrance bookkeeping. Stream tokens update the existing text node in place.
+  let motionChatId = null, motionCount = 0, motionWasStreaming = false;
+  function updateStreamingPreview() {
+    const textNode = root.querySelector(".shell-chat-streaming-text");
+    if (textNode && preview) textNode.textContent = cleanModelText(preview.text || "…");
+    const status = root.querySelector(".shell-chat-streaming-status > span:first-child");
+    if (status && preview) status.textContent = preview.state === "queued" ? "QUEUED" : "GENERATING";
+  }
   let motionChatId = null, motionCount = 0, motionWasStreaming = false;
   function applyMessageMotion() {
     const nodes = Array.from(root.querySelectorAll(".shell-chat-transcript .shell-chat-message"));
@@ -245,14 +251,16 @@ async function mountChat(root, context, initialChatId = null) {
               ${!runtime?.isLoaded ? '<button class="shell-chat-choose-model" type="button" data-chat-action="models">Choose a local model</button>' : ""}
             </div>` : `
             ${messages.map(message => `
-              <article class="shell-chat-message is-${esc(message.role)}">
-                <div class="shell-chat-message-label">${message.role === "user" ? "YOU" : "SYNC AI"}<time>${esc(fmtDate(message.createdAt))}</time></div>
-                <p style="white-space:pre-wrap">${esc(cleanModelText(message.body))}</p>
-                ${message.role === "assistant" && message.diagnostics ? '<div class="shell-chat-message-meta">' + esc(message.diagnostics.status || "saved") + (message.diagnostics.tokensPerSecond != null ? " · " + Number(message.diagnostics.tokensPerSecond).toFixed(1) + " tok/s" : "") + (message.diagnostics.generationMs != null ? " · " + elapsed(message.diagnostics.generationMs) : "") + "</div>" : ""}
-                ${message.role === "user" ? '<div class="shell-chat-message-tools"><button type="button" data-chat-action="edit-message" data-message-id="' + esc(message.id) + '" ' + (generating || queuedCount ? "disabled" : "") + '>Edit &amp; regenerate</button></div>' : ""}
-                ${message.role === "assistant" ? '<div class="shell-chat-message-tools"><button type="button" data-chat-action="save" data-message-id="' + esc(message.id) + '" ' + (savedArtifactIds.has(message.id) ? "disabled" : "") + ">" + (savedArtifactIds.has(message.id) ? "Saved to Workspace" : "Save to Workspace") + "</button></div>" : ""}
-              </article>`).join("")}
-            ${preview ? '<article class="shell-chat-message is-assistant is-streaming"><div class="shell-chat-message-label">SYNC AI <span class="shell-chat-streaming-status ' + (preview.state === "queued" ? "is-queued" : "") + '"><span>' + (preview.state === "queued" ? "QUEUED" : "GENERATING") + '</span><span class="shell-chat-streaming-dots" aria-hidden="true"><i></i><i></i><i></i></span></span></div><p style="white-space:pre-wrap">' + esc(cleanModelText(preview.text || "…")) + "</p></article>" : ""}
+              <div class="shell-chat-message-wrap is-${esc(message.role)}">
+                <article class="shell-chat-message is-${esc(message.role)}">
+                  <div class="shell-chat-message-label">${message.role === "user" ? "YOU" : "SYNC AI"}<time>${esc(fmtDate(message.createdAt))}</time></div>
+                  <p style="white-space:pre-wrap">${esc(cleanModelText(message.body))}</p>
+                  ${message.role === "assistant" && message.diagnostics ? '<div class="shell-chat-message-meta">' + esc(message.diagnostics.status || "saved") + (message.diagnostics.tokensPerSecond != null ? " · " + Number(message.diagnostics.tokensPerSecond).toFixed(1) + " tok/s" : "") + (message.diagnostics.generationMs != null ? " · " + elapsed(message.diagnostics.generationMs) : "") + "</div>" : ""}
+                </article>
+                ${message.role === "user" ? '<div class="shell-chat-message-tools"><button type="button" class="shell-chat-icon-action" data-chat-action="edit-message" data-message-id="' + esc(message.id) + '" aria-label="Edit" data-tooltip="Edit" ' + (generating || queuedCount ? "disabled" : "") + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg></button></div>' : ""}
+                ${message.role === "assistant" ? '<div class="shell-chat-message-tools"><button type="button" class="shell-chat-icon-action" data-chat-action="save" data-message-id="' + esc(message.id) + '" aria-label="' + (savedArtifactIds.has(message.id) ? "Saved to Workspace" : "Save to Workspace") + '" data-tooltip="' + (savedArtifactIds.has(message.id) ? "Saved to Workspace" : "Save to Workspace") + '" ' + (savedArtifactIds.has(message.id) ? "disabled" : "") + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6"/><path d="M12 18v-6"/><path d="m9 15 3-3 3 3"/></svg></button></div>' : ""}
+              </div>`).join("")}
+            ${preview ? '<div class="shell-chat-message-wrap is-assistant"><article class="shell-chat-message is-assistant is-streaming"><div class="shell-chat-message-label">SYNC AI <span class="shell-chat-streaming-status ' + (preview.state === "queued" ? "is-queued" : "") + '"><span>' + (preview.state === "queued" ? "QUEUED" : "GENERATING") + '</span><span class="shell-chat-streaming-dots" aria-hidden="true"><i></i><i></i><i></i></span></span></div><p class="shell-chat-streaming-text" style="white-space:pre-wrap">' + esc(cleanModelText(preview.text || "…")) + "</p></article></div>" : ""}
           `}
         </div>
         <footer class="shell-chat-compose-area">
@@ -261,7 +269,6 @@ async function mountChat(root, context, initialChatId = null) {
             <textarea id="chatComposerInput" placeholder="${runtime?.isLoaded ? "Message Sync AI…" : "Load a local model to start chatting"}" aria-label="Message Sync AI" rows="2" ${!runtime?.isLoaded || loading ? "disabled" : ""}>${esc(inputValue)}</textarea>
             ${toolMenuMarkup()}
             <div class="shell-chat-composer-actions">
-              <button class="shell-chat-mention" type="button" data-chat-action="insert-mention" title="Browse Sync tools">@</button>
               ${generating ? '<button class="shell-chat-stop" type="button" data-chat-action="stop" ' + (!stopAvailable || cancelling ? "disabled" : "") + ">" + (cancelling ? "Stopping…" : stopAvailable ? "Stop" : "Starting…") + "</button>" : ""}
               <button class="shell-chat-send" type="button" data-chat-action="send" ${!inputValue.trim() || !runtime?.isLoaded || loading ? "disabled" : ""}>Send ↑</button>
             </div>
@@ -283,6 +290,12 @@ async function mountChat(root, context, initialChatId = null) {
   }
 
   async function refreshRuntime() {
+    const previousRuntimeState = JSON.stringify({
+      loaded: runtime?.isLoaded, loadedModelId: runtime?.loadedModelId, loadedModelName: runtime?.loadedModelName,
+      generating: runtime?.isGenerating, active: runtime?.activeGeneration?.generationId,
+      queued: (runtime?.queuedGenerations || []).map(item => item.generationId)
+    });
+    const previousUiState = JSON.stringify({ generating, cancelling, stopAvailable, queuedCount, previewState: preview?.state });
     try {
       runtime = await api.getRuntimeStatus();
       const queuedForChat = (runtime.queuedGenerations || []).filter(item => item.chatId === chatId && item.purpose === "chat");
@@ -303,7 +316,16 @@ async function mountChat(root, context, initialChatId = null) {
       queuedCount = Math.max(queue.length, queuedForChat.length);
       generating = processing || Boolean(tracked);
     } catch { runtime = null; }
-    if (!disposed) render();
+    if (!disposed) {
+      updateStreamingPreview();
+      const nextRuntimeState = JSON.stringify({
+        loaded: runtime?.isLoaded, loadedModelId: runtime?.loadedModelId, loadedModelName: runtime?.loadedModelName,
+        generating: runtime?.isGenerating, active: runtime?.activeGeneration?.generationId,
+        queued: (runtime?.queuedGenerations || []).map(item => item.generationId)
+      });
+      const nextUiState = JSON.stringify({ generating, cancelling, stopAvailable, queuedCount, previewState: preview?.state });
+      if (previousRuntimeState !== nextRuntimeState || previousUiState !== nextUiState) render();
+    }
   }
 
   async function ensureChatId() {
@@ -527,15 +549,6 @@ async function mountChat(root, context, initialChatId = null) {
     const button = event.target.closest("[data-chat-action]");
     if (!button) return;
     const action = button.dataset.chatAction;
-    if (action === "insert-mention") {
-      inputValue += (inputValue && !inputValue.endsWith(" ") ? " " : "") + "@";
-      toolMenuOpen = true; toolMenuQuery = ""; toolMenuIndex = 0;
-      render();
-      const composerInput = root.querySelector("#chatComposerInput");
-      composerInput?.focus();
-      try { composerInput?.setSelectionRange(inputValue.length, inputValue.length); } catch {}
-      return;
-    }
     if (action === "tool-folder-cancel") { folderPromptOpen = false; render(); return; }
     if (action === "tool-folder-continue") {
       const folderName = root.querySelector("#chatToolFolderName")?.value || "";
@@ -567,7 +580,7 @@ async function mountChat(root, context, initialChatId = null) {
     }
     if (event.event === "token" && event.token) {
       if (preview?.generationId !== event.generationId) preview = { generationId: event.generationId, text: "", state: "generating", runtimeTracked: true };
-      preview.text += event.token; preview.state = "generating"; render(); return;
+      preview.text += event.token; preview.state = "generating"; updateStreamingPreview(); return;
     }
     if (["finished", "failed", "cancelled"].includes(event.event)) {
       if (runtimeTrackedGenerationId === event.generationId) runtimeTrackedGenerationId = null;
