@@ -630,7 +630,8 @@ const handlers = {
     const minimumOutputTokens = Math.min(64, Math.max(16, Math.floor(contextWindowTokens * 0.125)));
     const maxPromptTokens = Math.max(256, contextWindowTokens - systemPromptReserveTokens - safetyReserveTokens - minimumOutputTokens);
     const promptBudgetTokens = Math.min(maxPromptTokens, Math.max(256, Math.floor(contextWindowTokens * percent / 100)));
-    const outputReserveTokens = Math.max(minimumOutputTokens, Math.min(512, contextWindowTokens - promptBudgetTokens - systemPromptReserveTokens - safetyReserveTokens));
+    const configuredOutputLimit = Number(runtimeState.maxOutputTokens) || 512;
+    const outputReserveTokens = Math.max(1, Math.min(configuredOutputLimit, contextWindowTokens - promptBudgetTokens - systemPromptReserveTokens - safetyReserveTokens));
     return { contextWindowTokens, percent, promptBudgetTokens, systemPromptReserveTokens, safetyReserveTokens, outputReserveTokens, estimatedCharBudget: Math.floor(promptBudgetTokens * 3.2) };
   },
   set_context_budget_percent: ({ percent } = {}) => {
