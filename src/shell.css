@@ -654,3 +654,62 @@
   .memory-library-controls input { grid-column:auto; }
   .memory-card-footer>div { flex-wrap:wrap; }
 }
+
+
+/* Responsive containment: keep chat and sidebar content inside their panes. */
+.shell-topbar-leading { display:flex; min-width:0; align-items:center; gap:15px; }
+.shell-back-button {
+  display:inline-flex;
+  flex:0 0 auto;
+  min-height:32px;
+  align-items:center;
+  gap:7px;
+  padding:0 10px;
+  border:1px solid rgba(168,121,255,.2);
+  border-radius:8px;
+  color:#d2c6ed;
+  background:rgba(168,121,255,.055);
+  cursor:pointer;
+  font:8px var(--mono);
+  letter-spacing:.04em;
+}
+.shell-back-button:hover { border-color:rgba(168,121,255,.46); color:#fff; background:rgba(168,121,255,.12); }
+.shell-back-button>span:first-child { color:#b99bff; font-size:15px; line-height:1; }
+.shell-back-button kbd { margin-left:3px; padding:3px 4px; border:1px solid rgba(168,121,255,.16); border-radius:4px; color:#89839f; font:7px var(--mono); }
+.shell-back-button[hidden] { display:none; }
+.shell-back-button:focus-visible { outline:2px solid rgba(168,121,255,.85); outline-offset:3px; }
+
+.shell-main,.shell-sidebar,.shell-sidebar-content,.shell-page-scroll { min-width:0; max-width:100%; }
+.shell-page-scroll { overflow-x:hidden; }
+.shell-sidebar-content { overflow-x:hidden; }
+.shell-sidebar-folder { min-width:0; box-sizing:border-box; }
+.shell-sidebar-folder>span:nth-child(2) {
+  min-width:0;
+  flex:1 1 auto;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.shell-chat-stage {
+  width:min(100%,1100px);
+  max-width:100%;
+  min-width:0;
+  box-sizing:border-box;
+}
+.shell-chat-toolbar,.shell-chat-heading,.shell-chat-transcript,.shell-chat-compose-area,.shell-chat-composer {
+  min-width:0;
+  max-width:100%;
+}
+.shell-chat-transcript {
+  width:100%;
+  overflow-x:hidden;
+}
+.shell-chat-message-wrap,.shell-chat-message { min-width:0; max-width:100%; box-sizing:border-box; }
+.shell-chat-message { overflow-wrap:anywhere; }
+.shell-chat-composer textarea { min-width:0; }
+
+@media (max-width:760px) {
+  .shell-topbar-leading { gap:9px; }
+  .shell-back-button { min-height:30px; padding:0 8px; }
+  .shell-back-button kbd { display:none; }
+}
