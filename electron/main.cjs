@@ -471,7 +471,7 @@ async function importGguf() {
 }
 
 async function importLibraryFile() {
-  const picked = await dialog.showOpenDialog(mainWindow, { title: "Add a file to Sync AI File Library", properties: ["openFile"] });
+  const picked = await showOpenDialogWithFocus({ title: "Add a file to Sync AI File Library", properties: ["openFile"] });
   if (picked.canceled || !picked.filePaths[0]) return null;
   const info = await inspectPickedFile(picked.filePaths[0]);
   return database.register_library_file(info);
@@ -520,7 +520,7 @@ function extractImportedMemory(raw, extension) {
 }
 
 async function importMemoryFile() {
-  const picked = await dialog.showOpenDialog(mainWindow, {
+  const picked = await showOpenDialogWithFocus({
     title: "Import memory for Sync AI",
     properties: ["openFile"],
     filters: [{ name: "Memory files", extensions: ["txt", "md", "markdown", "json", "jsonl"] }]
@@ -540,7 +540,7 @@ async function importMemoryFile() {
 }
 
 async function relinkLibraryFile({ fileId }) {
-  const picked = await dialog.showOpenDialog(mainWindow, { title: "Relink File Library entry", properties: ["openFile"] });
+  const picked = await showOpenDialogWithFocus({ title: "Relink File Library entry", properties: ["openFile"] });
   if (picked.canceled || !picked.filePaths[0]) return null;
   const info = await inspectPickedFile(picked.filePaths[0]);
   return database.relink_library_file({ fileId, ...info });
@@ -821,7 +821,7 @@ const handlers = {
       throw new Error("Unsupported file operation.");
     }
     if (operation === "create-folder") {
-      const picked = await dialog.showOpenDialog(mainWindow, {
+      const picked = await showOpenDialogWithFocus({
         title: "Choose where to create the folder",
         properties: ["openDirectory"]
       });
@@ -829,7 +829,7 @@ const handlers = {
       return actionManager.prepareFileOperation({ operation, parentPath: picked.filePaths[0], folderName });
     }
 
-    const pickedSource = await dialog.showOpenDialog(mainWindow, {
+    const pickedSource = await showOpenDialogWithFocus({
       title: operation === "delete" ? "Choose a file to remove safely" : "Choose a source file",
       properties: ["openFile"]
     });
@@ -839,7 +839,7 @@ const handlers = {
 
     let destinationPath;
     if (operation === "move") {
-      const pickedFolder = await dialog.showOpenDialog(mainWindow, {
+      const pickedFolder = await showOpenDialogWithFocus({
         title: "Choose the destination folder",
         properties: ["openDirectory"]
       });
