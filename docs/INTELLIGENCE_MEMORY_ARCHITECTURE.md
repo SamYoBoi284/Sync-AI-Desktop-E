@@ -352,3 +352,42 @@ The following changes supersede the baseline gaps above:
 - Added database tests for query-ranked Memory, independent Notes/Workspace retrieval, opt-in behavior and empty-query fallback; added an IPC/prompt contract test.
 - Latest source commit at this checkpoint: 2209601e2487b8c37b59a23feba29788944be434.
 - Source-validation on that commit: Ubuntu 48 passed, 1 failed, 1 skipped; Windows 45 passed, 5 failed. The new Memory, migration, retrieval and prompt-contract tests passed. Remaining failures are the existing inference source-contract assertion on both platforms plus four Windows file-operation/path checks in hosted temporary folders. This is not a green full-suite result.
+
+
+## 2026-11-26 — Memory Center and automatic context compaction implementation
+
+This section supersedes earlier Phase 1 status notes that say Memory search/review, global prompt budgeting or automatic summary generation are not implemented.
+
+### Memory Center
+
+- Added SQLite migration v9 with a durable `memory_candidates` queue. Candidate states are pending, approved or rejected; source chat/message snapshots are retained independently of the original chat's lifetime.
+- Added bounded candidate creation (maximum 50 pending, 2,000 characters per candidate, up to eight verified source messages), list/review/delete APIs, and transactional approval/rejection.
+- Added three learning modes: Off, Review first and Automatic. The legacy `memory_auto_learn` setting is read for backward compatibility; the new `memory_learning_mode` preference takes precedence.
+- Off prevents the extra learning inference. Review first creates a pending suggestion and does not write it to saved Memory. Approval applies it to the learned profile and attaches provenance; rejection leaves saved Memory unchanged. Automatic retains the prior learned-profile update behavior.
+- Added Memory search, category/status filters, UTF-8 byte usage display against the existing 4 MiB / 50-item limits, pending-review queue, and learning controls.
+- Added an overall prompt budget setting (40–80%, 5% increments; default 65%) with a conservative output/safety reserve and the existing independent Memory budget (128–512 estimated tokens).
+
+### Context budget and summaries
+
+- The main-process context policy uses the currently loaded model context length and supplies a bounded estimated character allowance to prompt assembly.
+- Prompt assembly now clips Memory, Notes, Workspace, summary and transcript sections under one overall prompt allowance; the newest transcript text is preserved preferentially when clipping is necessary.
+- Automatic conversation summaries are enabled by default and can be disabled in Memory settings. When a conversation grows beyond the configured prompt budget threshold, Sync uses the loaded model to incrementally refresh its stored summary.
+- Summarization retains the newest eight conversation messages verbatim and summarizes only older messages not already covered by the current summary cursor. Summary updates are saved with that cursor and use the existing stale-summary invalidation rules.
+- Learning and summary generation use the already-loaded model; no extra model, embedding service, vector database or background worker is introduced. They do perform additional inference when their respective features are enabled and thresholds are reached.
+
+### Current substep status
+
+- Step 0 — Repository and architecture audit: COMPLETE.
+- Step 1 — Data model and storage API: COMPLETE (schema v9).
+- Step 2 — Memory Center improvements: COMPLETE.
+- Step 3 — Independent Notes retrieval: COMPLETE.
+- Step 4 — Context orchestration and retrieval: COMPLETE for the current local lexical/character-budget design. Token limits are estimates, not exact model-token counts.
+- Step 5 — Conversation summaries and compaction: IN PROGRESS. Incremental generation, storage, cursor invalidation and prompt consumption are implemented; summary inspection/rebuild UI and cross-conversation summary retrieval remain.
+- Step 6 — Model Profiles: NOT STARTED.
+
+### Validation checkpoint
+
+- Source-level parsing passed for the changed database, main-process, renderer API, Memory page, chat page and test modules.
+- Latest source-validation on code checkpoint `1fd539ccbe213e50b75af9de658a29673ab5a2fc`: Ubuntu 56 passed, 1 failed, 1 skipped. The only failure was the pre-existing inference source-contract assertion for the Windows process memory-guard call; the Windows-only guard test is skipped on Ubuntu. The new database, candidate review, prompt-budget and automatic-summary contract tests passed.
+- Windows source/file-action validation was still in progress at the time of this documentation update; previous Windows runs also report hosted temporary-path/symlink failures in existing file-operation tests. Check the newest run before declaring the whole workflow green.
+- Electron CI was still running through the native runtime/app launch/package checks. No manual UI test on the user's laptop or real-GGUF conversation test has been performed in this work session.
