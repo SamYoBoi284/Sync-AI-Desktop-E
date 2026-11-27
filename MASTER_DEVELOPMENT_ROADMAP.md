@@ -109,15 +109,15 @@ Status meanings:
 
 ### 7. Final Phase 1 validation — PENDING
 
-This is the next immediate task and is intentionally handed to the user.
+This remains a release-validation gate and can be completed alongside Phase 2 development; it is not a reason to leave Phase 1 implementation marked incomplete.
 
 - Run the complete database and contract test suites.
 - Run the repository build/syntax checks and inspect the latest GitHub Actions results.
-- Verify the v7-to-v12 migration against populated user data, including an existing v10/v11 installation and a fresh database.
+- Verify the v7-to-v14 migration against populated user data, including existing v10/v11/v12/v13 installations and a fresh database.
 - Verify recurring-topic evidence with a repeated subject (for example Rocket League) across at least three chats and four substantive user messages; a one-off subject (for example chess), routine greetings, casual slang and check-ins must not qualify. Confirm schema v13 rebuilds observations cached by older versions and schema v14 removes legacy learned-profile noise and unverified source links without touching manual Memory or chat history.
 - Verify Review first only proposes a subject when the user's examples show genuine interest or sustained engagement, returns no suggestion for ordinary chatter or temporary activity, and links only the exact model-selected supporting message IDs rather than every recent user message.
-- Verify greeting-only openers leave a chat titled `New conversation` and the first meaningful subject later supplies the title.
-- Verify a reader at the transcript bottom remains at the bottom when streaming is replaced with a saved reply, while a reader who has manually scrolled up keeps their position.
+- Verify greeting-only openers leave a chat titled `New conversation`, small-talk lead-ins are stripped from meaningful titles (for example, `doing good, what time is it rn?` becomes a time question title), and routine utility questions are excluded from Memory without being excluded from conversation titles.
+- Verify a reader at the transcript bottom remains at the bottom when streaming is replaced with a saved reply, while a reader who has manually scrolled up keeps their position. Background Memory and summary maintenance must not insert chat notices or force transcript re-renders; ordinary notices must not change transcript layout height.
 - Verify topic-aware rolling context: unrelated subject changes hide old summaries from the active prompt, relevant subjects retrieve them again, and ambiguous follow-ups keep continuity without deleting saved history.
 - Verify Memory candidate approval/rejection and source provenance.
 - Verify summary search, editing, deletion, rebuild, cancellation and cursor preservation.
@@ -128,7 +128,7 @@ This is the next immediate task and is intentionally handed to the user.
 - Load and test a real GGUF model, including context limits, output limits, profile application and worker recovery.
 - Verify behavior on the intended low-RAM target device and with the Windows worker memory limiter configured.
 
-**Validation already performed in the implementation handoff:** static syntax compilation passed for the changed CommonJS, classic renderer and test modules; the renderer API-to-main IPC comparison found no missing handlers. These checks are not a substitute for running the tests, CI, Electron UI or real-GGUF inference. Do not mark runtime validation complete until those checks have actually passed.
+**Validation snapshot (commit `d1b271fd`):** the Ubuntu source/action-safety workflow passed, including source syntax and the database, contract and renderer tests. Windows syntax/test, Electron startup, native GGUF runtime, UI automation and installer packaging remain in progress or pending. Earlier Windows test attempts failed in existing protected-path and symbolic-link file-action cases; those failures are tracked separately from the Memory/Quick Ask work. Do not mark Windows/runtime validation complete until the latest run and manual target-device checks have actually passed.
 
 ### Phase 1 position
 
@@ -145,7 +145,7 @@ This is the next immediate task and is intentionally handed to the user.
 - Per-GGUF inference profiles: **IMPLEMENTED**.
 - Final test, CI, migration, manual UI and real-GGUF validation: **PENDING**.
 
-**Next target after validation:** Phase 2 — Desktop Integration.
+**Phase 2 — Desktop Integration is now active.** Phase 1 implementation is complete; its release-validation gate remains open.
 
 ---
 
@@ -474,6 +474,14 @@ Further refinements can be scheduled as needed without blocking the Command Pale
 - Per-GGUF inference profiles: **IMPLEMENTED**.
 - Phase 1 implementation: **COMPLETE**. Final database/contract test execution, CI review, v7-to-v14 migration verification, manual Electron UI and real-GGUF validation: **PENDING**.
 
-**Immediate next task:** Continue Phase 2 — finish the user-facing Low-Memory loading preference and remaining tray behavior, then extend Quick Ask settings and runtime diagnostics. Keep Phase 1, item 7 as a separate validation task: run the updated test suite/build, verify v7-to-v14 migration and topic-learning/context-compaction regressions, then manually test chat scrolling, the native-dialog focus fix, device-local time, Quick Ask and real-GGUF behavior on Windows. Phase 1 implementation is complete; validation must not be misreported as passed.
+**Phase 2 — Desktop Integration**
+
+- Device-local time context: **IMPLEMENTED**.
+- Quick Ask overlay, configurable shortcut, tray launch and live response display: **IMPLEMENTED; Windows runtime validation pending**.
+- Temporary model policy: **IMPLEMENTED for Quick Ask — Default / Smallest / Most Recent / Custom; reuse existing model, unload temporary model when overlay closes**.
+- Tray New conversation and Quick Ask actions: **IMPLEMENTED**.
+- Low-Memory loading preference and remaining tray/runtime refinements: **IN PROGRESS / NOT STARTED AS INDICATED IN PHASE 2 SECTIONS**.
+
+**Immediate next task:** Continue Phase 2 — complete the user-facing Low-Memory loading preference and remaining tray behavior, then extend Quick Ask settings and runtime diagnostics. Keep Phase 1, item 7 as a separate validation task: run the updated test suite/build, verify v7-to-v14 migration and topic-learning/context-compaction regressions, then manually test chat scrolling, the native-dialog focus fix, device-local time, Quick Ask and real-GGUF behavior on Windows. Phase 1 implementation is complete; validation must not be misreported as passed.
 
 **Continuity requirement:** Every future development session must inspect the current repository and this roadmap before starting new work. The implementation on the current branch takes precedence over this document if they disagree.
