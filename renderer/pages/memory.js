@@ -114,10 +114,8 @@ async function mountMemory(root) {
   function renderSummaries() {
     const host = root.querySelector("#conversationSummaryResults");
     if (!host) return;
-    const term = summarySearchQuery.trim().toLocaleLowerCase();
-    const visible = conversationSummaries.filter(item =>
-      !term || [item.chatTitle,item.summary].some(value => String(value || "").toLocaleLowerCase().includes(term))
-    );
+    // The database has already searched and relevance-ranked the full summary index.
+    const visible = conversationSummaries;
     const selected = conversationSummaries.find(item => item.chatId === selectedSummaryId) || null;
     if (!conversationSummaries.length) {
       host.innerHTML = '<div class="privacy-history-empty">No conversation summaries have been saved yet. Once longer chats are compacted, they will appear here for inspection and maintenance.</div>';
