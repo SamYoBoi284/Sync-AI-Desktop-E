@@ -109,12 +109,12 @@ class SyncDatabase {
       this.db.exec("BEGIN IMMEDIATE");
       try{
         const insert=this.db.prepare("INSERT OR IGNORE INTO topic_observation_messages(message_id,chat_id,terms_json,observed_at) VALUES(?,?,?,?)");
-        const stop=new Set(["about","after","again","also","always","another","any","are","because","been","before","being","between","both","could","did","does","doing","done","dont","each","even","every","from","going","good","gonna","got","had","has","have","having","here","how","just","know","like","look","make","many","maybe","more","most","much","need","never","only","other","over","really","said","same","some","something","still","such","than","that","them","then","there","these","they","thing","things","this","those","through","today","tomorrow","under","very","want","well","were","what","when","where","which","while","who","why","will","with","would","yeah","yes","you","your","yours"]);
-        const sensitive=/\\b(?:health|medical|medicine|medication|diagnos(?:is|ed)|symptom|therapy|therapist|mental health|depression|anxiety|religion|religious|faith|prayer|politic(?:s|al)|election|sexual(?:ity)?|orientation|ethnic(?:ity)?|race|criminal|crime|addiction|pregnan(?:t|cy)|hiv|std|financial hardship)\\b/i;
+        const stop=new Set(["about","after","again","also","always","another","any","are","because","been","before","being","between","both","could","did","does","doing","done","dont","each","even","every","from","going","good","morning","hey","hello","gonna","got","had","has","have","having","here","how","just","know","like","look","make","many","maybe","more","most","much","need","never","only","other","over","really","said","same","some","something","still","such","than","that","them","then","there","these","they","thing","things","this","those","through","today","tomorrow","under","very","want","well","were","what","when","where","which","while","who","why","will","with","would","yeah","yes","you","your","yours"]);
+        const sensitive=/\b(?:health|medical|medicine|medication|diagnos(?:is|ed)|symptom|therapy|therapist|mental health|depression|anxiety|religion|religious|faith|prayer|politic(?:s|al)|election|sexual(?:ity)?|orientation|ethnic(?:ity)?|race|criminal|crime|addiction|pregnan(?:t|cy)|hiv|std|financial hardship)\b/i;
         for(const row of pending){
           const body=String(row.body||"").normalize("NFKC");
           if(sensitive.test(body)){insert.run(row.id,row.chat_id,"[]",now());continue;}
-          const tokens=(body.toLocaleLowerCase().match(/[\\p{L}][\\p{L}\\p{N}+#'-]{2,}/gu)||[]).slice(0,240);
+          const tokens=(body.toLocaleLowerCase().match(/[\p{L}][\p{L}\p{N}+#'-]{2,}/gu)||[]).slice(0,240);
           const terms=new Set();
           for(let i=0;i<tokens.length;i++){
             const current=tokens[i];
@@ -141,7 +141,7 @@ class SyncDatabase {
         if(!item){item={term,messageIds:new Set(),chatIds:new Set(),examples:[]};evidence.set(term,item);}
         item.messageIds.add(row.message_id);
         item.chatIds.add(row.chat_id);
-        if(item.examples.length<3)item.examples.push({chatTitle:String(row.chat_title||"Conversation").slice(0,100),excerpt:String(row.body||"").replace(/\\s+/g," ").slice(0,180)});
+        if(item.examples.length<3)item.examples.push({chatTitle:String(row.chat_title||"Conversation").slice(0,100),excerpt:String(row.body||"").replace(/\s+/g," ").slice(0,180)});
       }
     }
     const candidates=[...evidence.values()]
