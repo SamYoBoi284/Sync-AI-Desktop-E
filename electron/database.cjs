@@ -83,7 +83,10 @@ class SyncDatabase {
             if(/^(?:communication )?habits?\s*:/i.test(entry)&&/\b(?:bro|dude|yo+|yooo|hey|hello|sup|greeting|slang)\b/i.test(entry))return false;
             return true;
           }).join("\n").trim();
-          if(cleaned&&cleaned!==item.content)d.prepare("UPDATE memories SET content=?,updated_at=? WHERE id=?").run(cleaned,now(),item.id);
+          if(cleaned!==item.content){
+            if(cleaned)d.prepare("UPDATE memories SET content=?,updated_at=? WHERE id=?").run(cleaned,now(),item.id);
+            else d.prepare("DELETE FROM memories WHERE id=?").run(item.id);
+          }
           // Prior auto-learning attached nearly every recent user turn. Those links
           // cannot be trusted as evidence, so rebuild them only from future cited IDs.
           d.prepare("DELETE FROM memory_sources WHERE memory_id=?").run(item.id);
