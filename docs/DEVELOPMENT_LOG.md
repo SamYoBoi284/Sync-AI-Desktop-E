@@ -187,3 +187,13 @@ Chronological record of meaningful implementation sessions. Keep entries factual
 - Visual pass (Claude): polish all existing pages and shared motion while preserving architecture, functionality, accessibility, API contracts and file-operation safety. Keep the splash artwork; fix its lifecycle to remain visible for approximately 4–7 seconds minimum and until the app is ready. Export edited files and an updated tracker.
 - After the visual pass: implement a centralized customizable shortcut manager, shortcut reference in Settings, global search (`Ctrl+K`), command palette (`Ctrl+Shift+P`), nested-interface Escape priority, visible @ button removal while preserving typed @, and inline composer message editing with Cancel and `Alt+C`.
 - These are requested future tasks, not claims of completed implementation. Other keyboard bindings must be validated for conflicts before they are finalized.
+
+
+## November 26, 2026 — Appearance preferences
+
+- Replaced the Appearance placeholder with a live preferences page.
+- Added local persistence using the existing settings bridge; no IPC or database schema changes.
+- Implemented System/Dark/Light, accent presets and custom color, Comfortable/Compact density, Soft/Outlined chat style, adjustable message font size, and motion preferences.
+- Saved preferences are applied during app bootstrap; page edits preview immediately and persist only after Save.
+- Added `src/appearance.css` after the motion stylesheet. Source-level checks confirmed the stylesheet is linked last, CSS braces balance, the page route is registered, and the obsolete coming-soon copy is removed.
+- Not yet verified in a running Electron window; run `npm run build` and `npm test`, then inspect both light and dark themes on the target machine.
