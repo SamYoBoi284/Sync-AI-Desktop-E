@@ -103,10 +103,12 @@ async function mountMemory(root) {
 
   function summaryDraftClip(value, limit) {
     const textValue = String(value || "");
-    if (limit <= 0) return "";
-    if (textValue.length <= limit) return textValue;
-    if (limit < 24) return textValue.slice(-limit);
-    return "…[earlier content clipped]…\n" + textValue.slice(-(limit - 28));
+    const maximum = Math.max(0, Number(limit) || 0);
+    if (!maximum) return "";
+    if (textValue.length <= maximum) return textValue;
+    const marker = "…[earlier content clipped]…\n";
+    if (maximum <= marker.length) return textValue.slice(-maximum);
+    return marker + textValue.slice(-(maximum - marker.length));
   }
 
   function renderSummaries() {
