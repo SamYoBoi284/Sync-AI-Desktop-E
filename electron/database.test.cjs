@@ -168,7 +168,7 @@ test("invalidates a conversation summary when a queued reply is inserted inside 
 }));
 
 
-test("upgrades a populated version-7 database through version 9 without losing user data", () => {
+test("upgrades a populated version-7 database through version 10 without losing user data", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sync-ai-v7-upgrade-"));
   const file = path.join(dir, "legacy-v7.sqlite3");
   let db = new SyncDatabase(file);
@@ -184,6 +184,7 @@ test("upgrades a populated version-7 database through version 9 without losing u
 
     // Reconstruct the schema shape immediately before migration v8.
     db.db.exec("DROP INDEX idx_memories_rank;");
+    db.db.exec("DROP TABLE IF EXISTS model_profiles;");
     db.db.exec("DROP INDEX idx_memory_candidates_status_created;");
     db.db.exec("DROP TABLE memory_candidates;");
     db.db.exec("DROP TABLE conversation_summaries;");
@@ -205,7 +206,7 @@ test("upgrades a populated version-7 database through version 9 without losing u
     assert.equal(migratedMemory.pinned, false);
     assert.equal(db.get_chat({ chatId: chat.id }).messages[0].body, "Preserve this transcript.");
     assert.equal(db.get_note({ noteId: note.id }).content, "Preserve this note.");
-    assert.equal(Number(db.db.prepare("SELECT MAX(version) v FROM schema_migrations").get().v), 9);
+    assert.equal(Number(db.db.prepare("SELECT MAX(version) v FROM schema_migrations").get().v), 10);
     assert.deepEqual(db.get_conversation_summary({ chatId: chat.id }), null);
   } finally {
     try { db.close(); } catch {}
@@ -349,4 +350,47 @@ test("memory candidate queue validates states and caps pending suggestions", () 
   db.review_memory_candidate({ candidateId: candidate.id, decision: "reject" });
   db.delete_memory_candidate({ candidateId: candidate.id });
   assert.equal(db.list_memory_candidates({ status: "all" }).length, 0);
+}));
+
+test("lists conversation summaries and retrieves relevant summaries without including the active chat", () => withDb(db => {
+  const current = db.create_chat({ title: "Current troubleshooting" });
+  db.append_message({ chatId: current.id, message: { role: "user", body: "Troubleshoot controller input." } });
+  db.save_conversation_summary({ chatId: current.id, summary: "The current conversation is about controller input troubleshooting.", throughPosition: 0 });
+  const related = db.create_chat({ title: "Rocket League controller setup" });
+  db.append_message({ chatId: related.id, message: { role: "user", body: "Compare controller deadzones." } });
+  db.save_conversation_summary({ chatId: related.id, summary: "Rocket League controller setup: adjusted deadzones and tested wired input.", throughPosition: 0 });
+  const unrelated = db.create_chat({ title: "Meal planning" });
+  db.append_message({ chatId: unrelated.id, message: { role: "user", body: "Plan weekly meals." } });
+  db.save_conversation_summary({ chatId: unrelated.id, summary: "A weekly meal plan with vegetarian dinners.", throughPosition: 0 });
+  const listed = db.list_conversation_summaries({ query: "Rocket League controller" });
+  assert.equal(listed[0].chatId, related.id);
+  assert.equal(listed[0].chatTitle, "Rocket League controller setup");
+  assert.equal(listed[0].latestPosition, 0);
+  const retrieved = db.list_conversation_summary_context({
+    query: "Rocket League controller deadzones", currentChatId: current.id, limit: 4
+  });
+  assert.equal(retrieved.length, 1);
+  assert.equal(retrieved[0].chatId, related.id);
+  assert.match(retrieved[0].summary, /deadzones/);
+  assert.ok(!retrieved.some(item => item.chatId === current.id || item.chatId === unrelated.id));
+}));
+
+test("persists validated per-model inference profiles and removes them with their model", () => withDb(db => {
+  const registered = db.register_model({
+    filePath: "/missing/test-model.gguf", fileName: "test-model.gguf", sizeBytes: 100,
+    sha256: "a".repeat(64), name: "Test model"
+  }).model;
+  assert.equal(db.get_model_profile({ modelId: registered.id }), null);
+  const saved = db.save_model_profile({ modelId: registered.id, profile: {
+    contextLength: 4096, batchSize: 256, temperature: 0.65, maxOutputTokens: 384
+  } });
+  assert.equal(saved.contextLength, 4096);
+  assert.equal(saved.batchSize, 256);
+  assert.equal(saved.temperature, 0.65);
+  assert.equal(saved.maxOutputTokens, 384);
+  assert.throws(() => db.save_model_profile({ modelId: registered.id, profile: {
+    contextLength: 512, batchSize: 1024, temperature: 0.7, maxOutputTokens: 128
+  } }), /batch size/);
+  db.remove_model({ modelId: registered.id });
+  assert.equal(db.db.prepare("SELECT model_id FROM model_profiles WHERE model_id=?").get(registered.id), undefined);
 }));
