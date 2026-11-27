@@ -145,7 +145,7 @@ test("Memory learning review modes have persistent candidate storage and explici
   assert.match(memoryPage, /reject-candidate/);
   assert.match(chat, /mode === "review"/);
   assert.match(chat, /api\.createMemoryCandidate\(/);
-  assert.match(chat, /api\.reviewMemoryCandidate/);
+  assert.match(memoryPage, /api\.reviewMemoryCandidate/);
 });
 
 test("overall prompt budgeting is bounded and leaves recent transcript context intact", () => {
