@@ -365,3 +365,15 @@ None added. No frameworks, bundlers or animation libraries.
 - Removed the Stop button entrance animation and made the message action rail stable during streaming to prevent repeated opacity/entrance transitions.
 - Scope: `renderer/pages/chat.js`, `src/motion.css`. No API, IPC, database, inference, or file-operation safety contracts changed.
 - Validation: source-level checks confirmed the token event no longer invokes full render, the composer mention button/action are absent, sibling message action rails and streaming text target are present, and runtime polling is guarded. Full Electron build/tests and live visual verification still need to be run locally.
+
+
+## Appearance preferences implementation (November 26, 2026)
+
+- Replaced the Appearance "Coming soon" placeholder with a working settings page in `renderer/pages/preview.js` (exported as `mountAppearance`).
+- Added persistent `appearance_preferences` setting through the existing `api.getSetting` / `api.setSetting` bridge contract.
+- Controls: System/Dark/Light theme, six accent presets plus custom hex color picker, Comfortable/Compact density, Soft/Outlined chat message style, 12–18 px chat text size, and System/Full/Reduced/Off motion preferences.
+- Preference changes preview immediately; Save persists locally and Restore defaults updates the live preview. Existing default remains the dark Sync navy/violet identity.
+- Added `src/appearance.css` after `motion.css` for the new controls, light theme overrides, density/chat presentation and motion settings.
+- `renderer/app.js` now routes the Appearance page to its real module and applies saved preferences during startup before the first page render. `renderer/shared.js` no longer advertises Appearance as coming soon.
+- No framework, dependency, IPC, database schema or native host changes.
+- Validation: source checks and syntax checks are still pending; live Electron appearance review and project build/tests must be run locally.
