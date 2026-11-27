@@ -3,7 +3,7 @@ const { api } = window.SyncAI;
 const { esc, errorText, pageEyebrow } = window.SyncAI.shared;
 const KEY = "appearance_preferences";
 const DEFAULTS = Object.freeze({
-  theme: "system",
+  theme: "dark",
   accent: "#a879ff",
   density: "comfortable",
   chatStyle: "soft",
