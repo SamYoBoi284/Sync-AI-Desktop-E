@@ -91,6 +91,18 @@ class SyncDatabase {
           // cannot be trusted as evidence, so rebuild them only from future cited IDs.
           d.prepare("DELETE FROM memory_sources WHERE memory_id=?").run(item.id);
         }
+        const pendingCandidates=d.prepare("SELECT id,content FROM memory_candidates WHERE title='Learned profile' AND status='pending'").all();
+        for(const candidate of pendingCandidates){
+          const cleaned=String(candidate.content||"").split(/\r?\n/).filter(line=>{
+            const entry=line.trim().replace(/^[-*•]\s*/,"");
+            if(/^(?:current )?status\s*:/i.test(entry))return false;
+            if(/^other mentions?\b/i.test(entry))return false;
+            if(/^(?:communication )?habits?\s*:/i.test(entry)&&/\b(?:bro|dude|yo+|yooo|hey|hello|sup|greeting|slang)\b/i.test(entry))return false;
+            return true;
+          }).join("\n").trim();
+          if(cleaned)d.prepare("UPDATE memory_candidates SET content=?,source_chat_id=NULL,source_chat_title='',source_messages_json='[]' WHERE id=?").run(cleaned,candidate.id);
+          else d.prepare("DELETE FROM memory_candidates WHERE id=?").run(candidate.id);
+        }
         d.prepare("INSERT INTO schema_migrations VALUES(?,?)").run(14,now());
         d.exec("COMMIT");
       }catch(error){d.exec("ROLLBACK");throw error;}
