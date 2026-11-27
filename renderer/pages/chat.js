@@ -22,7 +22,7 @@ function buildPrompt(messages, contexts = {}, summary = null, latestMessageId = 
   const otherConversationContext = Array.isArray(contexts.conversationSummaries) ? contexts.conversationSummaries : [];
   const summaryText = summary?.relevantForQuery === false ? "" : (typeof summary?.summary === "string" ? summary.summary.trim() : "");
   let transcriptMessages = messages.filter(m => m.role === "user" || m.role === "assistant");
-  if (summaryText && Number.isInteger(Number(summary.throughPosition))) {
+  if (summary && Number.isInteger(Number(summary.throughPosition))) {
     const cursor = Number(summary.throughPosition);
     transcriptMessages = transcriptMessages.filter(m => Number(m.position) > cursor || m.id === latestMessageId);
   }
@@ -443,8 +443,8 @@ async function mountChat(root, context, initialChatId = null) {
     const topicEvidence = await api.getRecurringTopicEvidence().catch(() => ({ candidates: [] }));
     const topicEvidenceText = (topicEvidence?.candidates || []).map(item =>
       "- " + item.term + " — appears in " + item.messageCount + " separate user messages across " + item.conversationCount + " conversations" +
-      (item.examples || []).slice(0, 2).map(example => "\\n  [" + example.chatTitle + "] " + example.excerpt).join("")
-    ).join("\\n").slice(0, 1800) || "No recurring subject or behavior has reached the evidence threshold.";
+      (item.examples || []).slice(0, 2).map(example => "\n  [" + example.chatTitle + "] " + example.excerpt).join("")
+    ).join("\n").slice(0, 1800) || "No recurring subject or behavior has reached the evidence threshold.";
     const evidenceBudget = Math.min(1800, Math.max(200, Math.floor(remaining * 0.25)));
     const profileBudget = Math.floor((remaining - evidenceBudget) * 0.25);
     const userBudget = remaining - evidenceBudget - profileBudget;
@@ -464,7 +464,7 @@ async function mountChat(root, context, initialChatId = null) {
       recentUserText,
       "",
       "UPDATED PROFILE:"
-    ].join("\\n");
+    ].join("\n");
 
     const memoryGenerationId = makeId();
     activeGenerationId = memoryGenerationId;
