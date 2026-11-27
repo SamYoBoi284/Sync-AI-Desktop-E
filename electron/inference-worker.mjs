@@ -63,16 +63,21 @@ async function generate(data) {
   const controller = new AbortController();
   const startedAt = new Date().toISOString();
   const clock = process.hrtime.bigint();
-  let sequence = null, session = null, generatedTokens = 0, promptTokens = 0, promptEvalMs = null, output = "", result = null;
+  let sequence = null, session = null, generatedTokens = 0, promptTokens = 0, systemPromptTokens = 0, maxOutputTokens = 0, promptEvalMs = null, output = "", result = null;
   activeGeneration = { generationId, controller };
 
   try {
     promptTokens = model.tokenize(data.prompt, true).length;
+    systemPromptTokens = model.tokenize(SYSTEM_PROMPT, true).length;
+    const safetyReserveTokens = 16;
+    const availableOutputTokens = loaded.contextLength - promptTokens - systemPromptTokens - safetyReserveTokens;
+    if (availableOutputTokens < 1) throw new Error("The prompt and Sync system instructions fill the model context window. Lower the prompt budget or shorten the conversation before generating.");
+    maxOutputTokens = Math.min(512, availableOutputTokens);
     if (context.sequencesLeft <= 0) throw new Error("No context sequences are available. Use Force Stop Generation to restart the inference worker and reclaim them.");
     sequence = context.getSequence();
     session = new LlamaChatSession({ contextSequence: sequence, systemPrompt: SYSTEM_PROMPT });
     const response = await session.prompt(data.prompt, {
-      maxTokens: 512, temperature: 0.7, signal: controller.signal, stopOnAbortSignal: true,
+      maxTokens: maxOutputTokens, temperature: 0.7, signal: controller.signal, stopOnAbortSignal: true,
       onTextChunk(chunk) {
         if (!chunk) return;
         if (promptEvalMs == null) promptEvalMs = Number(process.hrtime.bigint() - clock) / 1e6;
@@ -89,7 +94,7 @@ async function generate(data) {
     result = { text: output, diagnostics: {
       generationId, modelId: loaded.modelId, modelLabel: loaded.modelName, backend: "llama.cpp",
       backendVersion: "node-llama-cpp 3.22.3", status: cancelled ? "cancelled" : "completed",
-      promptTokens, generatedTokens, promptEvalMs, generationMs, tokensPerSecond,
+      promptTokens, systemPromptTokens, maxOutputTokens, generatedTokens, promptEvalMs, generationMs, tokensPerSecond,
       contextSize: context.contextSize, maxContextSize: loaded.contextLength, batchSize: loaded.batchSize,
       temperature: 0.7, stopReason: cancelled ? "abort" : "completed",
       errorCode: null, errorMessage: null, startedAt, finishedAt: new Date().toISOString()
@@ -102,7 +107,7 @@ async function generate(data) {
     result = { text: output, diagnostics: {
       generationId, modelId: loaded?.modelId ?? null, modelLabel: loaded?.modelName ?? null,
       backend: "llama.cpp", backendVersion: "node-llama-cpp 3.22.3",
-      status: cancelled ? "cancelled" : "error", promptTokens, generatedTokens, promptEvalMs, generationMs, tokensPerSecond,
+      status: cancelled ? "cancelled" : "error", promptTokens, systemPromptTokens, maxOutputTokens, generatedTokens, promptEvalMs, generationMs, tokensPerSecond,
       contextSize: context?.contextSize ?? null, maxContextSize: loaded?.contextLength ?? null, batchSize: loaded?.batchSize ?? null,
       temperature: 0.7, stopReason: cancelled ? "cancelled" : null,
       errorCode: cancelled ? null : "generation_failed",
