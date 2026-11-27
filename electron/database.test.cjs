@@ -288,7 +288,7 @@ test("recurring topic evidence detects interests across chats and ignores one-of
   const afterEdit = db.get_recurring_topic_evidence();
   const updatedRocketLeague = afterEdit.candidates.find(item => item.term === "rocket league");
   assert.ok(updatedRocketLeague);
-  assert.equal(updatedRocketLeague.messageCount, rocketLeague.messageCount - 1);
+  assert.equal(updatedRocketLeague.messageCount, rocketLeague.messageCount - 2, "editing a turn also removes every later message in that conversation");
 }));
 
 
