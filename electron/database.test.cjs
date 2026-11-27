@@ -305,10 +305,15 @@ test("schema v14 cleans legacy auto-learned noise and resets untrusted provenanc
       source: "Auto-learned from conversations",
       category: "profile"
     } });
+    const emptyLearned = db.save_memory({ memory: {
+      title: "Empty learned profile", content: "* Status: Doing good\n* Habits: Uses bro frequently\n* Other mentions cycling",
+      source: "Auto-learned from conversations", category: "profile"
+    } });
     const manual = db.save_memory({ memory: {
       title: "Manual memory", content: "Keep its evidence.", source: "manual"
     } });
     db.add_memory_source({ memoryId: learned.id, chatId: chat.id, messageId: source.id });
+    db.add_memory_source({ memoryId: emptyLearned.id, chatId: chat.id, messageId: source.id });
     db.add_memory_source({ memoryId: manual.id, chatId: chat.id, messageId: source.id });
 
     // Simulate an existing v13 profile created before the cleanup migration.
@@ -321,6 +326,7 @@ test("schema v14 cleans legacy auto-learned noise and resets untrusted provenanc
     assert.match(cleaned.content, /Interests: Rocket League/);
     assert.doesNotMatch(cleaned.content, /Status:|Habits:|Other mentions/i);
     assert.equal(cleaned.sources.length, 0, "unverified legacy learned-profile sources are cleared");
+    assert.throws(() => db.get_memory({ memoryId: emptyLearned.id }), /Memory entry not found/);
     assert.equal(db.get_memory({ memoryId: manual.id }).sources.length, 1, "manual Memory provenance remains intact");
     assert.equal(Number(db.db.prepare("SELECT MAX(version) v FROM schema_migrations").get().v), 14);
   } finally {
