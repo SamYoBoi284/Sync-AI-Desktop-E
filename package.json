@@ -30,6 +30,7 @@
     },
     "files": [
       "index.html",
+      "quick-ask.html",
       "renderer/**/*",
       "src/*.css",
       "electron/**/*",
