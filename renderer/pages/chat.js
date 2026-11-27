@@ -577,7 +577,6 @@ async function mountChat(root, context, initialChatId = null) {
     } finally {
       activeGenerationId = null;
       stopAvailable = false;
-      render();
     }
   }
 
@@ -680,7 +679,6 @@ async function mountChat(root, context, initialChatId = null) {
     } finally {
       activeGenerationId = null;
       stopAvailable = false;
-      render();
     }
   }
 
