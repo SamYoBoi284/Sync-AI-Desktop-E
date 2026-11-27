@@ -106,3 +106,22 @@ test("archive and folders routes replace the System section in sidebar", () => {
   assert.match(shared, /id: "folders"/);
   assert.match(html, /renderer\/pages\/folders\.js/);
 });
+
+
+test("Memory, Notes, Workspace and conversation summaries remain separate context sources", () => {
+  const database = fs.readFileSync(path.join(__dirname, "database.cjs"), "utf8");
+  const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
+  assert.match(database, /list_memory_context\(\{maxCharacters=12000,query=""\}/);
+  assert.match(database, /list_note_context\(\{query="",maxCharacters=16384\}/);
+  assert.match(database, /list_workspace_context\(\{query="",maxCharacters=32768\}/);
+  assert.match(main, /list_note_context:/);
+  assert.match(bridge, /listNoteContext: \(query = ""\)/);
+  assert.match(chat, /api\.listMemoryContext\(retrievalQuery\)/);
+  assert.match(chat, /api\.listNoteContext\(retrievalQuery\)/);
+  assert.match(chat, /api\.listWorkspaceContext\(retrievalQuery\)/);
+  assert.match(chat, /api\.getConversationSummary\(job\.chatId\)/);
+  assert.match(chat, /RELEVANT USER NOTES/);
+  assert.match(chat, /SELECTED WORKSPACE MATERIAL/);
+  assert.match(chat, /OLDER CONVERSATION SUMMARY/);
+  assert.match(chat, /Number\(m\.position\) > cursor \|\| m\.id === latestMessageId/);
+});
