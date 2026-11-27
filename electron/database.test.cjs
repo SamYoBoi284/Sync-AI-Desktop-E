@@ -184,12 +184,14 @@ test("upgrades a populated version-7 database to version 8 without losing user d
 
     // Reconstruct the schema shape immediately before migration v8.
     db.db.exec("DROP INDEX idx_memories_rank;");
+    db.db.exec("DROP INDEX idx_memory_candidates_status_created;");
+    db.db.exec("DROP TABLE memory_candidates;");
     db.db.exec("DROP TABLE conversation_summaries;");
     db.db.exec("DROP TABLE memory_sources;");
     db.db.exec("ALTER TABLE memories DROP COLUMN pinned;");
     db.db.exec("ALTER TABLE memories DROP COLUMN importance;");
     db.db.exec("ALTER TABLE memories DROP COLUMN category;");
-    db.db.prepare("DELETE FROM schema_migrations WHERE version=8").run();
+    db.db.prepare("DELETE FROM schema_migrations WHERE version>7").run();
     db.close();
 
     db = new SyncDatabase(file);
@@ -203,7 +205,7 @@ test("upgrades a populated version-7 database to version 8 without losing user d
     assert.equal(migratedMemory.pinned, false);
     assert.equal(db.get_chat({ chatId: chat.id }).messages[0].body, "Preserve this transcript.");
     assert.equal(db.get_note({ noteId: note.id }).content, "Preserve this note.");
-    assert.equal(Number(db.db.prepare("SELECT MAX(version) v FROM schema_migrations").get().v), 8);
+    assert.equal(Number(db.db.prepare("SELECT MAX(version) v FROM schema_migrations").get().v), 9);
     assert.deepEqual(db.get_conversation_summary({ chatId: chat.id }), null);
   } finally {
     try { db.close(); } catch {}
@@ -271,4 +273,80 @@ test("empty retrieval queries preserve all enabled or opted-in context without c
   assert.deepEqual(db.list_memory_context({ query: "" }).map(item => item.id), [memory.id]);
   assert.deepEqual(db.list_note_context({ query: "" }).map(item => item.id), [note.id]);
   assert.deepEqual(db.list_workspace_context({ query: "" }).map(item => item.id), [artifact.id]);
+}));
+
+
+test("creates persistent memory candidates with source-message snapshots without saving them as Memory", () => withDb(db => {
+  const chat = db.create_chat({ title: "Work preferences" });
+  const source = db.append_message({ chatId: chat.id, message: { role: "user", body: "I prefer concise shift handovers." } });
+  const candidate = db.create_memory_candidate({
+    title: "Learned profile",
+    content: "Prefers concise shift handovers.",
+    sourceChatId: chat.id,
+    sourceMessages: [{ messageId: source.id, excerpt: "I prefer concise shift handovers." }]
+  });
+  assert.equal(candidate.status, "pending");
+  assert.equal(candidate.sourceChatTitle, "Work preferences");
+  assert.equal(candidate.sourceMessages.length, 1);
+  assert.equal(db.list_memory_candidates({ status: "pending" }).length, 1);
+  assert.equal(db.list_memories().length, 0);
+}));
+
+test("approves a learning candidate into the learned profile and records its source provenance", () => withDb(db => {
+  const chat = db.create_chat({ title: "Stable preferences" });
+  const source = db.append_message({ chatId: chat.id, message: { role: "user", body: "I prefer lightweight applications." } });
+  const existing = db.save_memory({ memory: {
+    title: "Learned profile", content: "Older profile.", source: "Auto-learned from conversations",
+    category: "profile", importance: 4, pinned: true
+  } });
+  const candidate = db.create_memory_candidate({
+    content: "Prefers lightweight applications.",
+    sourceChatId: chat.id,
+    sourceMessages: [{ messageId: source.id, excerpt: "I prefer lightweight applications." }]
+  });
+  const result = db.review_memory_candidate({ candidateId: candidate.id, decision: "approve" });
+  assert.equal(result.candidate.status, "approved");
+  assert.equal(result.memory.id, existing.id);
+  assert.equal(result.memory.content, "Prefers lightweight applications.");
+  assert.equal(result.memory.importance, 4);
+  assert.equal(result.memory.pinned, true);
+  assert.equal(result.memory.sources.length, 1);
+  assert.equal(result.memory.sources[0].chatTitle, "Stable preferences");
+  assert.throws(() => db.review_memory_candidate({ candidateId: candidate.id, decision: "approve" }), /already been reviewed/);
+}));
+
+test("rejecting a learning candidate leaves the saved learned profile untouched", () => withDb(db => {
+  const existing = db.save_memory({ memory: {
+    title: "Learned profile", content: "Keep this profile.", source: "Auto-learned from conversations"
+  } });
+  const candidate = db.create_memory_candidate({ content: "A proposed replacement." });
+  const result = db.review_memory_candidate({ candidateId: candidate.id, decision: "reject" });
+  assert.equal(result.candidate.status, "rejected");
+  assert.equal(result.memory, null);
+  assert.equal(db.get_memory({ memoryId: existing.id }).content, "Keep this profile.");
+}));
+
+test("candidate source snapshots survive deletion of the originating conversation", () => withDb(db => {
+  const chat = db.create_chat({ title: "Old conversation" });
+  const source = db.append_message({ chatId: chat.id, message: { role: "user", body: "Original user statement." } });
+  const candidate = db.create_memory_candidate({
+    content: "A learned detail.",
+    sourceChatId: chat.id,
+    sourceMessages: [{ messageId: source.id, excerpt: "Original user statement." }]
+  });
+  db.delete_chat({ chatId: chat.id });
+  const stored = db.get_memory_candidate({ candidateId: candidate.id });
+  assert.equal(stored.sourceChatId, null);
+  assert.equal(stored.sourceChatTitle, "Old conversation");
+  assert.match(stored.sourceMessages[0].excerpt, /Original user statement/);
+}));
+
+test("memory candidate queue validates states and caps pending suggestions", () => withDb(db => {
+  const candidate = db.create_memory_candidate({ content: "One suggestion." });
+  assert.throws(() => db.list_memory_candidates({ status: "unknown" }), /Invalid candidate status/);
+  assert.throws(() => db.review_memory_candidate({ candidateId: candidate.id, decision: "delete" }), /decision/);
+  assert.throws(() => db.delete_memory_candidate({ candidateId: candidate.id }), /pending candidate/);
+  db.review_memory_candidate({ candidateId: candidate.id, decision: "reject" });
+  db.delete_memory_candidate({ candidateId: candidate.id });
+  assert.equal(db.list_memory_candidates({ status: "all" }).length, 0);
 }));
