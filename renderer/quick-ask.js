@@ -29,6 +29,7 @@ function setGenerating(value) {
   sendButton.disabled = !ready || generating || !promptInput.value.trim();
   promptInput.disabled = !ready || generating;
   stopButton.hidden = !generating;
+  stopButton.disabled = false;
   answerState.textContent = generating ? "GENERATING" : "RESPONSE";
 }
 async function prepare() {
