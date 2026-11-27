@@ -160,7 +160,7 @@ test("overall prompt budgeting is bounded and leaves recent transcript context i
   assert.match(chat, /maxPromptCharacters/);
   assert.match(chat, /fitPromptText\(transcriptText[\s\S]*true\)/);
   assert.match(chat, /api\.getContextPolicy\(\)/);
-  assert.match(chat, /outputReserveTokens/);
+  assert.match(main, /outputReserveTokens/);
 });
 
 test("older conversation summaries are incrementally generated without summarizing the newest eight messages", () => {
