@@ -593,14 +593,16 @@ const handlers = {
   get_conversation_summary: args => database.get_conversation_summary(args),
   save_conversation_summary: args => database.save_conversation_summary(args),
   delete_conversation_summary: args => database.delete_conversation_summary(args),
-  list_memory_context: () => {
+  list_memory_context: ({ query = "" } = {}) => {
     const raw = database.get_setting({ key: "memory_context_tokens" });
     let tokenBudget = 256;
     try { if (raw != null) tokenBudget = Number(JSON.parse(raw)); } catch {}
     if (!Number.isFinite(tokenBudget)) tokenBudget = 256;
     tokenBudget = Math.min(512, Math.max(128, Math.round(tokenBudget)));
-    return database.list_memory_context({ maxCharacters: tokenBudget * 4 });
+    const safeQuery = typeof query === "string" ? query.slice(0, 2000) : "";
+    return database.list_memory_context({ maxCharacters: tokenBudget * 4, query: safeQuery });
   },
+  list_note_context: ({ query = "" } = {}) => database.list_note_context({ query: typeof query === "string" ? query.slice(0, 2000) : "", maxCharacters: 16384 }),
   save_memory: args => database.save_memory(args),
   set_memory_enabled: args => database.set_memory_enabled(args),
   delete_memory: args => database.delete_memory(args),
@@ -723,7 +725,7 @@ const handlers = {
   create_workspace_artifact: args => database.save_workspace_artifact(args),
   update_workspace_artifact: args => database.save_workspace_artifact({ ...args, artifactId: args.artifactId }),
   delete_workspace_artifact: args => database.delete_workspace_artifact(args),
-  list_workspace_context: () => database.list_workspace_context(),
+  list_workspace_context: ({ query = "" } = {}) => database.list_workspace_context({ query: typeof query === "string" ? query.slice(0, 2000) : "", maxCharacters: 32768 }),
   list_tasks: args => database.list_tasks(args),
   create_task: args => database.save_task(args),
   update_task: args => database.save_task({ ...args, taskId: args.taskId }),
