@@ -106,7 +106,7 @@ async function mountMemory(root) {
     if (limit <= 0) return "";
     if (textValue.length <= limit) return textValue;
     if (limit < 24) return textValue.slice(-limit);
-    return "…[earlier content clipped]…\\n" + textValue.slice(-(limit - 25));
+    return "…[earlier content clipped]…\n" + textValue.slice(-(limit - 28));
   }
 
   function renderSummaries() {
