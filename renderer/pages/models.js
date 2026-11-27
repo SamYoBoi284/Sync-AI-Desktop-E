@@ -29,9 +29,9 @@ async function mountModels(root) {
           '<div class="shell-model-list">' + models.map(model => {
             const estimate = estimates[model.id], active = runtime?.loadedModelId === model.id, isBusy = anyBusy();
             const profile = profiles[model.id] || { contextLength: 2048, batchSize: 128, temperature: 0.7, maxOutputTokens: 512, isCustomized: false };
-            const contextChoices = [512,1024,2048,4096,8192,16384,32768];
-            const batchChoices = [16,32,64,128,256,512,1024,2048];
-            const outputChoices = [64,128,256,384,512];
+            const contextChoices = [...new Set([512,1024,2048,4096,8192,16384,32768,Number(profile.contextLength)])].sort((a,b) => a-b);
+            const batchChoices = [...new Set([16,32,64,128,256,512,1024,2048,Number(profile.batchSize)])].filter(value => value <= Number(profile.contextLength)).sort((a,b) => a-b);
+            const outputChoices = [...new Set([16,32,64,128,256,384,512,Number(profile.maxOutputTokens)])].sort((a,b) => a-b);
             return `<article class="shell-model-card"><div class="shell-model-icon">◈</div><div class="shell-model-info">
               <div class="shell-model-title-row"><h3>${esc(model.name)}</h3>${model.isDefault ? '<span class="shell-model-default">DEFAULT</span>' : ""}${active ? '<span class="shell-model-default">LOADED</span>' : ""}${!model.isAvailable ? '<span class="shell-model-default is-error">MISSING</span>' : ""}</div>
               <p>${esc(model.fileName)} · ${fmtBytes(model.sizeBytes)}</p><small>${esc(model.architecture || "Unknown architecture")} · ${esc(model.quantization || "Unknown quantization")}</small>
