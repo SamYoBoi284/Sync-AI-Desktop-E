@@ -108,9 +108,12 @@ function isLowSignalLearningMessage(value) {
   if (!normalized) return true;
   const greeting = /^(?:(?:yo+|hey+|hi+|hello+|heya|sup|morning|good morning|good afternoon|good evening)(?: (?:bro|dude|man|there|buddy))*(?: (?:how are you|how are u|hows it going|whats up|how have you been))?|how are you|how are u|hows it going|whats up|what is up|how you doing|how u doing|how about you|wbu|you good|sup(?: bro| dude)?)$/i;
   const temporaryStatus = /^(?:(?:im|i am) )?(?:doing )?(?:good|great|fine|okay|ok|alright|not bad|cant complain)(?: (?:and you|what about you|wbu))?$/i;
+  return greeting.test(normalized) || temporaryStatus.test(normalized);
+}
+
+function isRoutineUtilityQuestion(value) {
   const stripped = normalizeLowSignalText(stripSmallTalkLeadIn(value));
-  const routineUtilityQuestion = /^(?:what time is it(?: right now| now| rn)?|whats the time(?: right now| now| rn)?|what is the time(?: right now| now| rn)?|what day is it|what date is it)$/i;
-  return greeting.test(normalized) || temporaryStatus.test(normalized) || routineUtilityQuestion.test(stripped);
+  return /^(?:what time is it(?: right now| now| rn)?|whats the time(?: right now| now| rn)?|what is the time(?: right now| now| rn)?|what day is it|what date is it)$/i.test(stripped);
 }
 
 function sanitizeLearnedProfile(value) {
@@ -451,7 +454,7 @@ async function mountChat(root, context, initialChatId = null) {
     // Only substantive, recent user statements can support learned facts. Greetings,
     // routine check-ins and temporary status replies are conversation, not profile data.
     const sourceMessages = (chat.messages || []).filter(item => item.role === "user")
-      .slice(-12).filter(item => !isLowSignalLearningMessage(item.body)).slice(-8);
+      .slice(-12).filter(item => !isLowSignalLearningMessage(item.body) && !isRoutineUtilityQuestion(item.body)).slice(-8);
     if (!sourceMessages.length) return;
     const userTurns = sourceMessages
       .map(item => "MESSAGE_ID: " + item.id + "\nUser shared: " + item.body.trim().slice(0, 500))
