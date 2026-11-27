@@ -402,3 +402,16 @@ This section supersedes earlier Phase 1 status notes that say Memory search/revi
 - Contract coverage now verifies the dynamic worker output limit, prompt reserves, bounded learning/summary prompts and batch-cursor behavior.
 - The latest full source-validation workflow for commit `0810275cf5b8c50b96c1b7b688e87b002b496c62` reported two remaining failures in stale legacy source assertions: the worker class assertion expected `LlamaCompletion` instead of the repository's actual `LlamaChatSession`, and the summary test expected the old cursor variable. Both assertions have been updated in commit `6bc3bc129759cf8b9ed8afa35daad83ab342c01d`; CI for that latest commit is pending. The earlier inference Job Object assertion was also updated to match the actual `workerPid` handoff.
 - Windows hosted temporary-path/file-action tests have previously failed because the runner path is detected as a symbolic-link traversal. That is separate from the new Memory/context functionality and remains a validation caveat until the newest Windows run completes.
+
+
+## Final implementation checkpoint — 2026-11-26
+
+- Memory Center scope requested for this milestone is implemented: search, category/status filters, byte-accurate content usage against 4 MiB/50 items, and Off / Review first / Automatic learning modes with a durable approval/rejection queue.
+- SQLite migration v9 adds candidate review storage and source snapshots. Legacy `memory_auto_learn` remains a backward-compatible fallback; `memory_learning_mode` takes precedence.
+- The overall prompt budget is selectable from 40–80% (5% steps, default 65%). Main-process policy reserves space for Sync's system instructions, safety and output; the UI shows the effective prompt allowance after those reserves.
+- The inference worker now tokenizes both the app prompt and fixed system prompt, then caps generated output tokens to the actual remaining model context (up to 512). A clear failure is returned when no output capacity remains.
+- Chat, learning and summary prompts are all bounded by the estimated character allowance. Summary generation processes a prefix batch of uncovered older messages and advances the summary cursor only through messages actually included. The newest eight transcript messages remain verbatim.
+- Automatic summaries are enabled by default and can be disabled in Memory settings. They use the already-loaded model; there is no extra model, embedding runtime, vector database or background worker.
+- Source-validation on commit `0810275cf5b8c50b96c1b7b688e87b002b496c62` passed the Memory/database tests; two failures were stale source assertions for the old inference class and summary cursor variable. Those assertions were updated in commits `6bc3bc129759cf8b9ed8afa35daad83ab342c01d` and `700541503116b7c9932576952dd5b7f2d98a5bf2`. CI for the latter is pending.
+- Earlier Windows safety runs also reported file-operation path failures caused by hosted temporary directories being detected as symbolic-link traversals. This is unrelated to the new Memory/context logic and remains an environment validation caveat.
+- No manual target-laptop UI test or real-GGUF conversation test has been performed in this milestone.
