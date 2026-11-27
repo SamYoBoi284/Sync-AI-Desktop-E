@@ -770,7 +770,11 @@ async function mountChat(root, context, initialChatId = null) {
       event.preventDefault(); toolMenuIndex = Math.max(0, toolMenuIndex - 1); renderToolMenuOnly(); return;
     }
     if (toolMenuOpen && event.key === "Escape") {
-      toolMenuOpen = false; renderToolMenuOnly(); return;
+      event.preventDefault();
+      event.stopPropagation();
+      toolMenuOpen = false;
+      renderToolMenuOnly();
+      return;
     }
     if (toolMenuOpen && event.key === "Enter" && !event.shiftKey) {
       const item = matchingTools()[toolMenuIndex] || matchingTools()[0];
