@@ -94,7 +94,7 @@ Status meanings:
 ### 6. Model Profiles — CORE IMPLEMENTATION COMPLETE
 
 - SQLite schema version 10 adds persistent profiles keyed to registered GGUF model IDs.
-- SQLite schema version 12 adds a local topic-observation index keyed to user message IDs; v12 replaces the temporary v11 communication-only evidence table with general topic/phrase evidence. Schema v13 clears prior cached observations so the new greeting/status/slang filters are applied to existing transcripts on next indexing.
+- SQLite schema version 12 adds a local topic-observation index keyed to user message IDs; v12 replaces the temporary v11 communication-only evidence table with general topic/phrase evidence. Schema v13 clears prior cached observations so the new greeting/status/slang filters are applied to existing transcripts on next indexing. Schema v14 sanitizes obvious temporary/noise fields from legacy auto-learned profiles and clears their unverified bulk source links; manually authored Memory entries and chat transcripts are preserved.
 - Each model can save its own:
   - Context window: 512–32,768 tokens.
   - Batch size: 16–2,048 tokens, constrained not to exceed the context window.
@@ -114,7 +114,7 @@ This is the next immediate task and is intentionally handed to the user.
 - Run the complete database and contract test suites.
 - Run the repository build/syntax checks and inspect the latest GitHub Actions results.
 - Verify the v7-to-v12 migration against populated user data, including an existing v10/v11 installation and a fresh database.
-- Verify recurring-topic evidence with a repeated subject (for example Rocket League) across at least three chats and four substantive user messages; a one-off subject (for example chess), routine greetings, casual slang and check-ins must not qualify. Confirm schema v13 rebuilds observations cached by older versions.
+- Verify recurring-topic evidence with a repeated subject (for example Rocket League) across at least three chats and four substantive user messages; a one-off subject (for example chess), routine greetings, casual slang and check-ins must not qualify. Confirm schema v13 rebuilds observations cached by older versions and schema v14 removes legacy learned-profile noise and unverified source links without touching manual Memory or chat history.
 - Verify Review first only proposes a subject when the user's examples show genuine interest or sustained engagement, returns no suggestion for ordinary chatter or temporary activity, and links only the exact model-selected supporting message IDs rather than every recent user message.
 - Verify greeting-only openers leave a chat titled `New conversation` and the first meaningful subject later supplies the title.
 - Verify a reader at the transcript bottom remains at the bottom when streaming is replaced with a saved reply, while a reader who has manually scrolled up keeps their position.
@@ -133,12 +133,12 @@ This is the next immediate task and is intentionally handed to the user.
 ### Phase 1 position
 
 - Repository/architecture audit: **COMPLETE**.
-- Data model and storage APIs: **COMPLETE**, schema v13 (model profiles v10; general topic evidence v12; noise-filter cache rebuild v13).
+- Data model and storage APIs: **COMPLETE**, schema v14 (model profiles v10; general topic evidence v12; noise-filter cache rebuild v13; learned-profile cleanup v14).
 - Memory Center: **COMPLETE**.
 - Independent Memory / Notes / Workspace retrieval: **COMPLETE**.
 - Overall context orchestration and worker-side output guard: **COMPLETE for the current lexical/estimated-character design**.
 - Automatic summaries and rolling compaction: **IMPLEMENTED — topic-aware summary selection; chat history remains intact**.
-- Conservative learning and general recurring-interest evidence: **IMPLEMENTED — substantive-message filtering, 4 user messages across 3 conversations threshold, model-selected validated provenance IDs, and v13 evidence-cache rebuild; model judgement remains required**.
+- Conservative learning and general recurring-interest evidence: **IMPLEMENTED — substantive-message filtering, 4 user messages across 3 conversations threshold, model-selected validated provenance IDs, v13 evidence-cache rebuild, and v14 legacy profile/provenance cleanup; model judgement remains required**.
 - Global renderer keyboard-focus recovery after native dialogs/file pickers: **IMPLEMENTED; manual Windows Electron verification pending**.
 - Summary Center and manual rebuild: **IMPLEMENTED**.
 - Cross-conversation summary retrieval: **IMPLEMENTED, opt-in by default**.
