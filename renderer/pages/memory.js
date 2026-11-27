@@ -5,6 +5,7 @@ const AUTO_LEARN_KEY = "memory_auto_learn";
 const LEARNING_MODE_KEY = "memory_learning_mode";
 const MEMORY_BUDGET_KEY = "memory_context_tokens";
 const CONTEXT_BUDGET_KEY = "context_budget_percent";
+const AUTO_SUMMARY_KEY = "conversation_summary_auto";
 const MEMORY_LIMIT_BYTES = 4 * 1024 * 1024;
 const MEMORY_LIMIT_ITEMS = 50;
 const CATEGORIES = [
@@ -20,6 +21,7 @@ async function mountMemory(root) {
   let editingId = null, title = "", content = "", source = "manual", enabled = true;
   let category = "general", importance = 3, pinned = false;
   let learningMode = "off", memoryTokenBudget = 256, contextBudgetPercent = 65;
+  let autoSummaries = true;
   let contextWindowTokens = 2048;
   let searchQuery = "", categoryFilter = "all", statusFilter = "all";
   let message = "", messageIsError = false, disposed = false;
@@ -114,6 +116,7 @@ async function mountMemory(root) {
             '<div><small>' + (100 - contextBudgetPercent) + '% reserved for output/safety</small><small>Estimate uses characters, not the model tokenizer</small></div>' +
           '</label>' +
           '<p class="memory-limit-note">This is a conservative application-level estimate, not an exact tokenizer measurement. Long conversations will be summarized and older turns compacted rather than growing without limit.</p>' +
+          '<label class="memory-toggle-row"><span><strong>Automatically summarize older conversation turns</strong><small>Keep a rolling summary of older messages while the newest eight messages stay verbatim. This uses the loaded model only when the conversation grows beyond its context budget.</small></span><input id="autoSummaries" type="checkbox" ' + (autoSummaries ? 'checked' : '') + ' ' + (toggling ? 'disabled' : '') + '></label>' +
         '</section>' +
         '<section class="shell-settings-panel memory-budget-panel">' +
           '<div class="shell-panel-heading"><div><p class="shell-section-kicker">SOURCE-SPECIFIC LIMIT</p><h2>Memory context budget</h2></div><span class="shell-panel-tag">MAX 512 TOKENS</span></div>' +
@@ -182,7 +185,7 @@ async function mountMemory(root) {
     try {
       const results = await Promise.allSettled([
         api.listMemories(), api.getSetting(AUTO_LEARN_KEY), api.getSetting(LEARNING_MODE_KEY),
-        api.getSetting(MEMORY_BUDGET_KEY), api.listMemoryCandidates("pending", 50), api.getContextPolicy()
+        api.getSetting(MEMORY_BUDGET_KEY), api.listMemoryCandidates("pending", 50), api.getContextPolicy(), api.getSetting(AUTO_SUMMARY_KEY)
       ]);
       if (results[0].status !== "fulfilled") throw results[0].reason;
       memories = results[0].value || [];
@@ -205,6 +208,7 @@ async function mountMemory(root) {
         contextBudgetPercent = results[5].value.percent || 65;
         contextWindowTokens = results[5].value.contextWindowTokens || 2048;
       }
+      try { autoSummaries = results[6].status !== "fulfilled" || results[6].value == null ? true : JSON.parse(results[6].value) !== false; } catch { autoSummaries = true; }
       if (!messageIsError) message = "";
     } catch (cause) {
       message = errorText(cause); messageIsError = true;
@@ -240,6 +244,16 @@ async function mountMemory(root) {
     if (event.target.id === "memoryCategory") category = event.target.value;
     if (event.target.id === "memoryImportance") importance = Number(event.target.value);
     if (event.target.id === "memoryPinned") pinned = event.target.checked;
+    if (event.target.id === "autoSummaries") {
+      toggling = true; render();
+      try {
+        autoSummaries = event.target.checked;
+        await api.setSetting(AUTO_SUMMARY_KEY, JSON.stringify(autoSummaries));
+        message = autoSummaries ? "Automatic conversation summaries enabled." : "Automatic conversation summaries disabled. Existing summaries remain saved and may still be used.";
+        messageIsError = false;
+      } catch (cause) { autoSummaries = !event.target.checked; message = errorText(cause); messageIsError = true; }
+      finally { toggling = false; render(); }
+    }
     if (event.target.id === "memoryCategoryFilter") { categoryFilter = event.target.value; renderMemoryResults(); }
     if (event.target.id === "memoryStatusFilter") { statusFilter = event.target.value; renderMemoryResults(); }
 
