@@ -152,3 +152,14 @@ Future interaction work (not yet implemented) includes a centralized customizabl
 - In progress: query-based context orchestration and an overall context ceiling.
 - In progress: automatic conversation-summary generation/refresh and compaction. Existing saved summaries are already consumed by prompts.
 - Not started: Model Profiles.
+
+
+## 14. Phase 1 Memory Center and context-budget implementation
+
+- Database schema version 9 adds a persistent learning-candidate review queue with provenance snapshots.
+- Memory Center includes search, category/status filtering, storage usage, Off/Review first/Automatic learning modes and a pending candidate approve/reject interface.
+- Candidate approval updates the saved learned profile transactionally and attaches source provenance. Rejection does not modify saved Memory.
+- A global prompt budget (40–80%, default 65%) is used with a reserve for model output. Prompt assembly applies character-based clipping across Memory, Notes, Workspace, summaries and recent transcript.
+- Automatic conversation summaries are enabled by default and configurable. Summaries are incremental, keep the newest eight messages verbatim, and use a through-position cursor.
+- No separate summarization model or embedding worker is used. Learning and summary generation consume extra inference only when their features run.
+- Step 2 Memory Center and Step 4 context orchestration are complete. Step 5 is in progress pending summary inspection/rebuild UI and cross-chat summary retrieval. Step 6 Model Profiles remains not started.
