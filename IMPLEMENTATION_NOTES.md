@@ -89,3 +89,14 @@ The most recent review fetched and inspected GitHub source; it did not launch El
 - Metadata-priority ordering is in place; relevance ranking and independent Notes retrieval remain.
 - Summary generation/compaction/prompt consumption remain.
 - The current CI run passed the new database tests on both platforms but failed on five unrelated file-operation/source-contract assertions. Do not mark the whole CI suite green.
+
+
+## Phase 1 context retrieval update
+
+- Implemented independent lexical retrieval for enabled Memory, opted-in Notes and opted-in Workspace artifacts.
+- Each source is query-ranked separately and has an independent character budget; existing Notes and Workspace opt-in switches are respected.
+- The chat queue uses the queued user message as the bounded retrieval query.
+- Prompt assembly now separates Memory, Notes, Workspace, older conversation summary and recent transcript.
+- Existing saved conversation summaries can be consumed; automatic summary generation/compaction remains pending.
+- Database tests cover relevance ranking, source separation and opt-in behavior. Contract coverage checks the independent IPC and prompt boundaries.
+- CI for the latest commit 2209601e2487b8c37b59a23feba29788944be434 had not completed at this checkpoint; do not infer a passing build from source parsing alone.
