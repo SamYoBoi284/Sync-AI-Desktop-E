@@ -298,6 +298,6 @@ Chronological record of meaningful implementation sessions. Keep entries factual
 - Added profile controls to each Local Models card. Context choices preserve nonstandard existing global settings; batch options dynamically stay within the selected context window.
 - Added a Summary Center in Memory with full-index search, saved-summary inspection/editing, coverage metadata, deletion and rebuild-from-source.
 - Manual rebuild processes older transcript turns in bounded batches and keeps the newest eight messages outside the summary. It supports cancellation and commits only the completed result, preserving the previous summary after errors or cancellation.
-- Added optional cross-chat summary context: relevance-ranked summaries from other chats only, capped at four and bounded to 6,000 source characters / a dedicated 12% prompt slice. The feature is enabled by default and has a Memory settings toggle.
+- Added optional cross-chat summary context: relevance-ranked summaries from other chats only, capped at four and bounded to 6,000 source characters / a dedicated 12% prompt slice. The feature is opt-in (off by default) and has a Memory settings toggle.
 - Added database tests for cross-chat retrieval/current-chat exclusion and model-profile persistence/validation/cascade, plus contract checks for all three feature areas. These tests have been authored but not run as part of this handoff.
 - Phase 1 implementation scope is complete. Full suite/CI, migration preservation, manual Electron UI and actual GGUF checks are left for the user's validation step.
