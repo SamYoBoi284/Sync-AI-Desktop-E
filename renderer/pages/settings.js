@@ -11,6 +11,7 @@ const suggested = info => Math.max(1, Math.floor(Math.max(1, toGb(info.totalByte
 async function mountSettings(root, context) {
   let ram = null, config = { enabled: false, limitGb: 4 }, saved = { enabled: false, limitGb: 4 };
   let quickAskPreferences = { shortcut: "CommandOrControl+Shift+Space", modelSelection: { mode: "default", customModelId: null } };
+  let quickAskShortcutDraft = "CommandOrControl+Shift+Space";
   let quickAskModels = [];
   let quickAskMessage = "", quickAskSaving = false;
   let loading = true, saving = false, message = "";
@@ -29,7 +30,7 @@ async function mountSettings(root, context) {
         <section class="shell-settings-panel">
           <div class="shell-panel-heading"><div><p class="shell-section-kicker">PHASE 2 · DESKTOP INTEGRATION</p><h2>Quick Ask</h2></div><span class="shell-panel-tag">GLOBAL SHORTCUT</span></div>
           <p class="shell-settings-intro">Open a compact floating chat without switching to the full Sync window. Quick Ask reuses an already-loaded model. When no model is loaded, it can temporarily load one using the selection rule below and unload it when the overlay closes.</p>
-          <label class="quick-ask-setting-field"><span><strong>Global shortcut</strong><small>Use an Electron accelerator such as CommandOrControl+Shift+Space.</small></span><input id="quickAskShortcut" type="text" maxlength="64" value="${esc(quickAskPreferences.shortcut)}" ${quickAskSaving ? "disabled" : ""}></label>
+          <label class="quick-ask-setting-field"><span><strong>Global shortcut</strong><small>Use an Electron accelerator such as CommandOrControl+Shift+Space.</small></span><input id="quickAskShortcut" type="text" maxlength="64" value="${esc(quickAskShortcutDraft)}" ${quickAskSaving ? "disabled" : ""}></label>
           <label class="quick-ask-setting-field"><span><strong>Temporary model selection</strong><small>Used only when no model is already loaded.</small></span>
             <select id="quickAskModelMode" ${quickAskSaving ? "disabled" : ""}>
               <option value="default" ${quickAskPreferences.modelSelection.mode === "default" ? "selected" : ""}>Default</option>
@@ -76,6 +77,7 @@ async function mountSettings(root, context) {
     ]);
     ram = info;
     quickAskPreferences = quickAskSaved || quickAskPreferences;
+    quickAskShortcutDraft = quickAskPreferences.shortcut;
     quickAskModels = Array.isArray(modelList) ? modelList : [];
     let parsed;
     try { parsed = raw ? JSON.parse(raw) : undefined; } catch {}
@@ -85,6 +87,9 @@ async function mountSettings(root, context) {
   } catch { message = "Hardware information is available only in the desktop app."; }
   finally { loading = false; render(); }
 
+  root.addEventListener("input", event => {
+    if (event.target.id === "quickAskShortcut") quickAskShortcutDraft = event.target.value;
+  });
   root.addEventListener("change", event => {
     if (event.target.id === "ramEnabled") { config.enabled = event.target.checked; render(); }
     if (event.target.id === "ram-limit") { config.limitGb = Number(event.target.value); render(); }
@@ -114,6 +119,7 @@ async function mountSettings(root, context) {
           }
         };
         quickAskPreferences = await api.setQuickAskPreferences(preferences);
+        quickAskShortcutDraft = quickAskPreferences.shortcut;
         quickAskMessage = "Saved. Quick Ask is available from the global shortcut or system tray.";
       } catch (cause) { quickAskMessage = "Could not save Quick Ask settings: " + errorText(cause); }
       finally { quickAskSaving = false; render(); }
