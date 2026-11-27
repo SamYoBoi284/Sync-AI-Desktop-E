@@ -43,10 +43,11 @@ The renderer contains no Node.js integration. It cannot load arbitrary Node modu
 - Local CSS files under `src/` provide the visual system and page styling.
 - `renderer/api.js` wraps the narrow preload bridge.
 - `renderer/shared.js` contains shared formatting and UI helpers.
-- `renderer/app.js` owns the persistent desktop shell, recent-chat list and page navigation.
-- `renderer/pages/` contains isolated feature-page modules.
+- `renderer/app.js` owns the persistent desktop shell, recent-chat list, sidebar actions, bootstrap and page navigation.
+- `renderer/pages/` contains isolated classic-script feature modules: `chat.js`, `history.js`, `folders.js`, `models.js`, `workspace.js`, `tasks.js`, `library.js`, `runtime.js`, `settings.js`, `memory.js`, `privacy-tools.js` and `preview.js`.
+- The active page scripts are registered on `window.SyncAI.pages` and loaded with `defer` before `renderer/app.js`. They are scoped classic scripts, not browser ES modules.
 
-The page scripts are classic JavaScript files wrapped in small scopes and loaded in dependency order with `defer` script tags. They do not use ES-module imports, so the local `file://` renderer does not depend on browser module-fetch behavior or cross-origin handling. Each page exposes a mount function through the shared `window.SyncAI.pages` namespace.
+The page scripts are classic JavaScript files wrapped in small scopes and loaded in dependency order with `defer` script tags. They do not use ES-module imports, so the local `file://` renderer does not depend on browser module-fetch behavior or cross-origin handling. Each page exposes a mount function through the shared `window.SyncAI.pages` namespace. The current page set includes folders, persistent Memory and Privacy & Tools in addition to the original chat/productivity pages.
 
 To add a page:
 1. Add a classic JavaScript file under `renderer/pages/`.
@@ -100,3 +101,22 @@ The model library stores original file paths and hashes. Registering or removing
 The Windows CI workflow checks source syntax, persistence and backup behavior, GGUF parsing, IPC/security contracts, Job Object memory enforcement, prebuilt native runtime initialization, full Electron startup through a renderer-ready handshake, and NSIS packaging.
 
 A full response using a real user GGUF model and interactive tray behavior still require target-machine testing. Do not treat a successful source build or native runtime smoke test as proof of real-model chat behavior.
+
+
+## 9. Current renderer feature notes (2026-11-26)
+
+- Chat includes streamed generation, sequential queueing, cancellation, diagnostics, saved-memory/workspace prompt context and an existing edit-and-regenerate data operation. The current edit UI still uses `window.prompt()`; composer-based editing is planned, not complete.
+- Recent-chat/sidebar management includes search, date grouping, pinning, rename, move-to-top, archive/restore, deletion, export and folder assignment.
+- The Memory page supports persistent user-managed entries, import/edit/enable/disable/delete, a bounded prompt-injection budget and optional bounded auto-learning.
+- The composer has a typed-`@` file-tool palette for copy, move, rename, safe delete and folder creation. The visible `@` button is still present. Prepared file actions require explicit approval.
+- Privacy & Tools provides a journal, approval/cancel/undo dialogs and stop/rollback controls. Preserve its focus management and safety semantics.
+- Runtime displays worker telemetry and offers context/batch settings plus a force-stop/restart recovery control.
+- Appearance is still a preview/fallback route rather than a completed appearance settings page.
+
+## 10. Visual and interaction work status
+
+The current visual system is split across `src/styles.css`, `src/shell.css`, `src/history.css`, `src/workspace.css`, `src/tasks-notes.css` and `src/library.css`. These stylesheets have accumulated across implementation phases and some related selectors overlap. Inspect actual markup and selector use before consolidating or removing CSS.
+
+A visual polish/animation pass is planned. The startup splash markup is in `renderer/app.js`, with styling in `src/styles.css`. Current renderer code reveals it after bootstrap work and uses an 850 ms remaining-minimum calculation; a readiness-aware 4–7 second minimum display lifecycle is still needed. The three-dot streaming indicator and several reduced-motion rules already exist.
+
+Future interaction work (not yet implemented) includes a centralized customizable shortcut manager, shortcut reference in Settings, global search, command palette, nested-interface Escape priority, removal of the visible composer @ button while preserving typed @, and inline composer editing with Cancel/Alt+C. Keep this work distinct from a visual-only pass.
