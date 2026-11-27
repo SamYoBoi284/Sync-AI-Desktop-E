@@ -205,7 +205,6 @@ async function mountChat(root, context, initialChatId = null) {
     const status = root.querySelector(".shell-chat-streaming-status > span:first-child");
     if (status && preview) status.textContent = preview.state === "queued" ? "QUEUED" : "GENERATING";
   }
-  let motionChatId = null, motionCount = 0, motionWasStreaming = false;
   function applyMessageMotion() {
     const nodes = Array.from(root.querySelectorAll(".shell-chat-transcript .shell-chat-message"));
     const settled = nodes.filter(node => !node.classList.contains("is-streaming"));
