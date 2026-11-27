@@ -51,3 +51,26 @@ test("Quick Ask overlay has its own secure document and renderer entrypoint", ()
   assert.match(quickAsk, /api\.quickAskStop\(\)/);
 });
 
+test("background Memory and summary maintenance never inserts notices or re-renders the transcript", () => {
+  const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
+  const shellCss = fs.readFileSync(path.join(root, "src", "shell.css"), "utf8");
+  const memoryStart = chat.indexOf("async function learnFromConversation(chat)");
+  const summaryStart = chat.indexOf("async function maybeUpdateConversationSummary(chat)");
+  const queueStart = chat.indexOf("async function processQueue()");
+  assert.ok(memoryStart >= 0 && summaryStart > memoryStart && queueStart > summaryStart);
+  assert.doesNotMatch(chat.slice(memoryStart, summaryStart), /render\(\)/);
+  assert.doesNotMatch(chat.slice(summaryStart, queueStart), /render\(\)/);
+  assert.doesNotMatch(chat, /No durable user information was found in the recent messages/);
+  assert.doesNotMatch(chat, /Sync is refreshing its saved memory/);
+  assert.match(shellCss, /\.shell-chat-notice\s*\{[^}]*position:\s*absolute/s);
+});
+
+test("small-talk lead-ins do not pollute conversation titles or durable Memory evidence", () => {
+  const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
+  assert.match(chat, /function stripSmallTalkLeadIn/);
+  assert.match(chat, /doing \)\?\(\?:good/);
+  assert.match(chat, /routineUtilityQuestion/);
+  assert.match(chat, /what time is it/);
+  assert.match(chat, /const raw = stripSmallTalkLeadIn/);
+});
+
