@@ -288,3 +288,16 @@ Chronological record of meaningful implementation sessions. Keep entries factual
 - Automatic summaries default to on, are user-configurable, reuse the loaded model and do not create an extra worker.
 - Updated outdated source-contract assertions to the current `LlamaChatSession` and `workerPid` implementation. Latest source-contract commit: `700541503116b7c9932576952dd5b7f2d98a5bf2`; newest CI run is pending.
 - No manual target-laptop UI test or real-GGUF conversation test was performed.
+
+
+## 2026-11-26 — Phase 1 summary tools and Model Profiles
+
+- Added SQLite migration v10 for per-model inference profiles, linked to registered model IDs with cascade deletion and bounded settings validation.
+- Added main-process IPC and renderer API for fetching, saving and resetting model profiles. The inference option resolver applies a saved profile for model load, estimation and force-stop recovery while preserving global Runtime defaults for unprofiled models.
+- The inference worker now receives the profile temperature and output-token ceiling; the actual output remains capped by token capacity remaining after prompt/system/safety accounting.
+- Added profile controls to each Local Models card. Context choices preserve nonstandard existing global settings; batch options dynamically stay within the selected context window.
+- Added a Summary Center in Memory with full-index search, saved-summary inspection/editing, coverage metadata, deletion and rebuild-from-source.
+- Manual rebuild processes older transcript turns in bounded batches and keeps the newest eight messages outside the summary. It supports cancellation and commits only the completed result, preserving the previous summary after errors or cancellation.
+- Added optional cross-chat summary context: relevance-ranked summaries from other chats only, capped at four and bounded to 6,000 source characters / a dedicated 12% prompt slice. The feature is enabled by default and has a Memory settings toggle.
+- Added database tests for cross-chat retrieval/current-chat exclusion and model-profile persistence/validation/cascade, plus contract checks for all three feature areas. These tests have been authored but not run as part of this handoff.
+- Phase 1 implementation scope is complete. Full suite/CI, migration preservation, manual Electron UI and actual GGUF checks are left for the user's validation step.
