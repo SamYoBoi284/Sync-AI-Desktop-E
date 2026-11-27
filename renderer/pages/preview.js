@@ -5,6 +5,8 @@ const KEY = "appearance_preferences";
 const DEFAULTS = Object.freeze({
   theme: "dark",
   accent: "#a879ff",
+  interfaceColor: "#a879ff",
+  linkedColors: true,
   density: "comfortable",
   chatStyle: "soft",
   fontSize: 14,
@@ -23,6 +25,9 @@ function normalize(value) {
   const next = { ...DEFAULTS, ...(value && typeof value === "object" ? value : {}) };
   if (!["system", "dark", "light"].includes(next.theme)) next.theme = DEFAULTS.theme;
   if (!validHex(next.accent)) next.accent = DEFAULTS.accent;
+  if (!validHex(next.interfaceColor)) next.interfaceColor = next.accent;
+  next.linkedColors = next.linkedColors !== false;
+  if (next.linkedColors) next.interfaceColor = next.accent;
   if (!["comfortable", "compact"].includes(next.density)) next.density = DEFAULTS.density;
   if (!["soft", "outline"].includes(next.chatStyle)) next.chatStyle = DEFAULTS.chatStyle;
   next.fontSize = Math.min(18, Math.max(12, Number(next.fontSize) || DEFAULTS.fontSize));
@@ -38,6 +43,8 @@ function applyPreferences(value) {
   html.dataset.syncMotion = prefs.motion;
   html.style.setProperty("--accent", prefs.accent);
   html.style.setProperty("--accent-soft", prefs.accent);
+  html.style.setProperty("--interface", prefs.interfaceColor);
+  html.style.setProperty("--interface-soft", prefs.interfaceColor);
   html.style.setProperty("--sync-chat-font-size", prefs.fontSize + "px");
   return prefs;
 }
@@ -60,11 +67,16 @@ async function mountAppearance(root) {
           </div>
         </section>
         <section class="appearance-panel">
-          <div class="appearance-section-head"><div><p class="shell-section-kicker">02 · ACCENT</p><h2>Accent color</h2><p>Used for focus states, selected controls and highlights.</p></div><span class="appearance-accent-chip" style="--choice-accent:${prefs.accent}"></span></div>
-          <div class="appearance-accent-options">
+          <div class="appearance-section-head"><div><p class="shell-section-kicker">02 · COLORS</p><h2>Color system</h2><p>Choose interactive accents and the broader interface tint.</p></div><span class="appearance-accent-chip" style="--choice-accent:${prefs.accent}"></span></div>
+          <div class="appearance-color-mode"><div><strong>Color behavior</strong><small>Link both colors or customize them independently.</small></div><div class="appearance-segment" role="group" aria-label="Color behavior">
+            <button type="button" data-pref="linkedColors" data-value="true" class="${prefs.linkedColors?"is-selected":""}" aria-pressed="${prefs.linkedColors}">Linked colors</button>
+            <button type="button" data-pref="linkedColors" data-value="false" class="${!prefs.linkedColors?"is-selected":""}" aria-pressed="${!prefs.linkedColors}">Separate colors</button>
+          </div></div>
+          <div class="appearance-color-picker-row"><div><strong>Accent color</strong><small>Buttons, selected states, focus rings, links and highlights.</small><div class="appearance-accent-options">
             ${ACCENTS.map(item => `<button type="button" class="appearance-swatch ${prefs.accent===item.value?"is-selected":""}" data-pref="accent" data-value="${item.value}" style="--swatch:${item.value}" aria-label="${item.name}" aria-pressed="${prefs.accent===item.value}" title="${item.name}"></button>`).join("")}
             <label class="appearance-custom-color"><span>Custom</span><input type="color" id="appearanceCustomAccent" value="${prefs.accent}" aria-label="Choose custom accent color"></label>
-          </div>
+          </div></div></div>
+          ${prefs.linkedColors ? '<p class="appearance-hint">Interface color follows the accent color.</p>' : `<div class="appearance-color-picker-row appearance-interface-picker"><div><strong>Interface color</strong><small>Panel tint, borders, ambient glow and structural UI details.</small><div class="appearance-accent-options">${ACCENTS.map(item => `<button type="button" class="appearance-swatch ${prefs.interfaceColor===item.value?"is-selected":""}" data-pref="interfaceColor" data-value="${item.value}" style="--swatch:${item.value}" aria-label="Interface ${item.name}" aria-pressed="${prefs.interfaceColor===item.value}" title="${item.name}"></button>`).join("")}<label class="appearance-custom-color"><span>Custom</span><input type="color" id="appearanceCustomInterface" value="${prefs.interfaceColor}" aria-label="Choose custom interface color"></label></div></div></div>`}
         </section>
         <section class="appearance-panel">
           <div class="appearance-section-head"><div><p class="shell-section-kicker">03 · LAYOUT</p><h2>Interface density</h2><p>Choose how much breathing room appears between controls and panels.</p></div></div>
@@ -114,7 +126,15 @@ async function mountAppearance(root) {
 
   root.addEventListener("click", async event => {
     const choice = event.target.closest("[data-pref]");
-    if (choice) { update({ ...prefs, [choice.dataset.pref]: choice.dataset.value }); return; }
+    if (choice) {
+      const key = choice.dataset.pref;
+      const value = key === "linkedColors" ? choice.dataset.value === "true" : choice.dataset.value;
+      const next = { ...prefs, [key]: value };
+      if (key === "accent" && prefs.linkedColors) next.interfaceColor = value;
+      if (key === "linkedColors" && value) next.interfaceColor = prefs.accent;
+      update(next);
+      return;
+    }
     const action = event.target.closest("[data-appearance-action]")?.dataset.appearanceAction;
     if (!action) return;
     if (action === "reset") { feedback = "Defaults restored in the preview. Save to keep them."; update({ ...DEFAULTS }); return; }
@@ -129,12 +149,14 @@ async function mountAppearance(root) {
     }
   });
   root.addEventListener("input", event => {
-    if (event.target.id === "appearanceCustomAccent" || event.target.id === "appearanceFontSize") {
+    if (["appearanceCustomAccent", "appearanceCustomInterface", "appearanceFontSize"].includes(event.target.id)) {
       prefs = normalize({
         ...prefs,
         ...(event.target.id === "appearanceCustomAccent"
-          ? { accent: event.target.value }
-          : { fontSize: Number(event.target.value) })
+          ? { accent: event.target.value, ...(prefs.linkedColors ? { interfaceColor: event.target.value } : {}) }
+          : event.target.id === "appearanceCustomInterface"
+            ? { interfaceColor: event.target.value }
+            : { fontSize: Number(event.target.value) })
       });
       applyPreferences(prefs);
       const chip = root.querySelector(".appearance-accent-chip");
