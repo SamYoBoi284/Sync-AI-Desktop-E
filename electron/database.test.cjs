@@ -166,3 +166,47 @@ test("invalidates a conversation summary when a queued reply is inserted inside 
   });
   assert.equal(db.get_conversation_summary({ chatId: chat.id }), null);
 }));
+
+
+test("upgrades a populated version-7 database to version 8 without losing user data", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sync-ai-v7-upgrade-"));
+  const file = path.join(dir, "legacy-v7.sqlite3");
+  let db = new SyncDatabase(file);
+  try {
+    const chat = db.create_chat({ title: "Legacy conversation" });
+    db.append_message({ chatId: chat.id, message: { role: "user", body: "Preserve this transcript." } });
+    const memory = db.save_memory({ memory: {
+      title: "Legacy memory", content: "Preserve this saved memory.", source: "manual", enabled: false
+    } });
+    const note = db.save_note({ note: {
+      title: "Legacy note", content: "Preserve this note.", pinned: true, includeInContext: false
+    } });
+
+    // Reconstruct the schema shape immediately before migration v8.
+    db.db.exec("DROP INDEX idx_memories_rank;");
+    db.db.exec("DROP TABLE conversation_summaries;");
+    db.db.exec("DROP TABLE memory_sources;");
+    db.db.exec("ALTER TABLE memories DROP COLUMN pinned;");
+    db.db.exec("ALTER TABLE memories DROP COLUMN importance;");
+    db.db.exec("ALTER TABLE memories DROP COLUMN category;");
+    db.db.prepare("DELETE FROM schema_migrations WHERE version=8").run();
+    db.close();
+
+    db = new SyncDatabase(file);
+    const migratedMemory = db.get_memory({ memoryId: memory.id });
+    assert.equal(migratedMemory.title, "Legacy memory");
+    assert.equal(migratedMemory.content, "Preserve this saved memory.");
+    assert.equal(migratedMemory.source, "manual");
+    assert.equal(migratedMemory.enabled, false);
+    assert.equal(migratedMemory.category, "general");
+    assert.equal(migratedMemory.importance, 3);
+    assert.equal(migratedMemory.pinned, false);
+    assert.equal(db.get_chat({ chatId: chat.id }).messages[0].body, "Preserve this transcript.");
+    assert.equal(db.get_note({ noteId: note.id }).content, "Preserve this note.");
+    assert.equal(Number(db.db.prepare("SELECT MAX(version) v FROM schema_migrations").get().v), 8);
+    assert.deepEqual(db.get_conversation_summary({ chatId: chat.id }), null);
+  } finally {
+    try { db.close(); } catch {}
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
