@@ -6,13 +6,13 @@ const { esc, errorText, fmtBytes } = window.SyncAI.shared;
 
 
 async function mountModels(root) {
-  let models = [], runtime = null, estimates = {}, busy = false, busyModel = null, error = "", notice = "";
+  let models = [], runtime = null, estimates = {}, profiles = {}, busy = false, busyModel = null, error = "", notice = "";
   const anyBusy = () => busy || busyModel !== null || Boolean(runtime?.isLoading) || Boolean(runtime?.isGenerating);
   function render() {
     root.innerHTML = `
       <section class="shell-page shell-standard-page">
         <div class="shell-page-eyebrow"><span class="shell-eyebrow-line"></span>LOCAL INFERENCE LIBRARY</div>
-        <div class="shell-page-heading-row"><div><p class="shell-section-kicker">PHASE 4 · MODEL MANAGEMENT</p><h1>Local models<span>.</span></h1>
+        <div class="shell-page-heading-row"><div><p class="shell-section-kicker">MODEL-SPECIFIC INFERENCE CONFIGURATION</p><h1>Local models<span>.</span></h1>
           <p class="shell-page-description">Register GGUF files by their original path. Importing never copies, moves or deletes the source file.</p></div>
           <button class="shell-model-import" data-model="import" type="button" ${anyBusy() ? "disabled" : ""}>${busy ? "WORKING…" : "+ IMPORT GGUF"}</button>
         </div>
@@ -28,12 +28,44 @@ async function mountModels(root) {
         ${models.length === 0 ? '<div class="shell-model-empty"><span>◈</span><strong>No GGUF models registered</strong><p>Choose a GGUF file. Sync validates its header, calculates SHA-256 and stores its original absolute path in the local registry.</p><button class="shell-model-import" type="button" data-model="import" ' + (anyBusy() ? "disabled" : "") + '>Choose a GGUF file</button></div>' :
           '<div class="shell-model-list">' + models.map(model => {
             const estimate = estimates[model.id], active = runtime?.loadedModelId === model.id, isBusy = anyBusy();
+            const profile = profiles[model.id] || { contextLength: 2048, batchSize: 128, temperature: 0.7, maxOutputTokens: 512, isCustomized: false };
+            const contextChoices = [512,1024,2048,4096,8192,16384,32768];
+            const batchChoices = [16,32,64,128,256,512,1024,2048];
+            const outputChoices = [64,128,256,384,512];
             return `<article class="shell-model-card"><div class="shell-model-icon">◈</div><div class="shell-model-info">
               <div class="shell-model-title-row"><h3>${esc(model.name)}</h3>${model.isDefault ? '<span class="shell-model-default">DEFAULT</span>' : ""}${active ? '<span class="shell-model-default">LOADED</span>' : ""}${!model.isAvailable ? '<span class="shell-model-default is-error">MISSING</span>' : ""}</div>
               <p>${esc(model.fileName)} · ${fmtBytes(model.sizeBytes)}</p><small>${esc(model.architecture || "Unknown architecture")} · ${esc(model.quantization || "Unknown quantization")}</small>
               <small class="${!model.isAvailable ? "is-error" : ""}">${esc(model.filePath)}</small><small>SHA-256 · ${esc(model.sha256)}</small>
               ${estimate ? '<small>Estimated peak: ' + fmtBytes(estimate.estimatedPeakBytes) + ' · ' + (estimate.configuredLimitBytes ? "configured worker ceiling " + fmtBytes(estimate.configuredLimitBytes) : "worker ceiling disabled") + "</small>" : ""}
               ${!model.isAvailable ? '<small class="is-error">This registered path is unavailable. Select the file again to relink it.</small>' : ""}
+              <details class="shell-model-profile">
+                <summary>Inference profile <span>${profile.isCustomized ? "CUSTOM" : "DEFAULTS"}</span></summary>
+                <div class="shell-model-profile-fields">
+                  <label>Context window
+                    <select data-profile-field="contextLength" ${isBusy ? "disabled" : ""}>
+                      ${contextChoices.map(value => '<option value="' + value + '" ' + (Number(profile.contextLength) === value ? "selected" : "") + '>' + value.toLocaleString() + ' tokens</option>').join("")}
+                    </select>
+                  </label>
+                  <label>Batch size
+                    <select data-profile-field="batchSize" ${isBusy ? "disabled" : ""}>
+                      ${batchChoices.map(value => '<option value="' + value + '" ' + (Number(profile.batchSize) === value ? "selected" : "") + ' ' + (value > Number(profile.contextLength) ? "disabled" : "") + '>' + value.toLocaleString() + '</option>').join("")}
+                    </select>
+                  </label>
+                  <label>Temperature
+                    <input data-profile-field="temperature" type="number" min="0" max="2" step="0.05" value="${Number(profile.temperature).toFixed(2)}" ${isBusy ? "disabled" : ""}>
+                  </label>
+                  <label>Maximum output
+                    <select data-profile-field="maxOutputTokens" ${isBusy ? "disabled" : ""}>
+                      ${outputChoices.map(value => '<option value="' + value + '" ' + (Number(profile.maxOutputTokens) === value ? "selected" : "") + '>' + value + ' tokens</option>').join("")}
+                    </select>
+                  </label>
+                  <div class="shell-model-profile-actions">
+                    <small>${profile.isCustomized ? "This model has saved settings." : "Uses global Runtime defaults until customized."} Changes apply the next time this model is loaded.</small>
+                    <button type="button" data-model="profile-save" data-id="${esc(model.id)}" ${isBusy ? "disabled" : ""}>Save profile</button>
+                    ${profile.isCustomized ? '<button type="button" class="is-muted" data-model="profile-reset" data-id="' + esc(model.id) + '" ' + (isBusy ? "disabled" : "") + '>Reset to global defaults</button>' : ""}
+                  </div>
+                </div>
+              </details>
             </div><div class="shell-model-actions">
               ${!model.isDefault ? '<button type="button" data-model="default" data-id="' + esc(model.id) + '" ' + (isBusy || !model.isAvailable ? "disabled" : "") + '>Set default</button>' : ""}
               <button type="button" data-model="estimate" data-id="${esc(model.id)}" ${isBusy || !model.isAvailable || active ? "disabled" : ""}>Estimate</button>
@@ -52,6 +84,8 @@ async function mountModels(root) {
   async function refresh() {
     try {
       [models, runtime] = await Promise.all([api.listModels(), api.getRuntimeStatus()]);
+      const profileEntries = await Promise.all(models.map(async model => [model.id, await api.getModelProfile(model.id)]));
+      profiles = Object.fromEntries(profileEntries);
       if (runtime.lastError) error = runtime.lastError;
     } catch { error = "Model registry and runtime status are available only inside the desktop app."; }
     render();
@@ -70,6 +104,25 @@ async function mountModels(root) {
         if (result) notice = result.duplicate ? "That exact model is already registered. Its original file location has been refreshed." : "GGUF registered. The file stays at its original location; Sync does not copy or move it.";
         estimates = {};
       }
+      if (action === "profile-save") {
+        const card = Array.from(root.querySelectorAll(".shell-model-card")).find(item =>
+          item.querySelector('[data-model="profile-save"]')?.dataset.id === id);
+        if (!card) throw new Error("The selected model profile editor is no longer available.");
+        const read = field => card.querySelector('[data-profile-field="' + field + '"]')?.value;
+        const profile = {
+          contextLength: Number(read("contextLength")),
+          batchSize: Number(read("batchSize")),
+          temperature: Number(read("temperature")),
+          maxOutputTokens: Number(read("maxOutputTokens"))
+        };
+        profiles[id] = await api.saveModelProfile(id, profile);
+        notice = "Model-specific inference profile saved. It will apply the next time this model is loaded.";
+      }
+      if (action === "profile-reset") {
+        await api.deleteModelProfile(id);
+        profiles[id] = await api.getModelProfile(id);
+        notice = "Model profile reset. This model will use the global Runtime defaults on its next load.";
+      }
       if (action === "default") { await api.setDefaultModel(id); notice = "Default model updated."; }
       if (action === "estimate") {
         estimates[id] = await api.estimateModelResources(id);
@@ -78,7 +131,8 @@ async function mountModels(root) {
       if (action === "load") {
         if (runtime?.isLoaded) await api.unloadModel();
         runtime = await api.loadModel(id);
-        notice = "Selected model loaded into the isolated llama.cpp worker.";
+        notice = "Selected model loaded into the isolated llama.cpp worker" +
+          (profiles[id]?.isCustomized ? " with its saved inference profile." : " using global Runtime defaults.");
       }
       if (action === "unload") { runtime = await api.unloadModel(); notice = "The active model and inference worker were unloaded."; }
       if (action === "remove") { await api.removeModel(id); delete estimates[id]; notice = "Removed from Sync AI. The original model file was not deleted or moved."; }
@@ -89,6 +143,15 @@ async function mountModels(root) {
   root.addEventListener("click", event => {
     const button = event.target.closest("[data-model]");
     if (button) void act(button.dataset.model, button.dataset.id);
+  });
+  root.addEventListener("change", event => {
+    if (event.target.dataset.profileField !== "contextLength") return;
+    const card = event.target.closest(".shell-model-card");
+    const batch = card?.querySelector('[data-profile-field="batchSize"]');
+    if (!batch) return;
+    const contextLength = Number(event.target.value);
+    if (Number(batch.value) > contextLength) batch.value = [2048,1024,512,256,128,64,32,16].find(value => value <= contextLength) || 16;
+    for (const option of batch.options) option.disabled = Number(option.value) > contextLength;
   });
   await refresh();
   return () => root.replaceChildren();
