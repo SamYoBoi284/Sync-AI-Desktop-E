@@ -3,6 +3,7 @@ contextBridge.exposeInMainWorld("syncAI", {
   invoke: (command, args) => ipcRenderer.invoke("sync:invoke", command, args),
   onGenerationEvent: (callback) => { const listener = (_event, payload) => callback(payload); ipcRenderer.on("sync:generation-event", listener); return () => ipcRenderer.removeListener("sync:generation-event", listener); },
   onActionEvent: (callback) => { const listener = (_event, payload) => callback(payload); ipcRenderer.on("sync:action-event", listener); return () => ipcRenderer.removeListener("sync:action-event", listener); },
+  onAppAction: (callback) => { const listener = (_event, payload) => callback(payload); ipcRenderer.on("sync:app-action", listener); return () => ipcRenderer.removeListener("sync:app-action", listener); },
   rendererReady: () => ipcRenderer.send("sync:renderer-ready"),
   restoreFocusAfterDialog: () => ipcRenderer.send("sync:restore-focus-after-dialog"),
 });
