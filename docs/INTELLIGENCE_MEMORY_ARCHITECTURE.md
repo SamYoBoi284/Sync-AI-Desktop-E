@@ -328,3 +328,19 @@ The original inventory above describes the baseline before implementation. The f
 - Phase Step 2 (Memory Center improvements) is **IN PROGRESS**; filtering/search, storage-use detail and candidate-review controls remain.
 - Conversation summary storage exists, but summary generation, automatic compaction and summary prompt integration are not yet implemented.
 - Latest CI on commit `d8ab68d20c75414fc624fb3a64b5fa8de9847f99`: new database tests passed on Windows and Ubuntu. Overall workflows failed on five existing unrelated assertions involving file-operation path/protection behavior and an inference source-contract regex. No target-machine UI/model test was performed.
+
+
+## 11. Implementation checkpoint — independent relevance retrieval (2026-11-26)
+
+The following changes supersede the baseline gaps above:
+
+- Added lightweight lexical token ranking for Memory, opted-in Notes and opted-in Workspace artifacts. It uses normalized Unicode word tokens, a bounded 24-term query and deterministic scoring. No embedding model, vector database, extra inference or background worker is used.
+- Memory, Notes and Workspace now have independent database retrieval methods and separate bounded character budgets. Notes and Workspace no longer share one result list.
+- Each source is filtered independently. Notes continue to respect the existing include_in_context opt-in and Workspace artifacts continue to respect their own selection flag.
+- The active queued user message is passed as the retrieval query to each source.
+- Chat prompt assembly now has distinct sections for durable Memory, user-authored Notes, selected Workspace material, an older conversation summary and recent transcript turns.
+- If a stored conversation summary exists, the prompt uses it and omits transcript turns at or before its summary cursor, while retaining the queued user message verbatim.
+- Summary generation and automatic compaction still do not exist. This checkpoint only consumes summaries if one has already been saved.
+- Added database tests for query-ranked Memory, independent Notes/Workspace retrieval, respect for opt-in flags and empty-query fallback. Added a renderer/IPC contract test to guard the distinct source sections.
+- Latest source commit at this checkpoint: 2209601e2487b8c37b59a23feba29788944be434.
+- Latest CI was still running at the time of this documentation update. The previous source-validation run showed all new database tests passing (47 passed, one skipped); the remaining failure was the known inference source-contract assertion. Windows also retains the previously identified file-operation environment failures. Recheck the latest run before any green-build claim.
