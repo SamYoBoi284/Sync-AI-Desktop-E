@@ -224,7 +224,7 @@ test("conversation Summary Center supports inspection, editing, safe rebuild and
   assert.match(memory, /coverage through message position/i);
 });
 
-test("cross-chat summaries are opt-out, relevance-ranked, exclude the active chat and fit the shared prompt budget", () => {
+test("cross-chat summaries are opt-in, relevance-ranked, exclude the active chat and fit the shared prompt budget", () => {
   const database = fs.readFileSync(path.join(__dirname, "database.cjs"), "utf8");
   const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
   const memory = fs.readFileSync(path.join(root, "renderer", "pages", "memory.js"), "utf8");
@@ -233,6 +233,8 @@ test("cross-chat summaries are opt-out, relevance-ranked, exclude the active cha
   assert.match(database, /WHERE s\.chat_id<>\?/);
   assert.match(database, /rankContextRows\(rows,q\)\.filter\(r=>r\.relevanceScore>0\)/);
   assert.match(chat, /cross_chat_summary_retrieval/);
+  assert.match(chat, /let crossSummaryEnabled = false/);
+  assert.match(memory, /crossChatSummaries = false/);
   assert.match(chat, /api\.listConversationSummaryContext\(retrievalQuery, job\.chatId, 4, 6000\)/);
   assert.match(chat, /OTHER RELEVANT CONVERSATION SUMMARIES/);
   assert.match(chat, /otherConversationBudget = Math\.floor\(payloadBudget \* 0\.12\)/);
