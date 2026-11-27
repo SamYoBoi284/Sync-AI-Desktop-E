@@ -78,7 +78,7 @@ async function mountAppearance(root) {
           <div class="appearance-field-row"><div><strong>Message style</strong><small>Soft surfaces or a more defined outline.</small></div>
             <div class="appearance-segment"><button type="button" data-pref="chatStyle" data-value="soft" class="${prefs.chatStyle==="soft"?"is-selected":""}" aria-pressed="${prefs.chatStyle==="soft"}">Soft</button><button type="button" data-pref="chatStyle" data-value="outline" class="${prefs.chatStyle==="outline"?"is-selected":""}" aria-pressed="${prefs.chatStyle==="outline"}">Outlined</button></div>
           </div>
-          <div class="appearance-field-row"><div><strong>Message text size</strong><small>Current size: ${prefs.fontSize}px</small></div><input class="appearance-range" id="appearanceFontSize" type="range" min="12" max="18" step="1" value="${prefs.fontSize}" aria-label="Message text size"></div>
+          <div class="appearance-field-row"><div><strong>Message text size</strong><small class="appearance-font-size-value">Current size: ${prefs.fontSize}px</small></div><input class="appearance-range" id="appearanceFontSize" type="range" min="12" max="18" step="1" value="${prefs.fontSize}" aria-label="Message text size"></div>
           <div class="appearance-chat-preview"><span>PREVIEW · YOU</span><p style="font-size:${prefs.fontSize}px">Hey Sync, this is how your messages will look.</p><span>PREVIEW · SYNC AI</span><p class="is-assistant" style="font-size:${prefs.fontSize}px">Got it. Your conversation will use these settings.</p></div>
         </section>
         <section class="appearance-panel">
@@ -129,8 +129,23 @@ async function mountAppearance(root) {
     }
   });
   root.addEventListener("input", event => {
-    if (event.target.id === "appearanceCustomAccent") update({ ...prefs, accent: event.target.value });
-    if (event.target.id === "appearanceFontSize") update({ ...prefs, fontSize: Number(event.target.value) });
+    if (event.target.id === "appearanceCustomAccent" || event.target.id === "appearanceFontSize") {
+      prefs = normalize({
+        ...prefs,
+        ...(event.target.id === "appearanceCustomAccent"
+          ? { accent: event.target.value }
+          : { fontSize: Number(event.target.value) })
+      });
+      applyPreferences(prefs);
+      const chip = root.querySelector(".appearance-accent-chip");
+      if (chip) chip.style.setProperty("--choice-accent", prefs.accent);
+      const sizeLabel = root.querySelector(".appearance-font-size-value");
+      if (sizeLabel) sizeLabel.textContent = "Current size: " + prefs.fontSize + "px";
+      const previewText = root.querySelectorAll(".appearance-chat-preview p");
+      previewText.forEach(node => { node.style.fontSize = prefs.fontSize + "px"; });
+      const saveButton = root.querySelector('[data-appearance-action="save"]');
+      if (saveButton) saveButton.disabled = JSON.stringify(prefs) === JSON.stringify(saved) || saving;
+    }
   });
   return () => root.replaceChildren();
 }
