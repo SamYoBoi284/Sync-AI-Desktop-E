@@ -60,6 +60,7 @@ const api = {
   deleteMemory: memoryId => invoke("delete_memory", { memoryId }),
   importMemoryFile: () => invoke("import_memory_file"),
   getHostRamInfo: () => invoke("get_host_ram_info"),
+  getDeviceContext: () => invoke("get_device_context"),
   listModels: () => invoke("list_models"),
   getModelProfile: modelId => invoke("get_model_profile", { modelId }),
   saveModelProfile: (modelId, profile) => invoke("save_model_profile", { modelId, profile }),
