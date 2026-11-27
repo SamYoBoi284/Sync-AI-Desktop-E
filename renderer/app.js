@@ -8,7 +8,7 @@ if (!root) throw new Error("The Sync AI Desktop root element is missing.");
 
 const state = { page: "new-chat", selectedChatId: null, selectedFolderId: null, info: null, bridge: "checking", cleanup: null, splash: false, actionStatus: { isRunning: false, activeAction: null }, stopActionBusy: false };
 const appMarkup = () => `
-  <div class="shell-root" id="appShell">
+  <div class="shell-root is-booting" id="appShell">
     <aside class="shell-sidebar" aria-label="Main navigation">
       <div class="shell-brand-lockup"><div class="shell-brand-mark" aria-hidden="true"><span></span><span></span><span></span></div><div><p class="shell-brand-name">SYNC AI</p><p class="shell-brand-caption">DESKTOP SYSTEM</p></div></div>
       <button class="shell-new-chat" type="button" data-action="new-chat"><span aria-hidden="true">+</span><span>New chat</span><kbd>CTRL N</kbd></button>
@@ -167,11 +167,19 @@ function navigate(page, chatId = null) {
   void renderPage();
 }
 
+// Motion hook: CSS keys all page-enter animation off .is-page-entering, which is
+// removed shortly after so telemetry / re-renders never replay it.
+function markPageEntering(host) {
+  host.classList.add("is-page-entering");
+  setTimeout(() => { if (host.isConnected || host === pageHost) host.classList.remove("is-page-entering"); }, 700);
+}
+
 async function renderPage() {
   if (state.cleanup) { try { state.cleanup(); } catch {} state.cleanup = null; }
   const freshHost = pageHost.cloneNode(false);
   pageHost.replaceWith(freshHost);
   pageHost = freshHost;
+  markPageEntering(freshHost);
   pageHost.innerHTML = '<p class="shell-chat-empty">Opening ' + esc(pageTitles[state.page]) + "…</p>";
   const context = {
     navigate,
@@ -314,10 +322,60 @@ window.addEventListener("keydown", event => {
   }
 });
 
+// ---- Startup splash lifecycle -------------------------------------------
+// The splash is revealed as soon as the native first-start flag is known (before
+// the heavier bootstrap work), stays visible for at least SPLASH_MIN_MS, and is
+// kept longer if initialization is still running. The app is fully rendered
+// underneath, so the minimum is purely visual and never delays real startup.
+const SPLASH_MIN_MS = 5200;
+const SPLASH_EXIT_MS = 520;
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const nextPaint = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+const prefersReducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+let rendererReadySent = false;
+function signalRendererReady() {
+  if (rendererReadySent) return;
+  rendererReadySent = true;
+  try { window.syncAI?.rendererReady?.(); } catch {}
+}
+
+function showSplash() {
+  const shell = document.getElementById("appShell");
+  splash.classList.remove("is-leaving");
+  splash.hidden = false;
+  splash.style.display = "grid";
+  shell.setAttribute("aria-hidden", "true");
+  shell.inert = true;
+}
+
+async function hideSplash() {
+  const shell = document.getElementById("appShell");
+  shell.classList.remove("is-booting");
+  shell.classList.add("is-revealing");
+  splash.classList.add("is-leaving");
+  await wait(prefersReducedMotion() ? 60 : SPLASH_EXIT_MS);
+  splash.hidden = true;
+  splash.style.display = "none";
+  splash.classList.remove("is-leaving");
+  shell.inert = false;
+  shell.removeAttribute("aria-hidden");
+  shell.classList.remove("is-revealing");
+}
+
 async function bootstrap() {
-  const started = Date.now();
+  const shell = document.getElementById("appShell");
+  // Safety net: never leave the window blank if the bridge handshake hangs.
+  const bootGuard = setTimeout(() => shell.classList.remove("is-booting"), 2500);
+  let splashShownAt = 0;
   try {
     state.splash = await api.consumeStartupSplash();
+    if (state.splash) {
+      showSplash();
+      splashShownAt = Date.now();
+      await nextPaint();
+      shell.classList.remove("is-booting");
+      signalRendererReady(); // splash is painted: the window can be shown safely
+    }
     state.info = await api.getAppInfo();
     state.actionStatus = await api.getActionStatus();
     state.bridge = "connected";
@@ -325,19 +383,17 @@ async function bootstrap() {
     state.bridge = "preview";
     console.error("Desktop bridge initialization failed:", error);
   }
+  clearTimeout(bootGuard);
   updateTopbar();
   await Promise.all([refreshRecent(), renderPage()]);
   if (state.splash) {
-    splash.hidden = false;
-    splash.style.display = "grid";
-    document.getElementById("appShell").setAttribute("aria-hidden", "true");
-    setTimeout(() => {
-      splash.hidden = true;
-      splash.style.display = "none";
-      document.getElementById("appShell").removeAttribute("aria-hidden");
-    }, Math.max(850 - (Date.now() - started), 0));
+    const remaining = SPLASH_MIN_MS - (Date.now() - splashShownAt);
+    if (remaining > 0) await wait(remaining);
+    await hideSplash();
+  } else {
+    shell.classList.remove("is-booting");
   }
-  try { window.syncAI?.rendererReady?.(); } catch {}
+  signalRendererReady();
 }
 void bootstrap();
 

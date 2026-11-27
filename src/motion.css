@@ -1,0 +1,263 @@
+/* ==========================================================================
+   Sync AI Desktop — motion & polish layer
+   Loaded LAST (after library.css). Additive only: it layers transitions,
+   keyframes and small refinements over the existing stylesheets.
+
+   Conventions
+   - Tokens:        --sync-ease, --sync-ease-in, --sync-dur-fast/base/slow
+   - Keyframes:     sync-*   (page, rise, fade, pop, menu, caret, ring, ...)
+   - JS hook:       .is-page-entering  (set on #pageHost by renderer/app.js for
+                    ~700 ms after navigation; gates all "enter" stagger so
+                    telemetry/re-renders never replay them)
+   - JS hook:       .is-entering       (set by chat.js on newly added messages)
+   - Splash hooks:  .is-booting, .is-revealing (shell), .is-leaving (splash)
+   - Only transform / opacity are animated continuously. Anything that loops
+     is tiny (a dot, a caret) so low-end GPUs are not repainting large areas.
+   - Everything is neutralised in the prefers-reduced-motion block at the end.
+   ========================================================================== */
+
+:root {
+  --sync-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --sync-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --sync-dur-fast: 140ms;
+  --sync-dur-base: 220ms;
+  --sync-dur-slow: 360ms;
+  --sync-focus: rgba(168, 121, 255, 0.55);
+  --sync-focus-ring: rgba(168, 121, 255, 0.14);
+}
+
+/* ---------- Keyframes ---------- */
+@keyframes sync-page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes sync-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes sync-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sync-pop { from { opacity: 0; transform: translateY(8px) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes sync-menu { from { opacity: 0; transform: translateY(-4px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes sync-menu-up { from { opacity: 0; transform: translateY(6px) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes sync-msg-user { from { opacity: 0; transform: translate(10px, 6px); } to { opacity: 1; transform: none; } }
+@keyframes sync-msg-assistant { from { opacity: 0; transform: translate(-10px, 6px); } to { opacity: 1; transform: none; } }
+@keyframes sync-caret { 0%, 100% { opacity: 0.75; } 50% { opacity: 0; } }
+@keyframes sync-ring { 0% { transform: scale(1); opacity: 0.55; } 100% { transform: scale(2.6); opacity: 0; } }
+@keyframes sync-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@keyframes sync-toast-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+/* ---------- Global interaction foundation ---------- */
+button, input, textarea, select, a {
+  transition:
+    background-color var(--sync-dur-base) var(--sync-ease),
+    border-color var(--sync-dur-base) var(--sync-ease),
+    color var(--sync-dur-base) var(--sync-ease),
+    box-shadow var(--sync-dur-base) var(--sync-ease),
+    opacity var(--sync-dur-base) var(--sync-ease),
+    transform var(--sync-dur-fast) var(--sync-ease);
+}
+button:not(:disabled) { cursor: pointer; }
+button:not(:disabled):active { transform: translateY(1px) scale(0.985); }
+button:disabled { cursor: not-allowed; filter: saturate(0.55); }
+
+/* Text inputs: soft focus ring (checkboxes/ranges keep native focus styling) */
+:is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, select):focus {
+  border-color: var(--sync-focus);
+  box-shadow: 0 0 0 3px var(--sync-focus-ring);
+}
+.shell-chat-composer:focus-within { border-color: var(--sync-focus); box-shadow: 0 0 0 3px var(--sync-focus-ring), 0 10px 34px rgba(8, 6, 20, 0.45); }
+.shell-chat-composer { transition: border-color var(--sync-dur-base) var(--sync-ease), box-shadow var(--sync-dur-base) var(--sync-ease); }
+.shell-chat-composer textarea:focus { box-shadow: none; }
+
+/* Scrolling: no scroll chaining out of inner panes */
+.shell-page-scroll, .shell-chat-transcript, .shell-chat-tool-menu { overscroll-behavior: contain; }
+
+/* Scrollbars: slim, theme-matched, fade in on hover */
+* { scrollbar-width: thin; scrollbar-color: rgba(168, 121, 255, 0.28) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background-color: rgba(168, 121, 255, 0.22); background-clip: content-box; transition: background-color var(--sync-dur-base); }
+::-webkit-scrollbar-thumb:hover { background-color: rgba(168, 121, 255, 0.5); }
+::-webkit-scrollbar-corner { background: transparent; }
+::selection { background: rgba(168, 121, 255, 0.35); color: #fff; }
+
+/* ---------- Page transitions ---------- */
+.shell-page-scroll.is-page-entering { animation: sync-page-in 260ms var(--sync-ease) backwards; }
+
+/* Staggered card rise — only while the page is entering (never on re-render) */
+.is-page-entering :is(
+  .shell-settings-card, .shell-model-card, .shell-runtime-card, .memory-card, .task-card,
+  .privacy-policy-card, .privacy-action-card, .workspace-artifact-entry, .note-list-entry,
+  .shell-folder-entry, .library-file-list > *, .history-empty, .tasks-empty, .workspace-empty,
+  .shell-model-empty, .shell-preview-panel, .shell-settings-panel, .shell-chat-empty-state > *
+) { animation: sync-rise var(--sync-dur-slow) var(--sync-ease) backwards; }
+.is-page-entering :is(.shell-settings-card, .shell-model-card, .shell-runtime-card, .memory-card, .task-card, .privacy-policy-card, .privacy-action-card, .workspace-artifact-entry, .note-list-entry, .shell-folder-entry, .library-file-list > *, .shell-chat-empty-state > *):nth-child(2) { animation-delay: 45ms; }
+.is-page-entering :is(.shell-settings-card, .shell-model-card, .shell-runtime-card, .memory-card, .task-card, .privacy-policy-card, .privacy-action-card, .workspace-artifact-entry, .note-list-entry, .shell-folder-entry, .library-file-list > *, .shell-chat-empty-state > *):nth-child(3) { animation-delay: 90ms; }
+.is-page-entering :is(.shell-settings-card, .shell-model-card, .shell-runtime-card, .memory-card, .task-card, .privacy-policy-card, .privacy-action-card, .workspace-artifact-entry, .note-list-entry, .shell-folder-entry, .library-file-list > *, .shell-chat-empty-state > *):nth-child(4) { animation-delay: 135ms; }
+.is-page-entering :is(.shell-settings-card, .shell-model-card, .shell-runtime-card, .memory-card, .task-card, .privacy-policy-card, .privacy-action-card, .workspace-artifact-entry, .note-list-entry, .shell-folder-entry, .library-file-list > *, .shell-chat-empty-state > *):nth-child(n+5) { animation-delay: 180ms; }
+
+/* ---------- Sidebar ---------- */
+.shell-nav-entry, .shell-recent-chat, .shell-sidebar-folder, .shell-settings-button, .shell-new-chat {
+  transition:
+    background-color var(--sync-dur-base) var(--sync-ease),
+    border-color var(--sync-dur-base) var(--sync-ease),
+    color var(--sync-dur-base) var(--sync-ease),
+    transform var(--sync-dur-base) var(--sync-ease),
+    box-shadow var(--sync-dur-base) var(--sync-ease);
+}
+.shell-nav-entry:hover, .shell-recent-chat:hover, .shell-sidebar-folder:hover { transform: translateX(2px); }
+.shell-nav-entry { position: relative; }
+.shell-nav-entry::before {
+  position: absolute; top: 22%; bottom: 22%; left: 0; width: 2px; border-radius: 2px; content: "";
+  background: linear-gradient(180deg, var(--accent), var(--accent-soft));
+  transform: scaleY(0); transform-origin: center; opacity: 0;
+  transition: transform var(--sync-dur-base) var(--sync-ease), opacity var(--sync-dur-base) var(--sync-ease);
+}
+.shell-nav-entry.is-active::before { transform: scaleY(1); opacity: 1; }
+.shell-nav-glyph { transition: color var(--sync-dur-base) var(--sync-ease), transform var(--sync-dur-base) var(--sync-ease); }
+.shell-nav-entry:hover .shell-nav-glyph { transform: scale(1.08); }
+.shell-settings-chevron { display: inline-block; transition: transform var(--sync-dur-base) var(--sync-ease); }
+.shell-settings-button:hover .shell-settings-chevron { transform: translateX(3px); }
+.shell-new-chat:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(120, 80, 220, 0.18); }
+.shell-new-chat:active { transform: translateY(1px) scale(0.99); }
+
+/* Recent-chat rows: more menu toggle fades in with the row */
+.shell-recent-chat-menu-toggle { transition: opacity var(--sync-dur-fast), background-color var(--sync-dur-fast), color var(--sync-dur-fast); }
+
+/* Dropdown + context menus */
+.shell-chat-context-menu:not([hidden]) { animation: sync-menu var(--sync-dur-fast) var(--sync-ease) both; transform-origin: top right; }
+.shell-chat-context-menu button, .shell-model-menu button, .shell-chat-tool-option { transition: background-color var(--sync-dur-fast), color var(--sync-dur-fast), transform var(--sync-dur-fast) var(--sync-ease); }
+.shell-chat-context-menu button:hover { transform: translateX(2px); }
+.shell-chat-tool-menu { animation: sync-menu-up var(--sync-dur-base) var(--sync-ease) both; transform-origin: bottom center; }
+
+/* ---------- Cards: hover elevation + border transitions ---------- */
+:is(
+  .shell-settings-card, .shell-model-card, .shell-runtime-card, .memory-card, .task-card,
+  .privacy-policy-card, .privacy-action-card, .workspace-artifact-entry, .note-list-entry,
+  .shell-folder-entry, .library-file-list > *, .shell-folder-chat-row
+) {
+  transition:
+    transform var(--sync-dur-base) var(--sync-ease),
+    border-color var(--sync-dur-base) var(--sync-ease),
+    background-color var(--sync-dur-base) var(--sync-ease),
+    box-shadow var(--sync-dur-base) var(--sync-ease);
+}
+:is(.shell-model-card, .memory-card, .task-card, .privacy-action-card, .privacy-policy-card, .library-file-list > *, .shell-runtime-card):hover {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+  box-shadow: 0 10px 28px rgba(5, 4, 16, 0.38);
+}
+:is(.workspace-artifact-entry, .note-list-entry, .shell-folder-entry):hover { border-color: var(--border-strong); }
+.shell-settings-card-arrow, .shell-folder-arrow { display: inline-block; transition: transform var(--sync-dur-base) var(--sync-ease), color var(--sync-dur-base); }
+.shell-settings-card:hover .shell-settings-card-arrow, .shell-folder-entry:hover .shell-folder-arrow { transform: translateX(3px); }
+
+/* ---------- Chat ---------- */
+.shell-chat-message { position: relative; }
+.shell-chat-message.is-entering.is-user { animation: sync-msg-user var(--sync-dur-slow) var(--sync-ease) backwards; }
+.shell-chat-message.is-entering.is-assistant { animation: sync-msg-assistant var(--sync-dur-slow) var(--sync-ease) backwards; }
+/* Subtle role distinction: a thin accent edge (violet = assistant, cyan = you) */
+.shell-chat-message.is-assistant::before, .shell-chat-message.is-user::before {
+  position: absolute; top: 12px; bottom: 12px; width: 2px; border-radius: 2px; content: ""; pointer-events: none;
+}
+.shell-chat-message.is-assistant::before { left: -1px; background: linear-gradient(180deg, rgba(168, 121, 255, 0.7), rgba(168, 121, 255, 0)); }
+.shell-chat-message.is-user::before { right: -1px; background: linear-gradient(180deg, rgba(104, 216, 235, 0.55), rgba(104, 216, 235, 0)); }
+.shell-chat-message.is-streaming::before { background: linear-gradient(180deg, rgba(168, 121, 255, 0.95), rgba(104, 216, 235, 0.2)); }
+
+/* Message tools appear gently on hover/focus */
+.shell-chat-message-tools { opacity: 0.55; transition: opacity var(--sync-dur-base) var(--sync-ease); }
+.shell-chat-message:hover .shell-chat-message-tools, .shell-chat-message:focus-within .shell-chat-message-tools { opacity: 1; }
+
+/* Streaming text: soft blinking caret (opacity only) */
+.shell-chat-message.is-streaming > p::after {
+  display: inline-block; width: 6px; height: 1.05em; margin-left: 3px; border-radius: 1px; content: "";
+  vertical-align: text-bottom; background: var(--accent); animation: sync-caret 1s steps(2, jump-none) infinite;
+}
+.shell-chat-streaming-status { transition: color var(--sync-dur-base), opacity var(--sync-dur-base); }
+.shell-chat-streaming-dots i:nth-child(2) { animation-delay: 0.16s; }
+.shell-chat-streaming-dots i:nth-child(3) { animation-delay: 0.32s; }
+
+/* Send / Stop */
+.shell-chat-send:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(130, 90, 230, 0.32); }
+.shell-chat-send:disabled { opacity: 0.45; }
+.shell-chat-stop { animation: sync-pop var(--sync-dur-base) var(--sync-ease) both; }
+.shell-chat-stop:not(:disabled):hover { transform: translateY(-1px); }
+.shell-chat-queue-status, .shell-chat-notice, .shell-chat-alert { animation: none; }
+
+/* Runtime / model-ready pill */
+.shell-chat-runtime-pill, .shell-chat-runtime-pill span { transition: color var(--sync-dur-slow), border-color var(--sync-dur-slow), background-color var(--sync-dur-slow), box-shadow var(--sync-dur-slow); }
+
+/* ---------- Status indicators (healthy / warning / error) ---------- */
+.shell-large-status, .shell-connection-pill, .shell-connection-dot, .privacy-action-state, .shell-seal-dot, .shell-large-status span {
+  transition: color var(--sync-dur-slow) var(--sync-ease), border-color var(--sync-dur-slow) var(--sync-ease), background-color var(--sync-dur-slow) var(--sync-ease), box-shadow var(--sync-dur-slow) var(--sync-ease);
+}
+/* Healthy dots emit a slow, tiny expanding ring (transform/opacity on a 5px element) */
+.shell-connection-pill.is-connected .shell-connection-dot, .shell-large-status.is-connected span { position: relative; }
+.shell-connection-pill.is-connected .shell-connection-dot::after, .shell-large-status.is-connected span::after {
+  position: absolute; inset: 0; border-radius: 50%; content: ""; background: inherit; pointer-events: none;
+  animation: sync-ring 2.6s ease-out infinite;
+}
+.shell-action-running, .shell-stop-action { animation: sync-fade var(--sync-dur-base) var(--sync-ease) both; }
+.shell-stop-action:not(:disabled):hover { transform: translateY(-1px); }
+.privacy-action-state.is-failed, .privacy-action-state.is-error { animation: sync-pop var(--sync-dur-base) var(--sync-ease) both; }
+
+/* Telemetry values: calm number/colour changes so 1.5 s refreshes do not flicker */
+.shell-runtime-card strong, .shell-details-grid dd, .shell-details-grid strong, .runtime-data-cell strong, .shell-ram-stats strong {
+  transition: color var(--sync-dur-slow) var(--sync-ease);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Toggles & sliders ---------- */
+.shell-ram-toggle input[type="checkbox"], .memory-enable-toggle input[type="checkbox"], .memory-card-toggle input[type="checkbox"] {
+  position: relative; flex: 0 0 auto; width: 36px; height: 20px; margin: 0; border: 1px solid rgba(168, 121, 255, 0.3);
+  border-radius: 999px; background: rgba(255, 255, 255, 0.06); cursor: pointer; appearance: none; -webkit-appearance: none;
+}
+.shell-ram-toggle input[type="checkbox"]::after, .memory-enable-toggle input[type="checkbox"]::after, .memory-card-toggle input[type="checkbox"]::after {
+  position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; content: ""; background: #9a98b8;
+  transition: transform var(--sync-dur-base) var(--sync-ease), background-color var(--sync-dur-base);
+}
+.shell-ram-toggle input[type="checkbox"]:checked, .memory-enable-toggle input[type="checkbox"]:checked, .memory-card-toggle input[type="checkbox"]:checked {
+  border-color: rgba(168, 121, 255, 0.75); background: linear-gradient(90deg, rgba(168, 121, 255, 0.55), rgba(104, 216, 235, 0.4));
+}
+.shell-ram-toggle input[type="checkbox"]:checked::after, .memory-enable-toggle input[type="checkbox"]:checked::after, .memory-card-toggle input[type="checkbox"]:checked::after { background: #fff; transform: translateX(16px); }
+.shell-ram-toggle input[type="checkbox"]:focus-visible, .memory-enable-toggle input[type="checkbox"]:focus-visible, .memory-card-toggle input[type="checkbox"]:focus-visible { outline: 2px solid rgba(104, 216, 235, 0.85); outline-offset: 3px; }
+.shell-ram-toggle input[type="checkbox"]:disabled, .memory-enable-toggle input[type="checkbox"]:disabled, .memory-card-toggle input[type="checkbox"]:disabled { opacity: 0.5; cursor: not-allowed; }
+.shell-ram-slider { transition: opacity var(--sync-dur-slow) var(--sync-ease); }
+input[type="range"]::-webkit-slider-thumb { transition: transform var(--sync-dur-fast) var(--sync-ease), box-shadow var(--sync-dur-fast); }
+input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.12); }
+input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); }
+
+/* ---------- Modals / approval dialogs ---------- */
+.privacy-modal-backdrop, .chat-tool-modal-backdrop { animation: sync-fade var(--sync-dur-base) var(--sync-ease) both; }
+.chat-tool-modal { animation: sync-pop var(--sync-dur-base) var(--sync-ease) both; }
+
+/* ---------- Feedback / toasts / inline status ---------- */
+:is(.workspace-feedback, .tasks-feedback, .privacy-feedback, .memory-feedback, .shell-settings-feedback, .shell-model-message, .library-feedback) {
+  animation: sync-toast-in var(--sync-dur-base) var(--sync-ease) both;
+}
+
+/* ---------- Progress / loading ---------- */
+.shell-chat-empty, .shell-recent-empty { animation: sync-fade var(--sync-dur-slow) var(--sync-ease) 120ms both; }
+.shell-model-progress, .shell-progress, progress { transition: width var(--sync-dur-slow) var(--sync-ease); }
+
+/* ---------- Topbar / breadcrumb ---------- */
+.shell-breadcrumb strong { transition: color var(--sync-dur-base); }
+
+/* ---------- Boot + splash lifecycle (driven by renderer/app.js) ---------- */
+.shell-root.is-booting { visibility: hidden; }
+.shell-root.is-revealing { animation: sync-fade 520ms var(--sync-ease) both; }
+
+/* Splash: staggered entrance of the existing artwork, calm exit.
+   The artwork itself (orb, rings, colours, copy) is untouched. */
+.startup-content > * { animation: sync-rise 760ms var(--sync-ease) backwards; }
+.startup-content > .startup-core { animation-delay: 80ms; }
+.startup-content > .startup-brand { animation-delay: 360ms; }
+.startup-content > .startup-status { animation-delay: 560ms; }
+.startup-content > .startup-progress { animation-delay: 680ms; }
+.startup-content > .startup-footnote { animation-delay: 800ms; }
+.startup-screen.is-leaving { animation: sync-fade 520ms ease-in reverse both; pointer-events: none; }
+.startup-screen.is-leaving .startup-content { transform: scale(1.025); opacity: 0.6; transition: transform 520ms var(--sync-ease-in), opacity 520ms var(--sync-ease-in); }
+
+/* ---------- Reduced motion: keep state changes, drop movement ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  .shell-chat-message.is-streaming > p::after { animation: none; opacity: 0.6; }
+  .shell-connection-pill.is-connected .shell-connection-dot::after, .shell-large-status.is-connected span::after { display: none; }
+  button:not(:disabled):active, .shell-nav-entry:hover, .shell-recent-chat:hover, .shell-sidebar-folder:hover, .shell-new-chat:hover,
+  .shell-chat-send:not(:disabled):hover, .shell-chat-context-menu button:hover { transform: none; }
+  :is(.shell-model-card, .memory-card, .task-card, .privacy-action-card, .privacy-policy-card, .library-file-list > *, .shell-runtime-card):hover { transform: none; }
+  .startup-screen.is-leaving .startup-content { transform: none; }
+}

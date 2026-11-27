@@ -197,12 +197,34 @@ async function mountChat(root, context, initialChatId = null) {
     } finally { toolActionBusy = false; render(); }
   }
 
+  // Motion bookkeeping: render() rebuilds the whole stage (also on every streamed
+  // token), so entrance animation is applied only to genuinely new messages.
+  let motionChatId = null, motionCount = 0, motionWasStreaming = false;
+  function applyMessageMotion() {
+    const nodes = Array.from(root.querySelectorAll(".shell-chat-transcript .shell-chat-message"));
+    const settled = nodes.filter(node => !node.classList.contains("is-streaming"));
+    const streamNode = nodes.find(node => node.classList.contains("is-streaming"));
+    const sameChat = motionChatId === chatId || motionCount === 0;
+    const fresh = settled.slice(motionCount);
+    if (!loading && sameChat && fresh.length > 0 && fresh.length <= 4) {
+      // A finished reply replaces its streaming bubble in place: do not re-animate it.
+      const skipLast = motionWasStreaming && !streamNode && fresh.length === 1;
+      if (!skipLast) fresh.forEach(node => node.classList.add("is-entering"));
+    }
+    if (streamNode && !motionWasStreaming) streamNode.classList.add("is-entering");
+    if (!loading) { motionChatId = chatId; motionCount = settled.length; }
+    motionWasStreaming = Boolean(streamNode);
+  }
+
   function render() {
     const oldInput = root.querySelector("#chatComposerInput");
     const focused = oldInput && document.activeElement === oldInput;
     const start = focused ? oldInput.selectionStart : null;
     const end = focused ? oldInput.selectionEnd : null;
-    const oldScroll = root.querySelector(".shell-chat-transcript")?.scrollTop;
+    const oldTranscript = root.querySelector(".shell-chat-transcript");
+    const oldScroll = oldTranscript?.scrollTop;
+    // Follow the stream only while the reader is already near the bottom.
+    const wasNearBottom = !oldTranscript || oldTranscript.scrollHeight - oldTranscript.scrollTop - oldTranscript.clientHeight < 90;
     root.innerHTML = `
       <section class="shell-chat-stage" data-chat-id="${esc(chatId || "")}">
         <header class="shell-chat-toolbar">
@@ -254,9 +276,10 @@ async function mountChat(root, context, initialChatId = null) {
     }
     const transcript = root.querySelector(".shell-chat-transcript");
     if (transcript) {
-      if (preview || oldScroll == null) scrollTranscript();
+      if (oldScroll == null || (preview && wasNearBottom)) scrollTranscript();
       else transcript.scrollTop = oldScroll;
     }
+    applyMessageMotion();
   }
 
   async function refreshRuntime() {

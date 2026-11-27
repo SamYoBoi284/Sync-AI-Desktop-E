@@ -297,3 +297,59 @@ The package scripts define these checks. This tracker does not claim that they w
 - Keep Electron, Tauri and Android repositories separate.
 - Distinguish source implementation, CI evidence and target-machine validation.
 - Update this tracker, `IMPLEMENTATION_NOTES.md` and the relevant development log when architecture or feature status materially changes.
+
+---
+
+## Visual polish & animation pass (November 26, 2026)
+
+### What changed
+- Added a single additive motion/polish stylesheet, `src/motion.css`, loaded LAST in `index.html`. No existing CSS was deleted or rewritten; it layers transitions, keyframes and refinements over existing selectors.
+- Splash lifecycle fixed in `renderer/app.js` (see below). Splash artwork, copy and colours are unchanged; only a staggered entrance and a fade/scale exit were added in CSS.
+- `renderer/app.js`: page-enter hook (`markPageEntering`), boot/reveal classes, lifecycle-aware splash.
+- `renderer/pages/chat.js`: entrance animation only for newly added messages, and auto-scroll that follows the stream only while the reader is near the bottom (<90 px), so manual scrolling is no longer overridden.
+- `index.html`: one `<link>` for `src/motion.css`.
+
+### Files modified / created
+- NEW `src/motion.css`
+- MODIFIED `index.html`, `renderer/app.js`, `renderer/pages/chat.js`, `CONTEXT_TRACKER.md`
+- Not touched: `electron/*`, `renderer/api.js`, database/inference code, all other renderer pages and the other stylesheets.
+
+### Splash lifecycle (new behaviour)
+1. `consumeStartupSplash()` is now the first await. If it returns true the splash is shown immediately (before `getAppInfo`/recent chats/page render), the shell is `inert` + `aria-hidden` underneath, and `rendererReady()` is signalled after two animation frames so the window never shows empty.
+2. Bootstrap continues behind the splash. When it finishes, the splash waits until `SPLASH_MIN_MS` (5200 ms, measured from when it became visible) has elapsed, then fades out over `SPLASH_EXIT_MS` (520 ms) while the shell fades in. If initialization is slower than the minimum it simply stays until ready.
+3. Non-first launches: no splash, `rendererReady()` is signalled after render exactly as before. `.shell-root.is-booting` hides the shell only during the few ms before the flag is known; a 2.5 s guard removes it if the bridge hangs.
+4. Reduced motion: exit shortened to 60 ms. Tune the two constants at the top of the splash block in `app.js`.
+
+### Animation classes & conventions
+- Tokens: `--sync-ease`, `--sync-ease-in`, `--sync-dur-fast` (140 ms) / `-base` (220 ms) / `-slow` (360 ms), `--sync-focus`, `--sync-focus-ring`.
+- Keyframes are prefixed `sync-`: `page-in, rise, fade, pop, menu, menu-up, msg-user, msg-assistant, caret, ring, toast-in` (+ unused `shimmer` reserved).
+- JS hooks: `.is-page-entering` on `#pageHost` (~700 ms after navigation; ALL enter/stagger animation is gated on it so Runtime telemetry and re-renders never replay it), `.is-entering` on new chat messages, `.is-booting` / `.is-revealing` on `#appShell`, `.is-leaving` on `#startupSplash`.
+- Only transform/opacity animate continuously, and only on tiny elements (streaming caret, three dots, healthy-status ring). No large surface repaints.
+- All new motion is disabled/neutralised in the `prefers-reduced-motion` block at the end of `motion.css`.
+- Covered: global button/input/focus transitions, slim themed scrollbars, sidebar hover + animated active bar, context/dropdown/tool menus, card hover elevation + stagger on every page (Models, Runtime, Memory, Privacy & Tools, History/Archive, Folders, Workspace, Tasks & Notes, File Library, Settings), user/assistant message entrance and role edge accents, streaming caret, staggered three-dot indicator, send/stop states, status pill/dot transitions, custom animated switches for `.shell-ram-toggle`, `.memory-enable-toggle`, `.memory-card-toggle` (still native checkboxes), range-thumb hover, modal/backdrop entrance, inline feedback ("toast") entrance, tabular numerals for telemetry.
+
+### Dependencies
+None added. No frameworks, bundlers or animation libraries.
+
+### Architectural decisions
+- Motion lives in one new additive file instead of editing the accumulated styles.css/shell.css layers (safer; avoids regressions in overlapping selectors).
+- Entrance animation is applied from JS after render because chat `render()` rebuilds the whole stage on every streamed token; CSS-only animation would replay constantly.
+- Native checkbox semantics are kept for toggles (restyled only), preserving IDs, handlers and keyboard behaviour.
+
+### Known limitations
+- Modal/menu CLOSE animations are not implemented: the approval and tool modals are removed from the DOM synchronously, and delaying removal could affect focus restoration and the approval safety boundary. Entrance only.
+- Streaming text is re-rendered as a whole per token, so there is no per-token fade; a blinking caret is used instead.
+- Native `title` tooltips are not stylable. Appearance settings remain a preview route.
+- Visual output was not viewed in a running Electron window (see tests).
+
+### Tests performed
+- EXECUTED: `node --check` on modified JS (`renderer/app.js`, `renderer/pages/chat.js`) - pass.
+- EXECUTED: css-tree parse of all 7 stylesheets - 0 parse errors, braces balanced.
+- EXECUTED: jsdom harness of the splash lifecycle with stubbed bridge: fast init -> splash visible about 5.7 s (5.2 s minimum + 0.5 s exit), shell restored (not inert, no aria-hidden); init of 7 s -> splash stayed until ready (about 7.5 s); no first-start flag -> no splash; `rendererReady` called once in each case.
+- EXECUTED: confirmed `index.html` script order and all 12 page modules still destructured in `app.js`; `data-*` attributes and IDs untouched (only additive classes).
+- NOT PERFORMED: `npm run build` and `npm test` (they require the `electron/` sources and dependencies, which were not supplied), `npm run test:startup`, and any real Electron launch or visual/manual testing.
+
+### Remaining work
+- Run `npm run build`, `npm test`, `npm run test:startup` locally and look through each page in Electron; tune splash constants if desired.
+- Optional: close animations for menus/modals (needs focus-safe teardown), per-page tweaks after visual review.
+- Separate backlog (intentionally NOT started): keyboard customization, global search, command palette, universal Escape, @ button removal, composer-based message editing.
