@@ -465,3 +465,11 @@ None added. No frameworks, bundlers or animation libraries.
 - Automatic per-chat summaries are on by default, can be disabled in Memory settings, retain the newest eight messages verbatim, and only advance their cursor through messages included in the summary request.
 - Latest source contract corrections: `700541503116b7c9932576952dd5b7f2d98a5bf2`. CI for this commit has been triggered but not yet completed. Last completed Ubuntu run had the new database/candidate tests passing; its failures were stale source assertions that have since been corrected. Windows hosted path/file-action failures have occurred in earlier runs.
 - No manual target-device Electron UI or real GGUF inference test has been performed.
+
+
+## 17. Navigation and layout refinement — 2026-11-26
+
+- Added a top-bar Back control for in-app subpage navigation, backed by a bounded route-history stack. Root sidebar navigation clears the stack; routes opened from within a page retain a return path.
+- Escape closes the nearest supported layer first (chat tool dialogs, chat menus, folder submenus and open details); Privacy & Tools retains ownership of its approval-dialog focus and Escape behavior. Otherwise Escape returns to the previous in-app page.
+- Chat transcript/sidebar overflow is constrained, long sidebar folder names are clipped within their row, and chat action tooltips anchor inward from the left/right message edge to avoid creating horizontal scroll.
+- This is source-level implementation only; manual Electron interaction and small-window edge testing remain outstanding.
