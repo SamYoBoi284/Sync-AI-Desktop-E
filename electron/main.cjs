@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage, utilityProcess } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage, utilityProcess, globalShortcut } = require("electron");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 const os = require("node:os");
@@ -60,6 +60,13 @@ function showOpenDialogWithFocus(options) {
 function showSaveDialogWithFocus(options) {
   return awaitNativeDialogWithFocus(dialog.showSaveDialog(mainWindow, options));
 }
+let quickAskWindow = null;
+let quickAskSession = null;
+let quickAskShortcutRegistered = "";
+const DEFAULT_QUICK_ASK_PREFERENCES = {
+  shortcut: "CommandOrControl+Shift+Space",
+  modelSelection: { mode: "default", customModelId: null }
+};
 let database = null;
 let actionManager = null;
 let waitingForActionShutdown = false;
@@ -96,6 +103,197 @@ function getDeviceContext() {
   const utcOffset = "UTC" + sign + String(Math.floor(absoluteOffset / 60)).padStart(2, "0") +
     ":" + String(absoluteOffset % 60).padStart(2, "0");
   return { iso: now.toISOString(), localDate, localTime, timeZone, utcOffset };
+}
+
+function getQuickAskPreferences() {
+  const raw = database?.get_setting({ key: "quick_ask_preferences" });
+  if (raw == null) return structuredClone(DEFAULT_QUICK_ASK_PREFERENCES);
+  try {
+    const parsed = JSON.parse(raw);
+    const modes = ["default", "smallest", "most-recent", "custom"];
+    const mode = modes.includes(parsed?.modelSelection?.mode) ? parsed.modelSelection.mode : "default";
+    const shortcut = typeof parsed.shortcut === "string" && parsed.shortcut.trim()
+      ? parsed.shortcut.trim().slice(0, 64) : DEFAULT_QUICK_ASK_PREFERENCES.shortcut;
+    return { shortcut, modelSelection: { mode, customModelId: typeof parsed?.modelSelection?.customModelId === "string" ? parsed.modelSelection.customModelId : null } };
+  } catch {
+    return structuredClone(DEFAULT_QUICK_ASK_PREFERENCES);
+  }
+}
+
+function resolveQuickAskModel() {
+  const models = database.list_models().filter(model => model.isAvailable);
+  if (!models.length) throw new Error("No available GGUF models are registered. Import a model in Local models first.");
+  const preferences = getQuickAskPreferences().modelSelection;
+  if (preferences.mode === "custom") {
+    const chosen = models.find(model => model.id === preferences.customModelId);
+    if (!chosen) throw new Error("The custom Quick Ask model is unavailable. Choose another model in Settings → Quick Ask.");
+    return chosen;
+  }
+  if (preferences.mode === "smallest") {
+    return [...models].sort((a, b) => Number(a.sizeBytes) - Number(b.sizeBytes))[0];
+  }
+  if (preferences.mode === "most-recent") {
+    const recentIdRaw = database.get_setting({ key: "quick_ask_recent_model_id" });
+    let recentId = null;
+    try { recentId = recentIdRaw == null ? null : JSON.parse(recentIdRaw); } catch {}
+    const recent = models.find(model => model.id === recentId);
+    return recent || [...models].sort((a, b) => String(b.importedAt).localeCompare(String(a.importedAt)))[0];
+  }
+  return models.find(model => model.isDefault) ||
+    [...models].sort((a, b) => String(b.importedAt).localeCompare(String(a.importedAt)))[0];
+}
+
+function registerQuickAskShortcut(accelerator) {
+  const previous = quickAskShortcutRegistered;
+  if (previous) globalShortcut.unregister(previous);
+  let registered = false;
+  try { registered = globalShortcut.register(accelerator, () => { void openQuickAskOverlay(); }); } catch {}
+  if (!registered) {
+    if (previous) {
+      try {
+        const restored = globalShortcut.register(previous, () => { void openQuickAskOverlay(); });
+        if (restored) quickAskShortcutRegistered = previous;
+      } catch {}
+    }
+    throw new Error("That Quick Ask shortcut is unavailable or already used by another application. Try a different accelerator.");
+  }
+  quickAskShortcutRegistered = accelerator;
+}
+
+function initializeQuickAskShortcut() {
+  const preferences = getQuickAskPreferences();
+  try { registerQuickAskShortcut(preferences.shortcut); }
+  catch (error) {
+    logStartup("Quick Ask shortcut registration failed: " + error.message);
+    try { registerQuickAskShortcut(DEFAULT_QUICK_ASK_PREFERENCES.shortcut); } catch {}
+  }
+}
+
+async function saveQuickAskPreferences({ preferences } = {}) {
+  if (!preferences || typeof preferences !== "object") throw new Error("Quick Ask preferences are required.");
+  const shortcut = String(preferences.shortcut || "").trim();
+  if (!shortcut || shortcut.length > 64 || !shortcut.includes("+")) throw new Error("Enter a valid global shortcut, for example CommandOrControl+Shift+Space.");
+  const modelSelection = preferences.modelSelection || {};
+  const mode = ["default", "smallest", "most-recent", "custom"].includes(modelSelection.mode) ? modelSelection.mode : null;
+  if (!mode) throw new Error("Choose Default, Smallest, Most Recent or Custom model selection.");
+  const customModelId = typeof modelSelection.customModelId === "string" ? modelSelection.customModelId : null;
+  if (mode === "custom" && !database.list_models().some(model => model.id === customModelId && model.isAvailable)) {
+    throw new Error("Select an available registered GGUF model for Custom selection.");
+  }
+  const previous = getQuickAskPreferences();
+  if (shortcut !== previous.shortcut) registerQuickAskShortcut(shortcut);
+  const next = { shortcut, modelSelection: { mode, customModelId: mode === "custom" ? customModelId : null } };
+  try {
+    database.set_setting({ key: "quick_ask_preferences", valueJson: JSON.stringify(next) });
+  } catch (error) {
+    if (shortcut !== previous.shortcut) {
+      try { registerQuickAskShortcut(previous.shortcut); } catch {}
+    }
+    throw error;
+  }
+  return next;
+}
+
+async function prepareQuickAskSession() {
+  const session = quickAskSession;
+  if (!session || session.closed) throw new Error("The Quick Ask window is no longer active.");
+  if (runtimeState.isLoaded && inferenceWorker) {
+    session.reusedExistingModel = true;
+    session.modelId = runtimeState.loadedModelId;
+    return { modelName: runtimeState.loadedModelName, reusedExistingModel: true, temporary: false };
+  }
+  if (runtimeState.isLoading || runtimeState.isGenerating || inferenceWorker || activeGeneration || generationQueue.length) {
+    throw new Error("The local inference worker is busy. Finish the current operation before starting Quick Ask.");
+  }
+  const model = resolveQuickAskModel();
+  await handlers.load_model({ modelId: model.id });
+  session.modelId = model.id;
+  session.loadedTemporarily = true;
+  if (session.closed) {
+    await cleanupQuickAskSession(session);
+    throw new Error("Quick Ask was closed while its temporary model was loading.");
+  }
+  return { modelName: model.name, reusedExistingModel: false, temporary: true };
+}
+
+async function submitQuickAsk({ prompt, generationId } = {}) {
+  const session = quickAskSession;
+  if (!session || session.closed) throw new Error("The Quick Ask window is no longer active.");
+  if (typeof prompt !== "string" || !prompt.trim() || Buffer.byteLength(prompt) > 64 * 1024) throw new Error("Enter a Quick Ask message under 64 KiB.");
+  if (session.generationId) throw new Error("Quick Ask is already generating a response.");
+  if (!runtimeState.isLoaded) await prepareQuickAskSession();
+  const device = getDeviceContext();
+  const enrichedPrompt = [
+    "CURRENT DEVICE LOCAL DATE AND TIME (TRUSTED SYSTEM METADATA):",
+    "Local date: " + device.localDate,
+    "Local time: " + device.localTime,
+    "Time zone: " + device.timeZone,
+    "UTC offset: " + device.utcOffset,
+    "",
+    "QUICK ASK REQUEST:",
+    prompt.trim(),
+    "",
+    "Answer the request directly. Use the supplied local date and time for present-time questions."
+  ].join("\n");
+  const request = handlers.generate_chat({ prompt: enrichedPrompt, generationId, chatId: null, purpose: "quick-ask" });
+  session.generationId = generationId;
+  session.generationPromise = request;
+  try { return await request; }
+  finally {
+    if (quickAskSession === session && session.generationId === generationId) {
+      session.generationId = null;
+      session.generationPromise = null;
+    }
+  }
+}
+
+async function cleanupQuickAskSession(session) {
+  if (!session || session.cleanupStarted) return;
+  session.cleanupStarted = true;
+  session.closed = true;
+  if (session.generationId) {
+    try { await handlers.cancel_generation({ generationId: session.generationId }); } catch {}
+    try { await session.generationPromise; } catch {}
+  }
+  if (session.loadedTemporarily && runtimeState.isLoaded &&
+      runtimeState.loadedModelId === session.modelId && !runtimeState.isGenerating &&
+      !activeGeneration && generationQueue.length === 0) {
+    try { await handlers.unload_model(); }
+    catch (error) { logStartup("Quick Ask temporary model cleanup failed: " + error.message); }
+  }
+}
+
+async function openQuickAskOverlay() {
+  if (quickAskWindow && !quickAskWindow.isDestroyed()) {
+    quickAskWindow.show();
+    quickAskWindow.focus();
+    return;
+  }
+  const session = { closed: false, loadedTemporarily: false, reusedExistingModel: false, modelId: null, generationId: null, generationPromise: null, cleanupStarted: false };
+  quickAskSession = session;
+  const overlay = new BrowserWindow({
+    width: 680, height: 560, minWidth: 460, minHeight: 420,
+    resizable: true, maximizable: false, minimizable: false,
+    frame: false, alwaysOnTop: true, skipTaskbar: true, show: false,
+    backgroundColor: "#090a12",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true
+    }
+  });
+  quickAskWindow = overlay;
+  overlay.once("ready-to-show", () => { if (!overlay.isDestroyed()) { overlay.show(); overlay.focus(); } });
+  overlay.on("closed", () => {
+    if (quickAskWindow === overlay) quickAskWindow = null;
+    if (quickAskSession === session) quickAskSession = null;
+    void cleanupQuickAskSession(session);
+  });
+  overlay.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  overlay.webContents.on("will-navigate", (event, targetUrl) => {
+    const trusted = targetUrl === pathToFileURL(path.join(__dirname, "..", "quick-ask.html")).href;
+    if (!trusted) event.preventDefault();
+  });
+  await overlay.loadFile(path.join(__dirname, "..", "quick-ask.html"));
 }
 
 function getInferenceOptions(modelId = null) {
@@ -201,7 +399,7 @@ function enqueueGeneration({ prompt, generationId, chatId = null, userMessageId 
     const job = {
       prompt, generationId, chatId: typeof chatId === "string" ? chatId : null,
       userMessageId: typeof userMessageId === "string" ? userMessageId : null,
-      purpose: ["memory", "summary"].includes(purpose) ? purpose : "chat", queuedAt: new Date().toISOString(),
+      purpose: ["memory", "summary", "quick-ask"].includes(purpose) ? purpose : "chat", queuedAt: new Date().toISOString(),
       startedAt: null, text: "", resolve, reject
     };
     generationQueue.push(job);
@@ -621,6 +819,14 @@ const handlers = {
   consume_startup_splash: () => { const show = splashAvailable; splashAvailable = false; return show; },
   get_host_ram_info: () => ({ totalBytes: os.totalmem(), availableBytes: os.freemem() }),
   get_device_context: () => getDeviceContext(),
+  get_quick_ask_preferences: () => getQuickAskPreferences(),
+  set_quick_ask_preferences: args => saveQuickAskPreferences(args),
+  quick_ask_prepare: () => prepareQuickAskSession(),
+  quick_ask_submit: args => submitQuickAsk(args),
+  quick_ask_stop: () => {
+    if (!quickAskSession?.generationId) return { cancelRequested: false };
+    return handlers.cancel_generation({ generationId: quickAskSession.generationId });
+  },
   list_chats: args => database.list_chats(args),
   create_chat: args => database.create_chat(args),
   get_chat: args => database.get_chat(args),
@@ -778,6 +984,7 @@ const handlers = {
       });
       await loadedPromise;
       runtimeState.loadingModelId = null;
+      database.set_setting({ key: "quick_ask_recent_model_id", valueJson: JSON.stringify(modelId) });
       return runtimeStatus();
     } catch (error) {
       runtimeState.isLoading = false;
@@ -936,6 +1143,11 @@ async function createTray() {
   tray.setToolTip("Sync AI Desktop");
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "Open Sync AI", click: () => void restoreMainWindow() },
+    { label: "New conversation", click: () => {
+      void restoreMainWindow().then(() => mainWindow?.webContents.send("sync:app-action", { action: "new-chat" }));
+    } },
+    { label: "Quick Ask", click: () => void openQuickAskOverlay() },
+    { type: "separator" },
     { label: "Hide Sync AI", click: () => mainWindow?.hide() },
     { type: "separator" },
     { label: "Exit Sync AI", click: () => { isQuitting = true; app.quit(); } }
@@ -1013,6 +1225,7 @@ app.whenReady().then(async () => {
       logStartup("Main window creation completed.");
       await createTray();
       logStartup("System tray initialized.");
+      initializeQuickAskShortcut();
       app.on("activate", () => { void restoreMainWindow(); });
     } catch (error) {
       const detail = error instanceof Error ? error.stack || error.message : String(error);
