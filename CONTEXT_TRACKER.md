@@ -482,5 +482,5 @@ None added. No frameworks, bundlers or animation libraries.
 - Local Models has an inference-profile editor for each registered GGUF. Profiles apply on the next load and recovery reload. Models without a profile continue to use global Runtime context/batch settings.
 - Memory includes a Summary Center: full-index search, saved-summary viewer/editor, coverage metadata, manual deletion and rebuild from the original conversation.
 - Rebuild processes older messages in bounded batches, preserves the newest eight, supports cancellation and commits only after the entire rebuild succeeds. Failure/cancel leaves the previous persisted summary untouched.
-- Cross-chat retrieval is enabled by default but user-controllable. The current chat is excluded; up to four relevant summaries are ranked lexically and budgeted within a dedicated prompt section.
+- Cross-chat retrieval is opt-in (off by default) and user-controllable. The current chat is excluded; up to four relevant summaries are ranked lexically and budgeted within a dedicated prompt section.
 - Assistant-side source syntax checks covered the changed CommonJS and classic renderer modules. The user owns the final test-suite/CI/manual UI/real-GGUF validation step.
