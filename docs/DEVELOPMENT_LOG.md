@@ -275,3 +275,16 @@ Chronological record of meaningful implementation sessions. Keep entries factual
 - Summary generation now chooses a bounded prefix of uncovered older messages and advances the cursor only through the last message actually included. A too-large earliest message remains uncovered rather than being silently skipped.
 - Added contract checks for dynamic output allocation, system/safety reserves, bounded side prompts and summary-batch cursor progression.
 - Updated stale contract expectations for the existing `LlamaChatSession` worker implementation and current `workerPid` handoff. Newest contract commit: `6bc3bc129759cf8b9ed8afa35daad83ab342c01d`.
+
+
+## 2026-11-26 — Final context budget and Memory Center safeguards
+
+- Confirmed complete Memory Center milestone: search, category/status filters, UTF-8 storage usage display, three learning modes and persistent candidate review flow.
+- Schema v9 adds the review queue; approval is transactional, records source provenance and updates the learned profile; rejection leaves the saved profile unchanged.
+- Added a configurable overall prompt budget with separate system/safety/output reserves. Memory settings displays the effective prompt cap and output reserve.
+- Inference worker now tokenizes both app prompt and fixed Sync system prompt, subtracts safety capacity and caps output tokens to the actual available model context (up to512).
+- Bounded the auto-learning and summary generation prompts under the active context allowance.
+- Changed summarization to process a prefix of uncovered older messages. The summary cursor advances only through messages actually included, avoiding silently skipping an oversized backlog; newest eight messages stay verbatim.
+- Automatic summaries default to on, are user-configurable, reuse the loaded model and do not create an extra worker.
+- Updated outdated source-contract assertions to the current `LlamaChatSession` and `workerPid` implementation. Latest source-contract commit: `700541503116b7c9932576952dd5b7f2d98a5bf2`; newest CI run is pending.
+- No manual target-laptop UI test or real-GGUF conversation test was performed.
