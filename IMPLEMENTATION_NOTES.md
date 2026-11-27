@@ -110,3 +110,16 @@ The most recent review fetched and inspected GitHub source; it did not launch El
 - Step 4 — context orchestration: IN PROGRESS. Query-aware lexical selection and distinct prompt sections are wired; an overall context ceiling remains.
 - Step 5 — summaries/compaction: IN PROGRESS. Stored summaries are invalidated safely and consumed by prompts; generation/refresh/UI are pending.
 - Step 6 — Model Profiles: NOT STARTED.
+
+
+## Latest Phase 1 implementation handoff
+
+- Schema v9: Memory candidate queue stores pending/approved/rejected suggestions plus source conversation/message snapshots.
+- Memory Center now provides search, category/status filters, UTF-8 content byte usage, three learning modes and approval/rejection of candidates.
+- Old installations remain compatible through the legacy `memory_auto_learn` fallback. New `memory_learning_mode` setting can be Off, Review first or Automatic.
+- Global context budget is stored as `context_budget_percent` (40–80%, step 5, default65). The loaded model's context length is used to derive a conservative prompt character allowance and reserve output/safety capacity.
+- Prompt building clips separate Memory, Notes, Workspace, summary and transcript sections under that allowance, preserving newest transcript text first.
+- Per-conversation summary generation is enabled by default via `conversation_summary_auto`; it incrementally summarizes older turns once the prompt threshold is crossed, leaves the newest eight turns verbatim and saves a summary cursor.
+- Step 2 COMPLETE; Step 4 COMPLETE for the current lexical/character-budget design; Step 5 IN PROGRESS for summary inspection/rebuild UI and cross-chat retrieval; Step 6 Model Profiles NOT STARTED.
+- Current Ubuntu source-validation: 56 pass, 1 fail, 1 skipped; only failure is the pre-existing inference source-contract assertion. Windows hosted file/path tests and the Electron runtime/package workflow have not all completed at this checkpoint.
+- Manual target-machine UI and real-GGUF tests remain outstanding.
