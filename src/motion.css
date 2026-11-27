@@ -261,3 +261,95 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); }
   :is(.shell-model-card, .memory-card, .task-card, .privacy-action-card, .privacy-policy-card, .library-file-list > *, .shell-runtime-card):hover { transform: none; }
   .startup-screen.is-leaving .startup-content { transform: none; }
 }
+
+
+/* ---------- Chat streaming stability + message action rail ---------- */
+/* Token events patch the existing stream paragraph; avoid rebuilding the
+   transcript or replaying entrance/opacity transitions while generation runs. */
+.shell-chat-stop { animation: none !important; }
+.shell-chat-message-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  gap: 6px;
+}
+.shell-chat-message-wrap.is-user { align-items: flex-end; }
+.shell-chat-message-wrap.is-assistant { align-items: flex-start; }
+.shell-chat-message-wrap > .shell-chat-message { max-width: 100%; }
+.shell-chat-message-tools {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  margin: 0 2px;
+  opacity: 1;
+  transition: none;
+}
+.shell-chat-message-tools .shell-chat-icon-action {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  padding: 5px;
+  border: 1px solid rgba(168, 121, 255, 0.18);
+  border-radius: 8px;
+  color: rgba(205, 190, 255, 0.78);
+  background: rgba(168, 121, 255, 0.07);
+  box-shadow: none;
+  opacity: 0.78;
+  transition: color var(--sync-dur-fast) var(--sync-ease),
+              background-color var(--sync-dur-fast) var(--sync-ease),
+              border-color var(--sync-dur-fast) var(--sync-ease),
+              opacity var(--sync-dur-fast) var(--sync-ease);
+}
+.shell-chat-message-tools .shell-chat-icon-action svg {
+  display: block;
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.shell-chat-message-tools .shell-chat-icon-action:hover:not(:disabled),
+.shell-chat-message-tools .shell-chat-icon-action:focus-visible {
+  color: #eee7ff;
+  background: rgba(168, 121, 255, 0.18);
+  border-color: rgba(168, 121, 255, 0.48);
+  opacity: 1;
+}
+.shell-chat-message-tools .shell-chat-icon-action:disabled {
+  opacity: 0.38;
+}
+.shell-chat-message-tools .shell-chat-icon-action::after {
+  position: absolute;
+  z-index: 20;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  max-width: 190px;
+  padding: 6px 9px;
+  border: 1px solid rgba(168, 121, 255, 0.24);
+  border-radius: 7px;
+  color: #f2edff;
+  background: #171426;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  content: attr(data-tooltip);
+  font: 500 11px/1.2 var(--font-mono, monospace);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 3px);
+  transition: opacity 120ms ease 520ms, transform 120ms ease 520ms;
+}
+.shell-chat-message-tools .shell-chat-icon-action:hover::after,
+.shell-chat-message-tools .shell-chat-icon-action:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell-chat-message-tools .shell-chat-icon-action::after { transition-delay: 0ms; }
+}
