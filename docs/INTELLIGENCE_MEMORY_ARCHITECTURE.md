@@ -391,3 +391,14 @@ This section supersedes earlier Phase 1 status notes that say Memory search/revi
 - Latest source-validation on code checkpoint `1fd539ccbe213e50b75af9de658a29673ab5a2fc`: Ubuntu 56 passed, 1 failed, 1 skipped. The only failure was the pre-existing inference source-contract assertion for the Windows process memory-guard call; the Windows-only guard test is skipped on Ubuntu. The new database, candidate review, prompt-budget and automatic-summary contract tests passed.
 - Windows source/file-action validation was still in progress at the time of this documentation update; previous Windows runs also report hosted temporary-path/symlink failures in existing file-operation tests. Check the newest run before declaring the whole workflow green.
 - Electron CI was still running through the native runtime/app launch/package checks. No manual UI test on the user's laptop or real-GGUF conversation test has been performed in this work session.
+
+
+## 2026-11-26 — Final context-budget safeguards
+
+- The inference worker now tokenizes both the application prompt and Sync's fixed system prompt, subtracts a safety margin, and dynamically caps `maxTokens` to the remaining model context (up to the existing 512-token ceiling). It fails with a clear error if no context remains for generation.
+- The main context policy now reserves explicit capacity for system instructions, safety and output. The Memory Center displays the effective prompt cap and reply reserve after those deductions, not merely the selected percentage.
+- Learning prompts and automatic summary prompts are themselves bounded by the active prompt allowance.
+- Summary generation now selects a prefix batch of uncovered older messages and advances the persisted through-position only to the last message actually included. If the earliest uncovered message cannot fit by itself, Sync leaves it uncovered rather than advancing the cursor over omitted text.
+- Contract coverage now verifies the dynamic worker output limit, prompt reserves, bounded learning/summary prompts and batch-cursor behavior.
+- The latest full source-validation workflow for commit `0810275cf5b8c50b96c1b7b688e87b002b496c62` reported two remaining failures in stale legacy source assertions: the worker class assertion expected `LlamaCompletion` instead of the repository's actual `LlamaChatSession`, and the summary test expected the old cursor variable. Both assertions have been updated in commit `6bc3bc129759cf8b9ed8afa35daad83ab342c01d`; CI for that latest commit is pending. The earlier inference Job Object assertion was also updated to match the actual `workerPid` handoff.
+- Windows hosted temporary-path/file-action tests have previously failed because the runner path is detected as a symbolic-link traversal. That is separate from the new Memory/context functionality and remains a validation caveat until the newest Windows run completes.
