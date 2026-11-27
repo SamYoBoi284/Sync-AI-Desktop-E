@@ -48,23 +48,28 @@ let expectedWorkerExit = false;
 let runtimeState = {
   isLoading: false, isLoaded: false, isGenerating: false,
   loadingModelId: null, loadedModelId: null, loadedModelName: null, loadedAt: null,
-  estimatedMemoryBytes: null, contextLength: null, batchSize: null,
+  estimatedMemoryBytes: null, contextLength: null, batchSize: null, temperature: null, maxOutputTokens: null,
   memoryLimitBytes: null, workerWorkingSetBytes: null, workerPrivateBytes: null,
   hardLimitSupported: false, lastErrorCode: null, lastError: null
 };
 
-function getInferenceOptions() {
+function getInferenceOptions(modelId = null) {
   const raw = database.get_setting({ key: "inference_context" });
   let saved = {};
   if (raw != null) {
     try { saved = JSON.parse(raw); }
     catch { throw new Error("Saved inference context settings are invalid JSON. Open Runtime and save them again."); }
   }
-  const contextLength = Number(saved.contextLength ?? 2048);
-  const batchSize = Number(saved.batchSize ?? 128);
+  const profile = modelId ? database.get_model_profile({ modelId }) : null;
+  const contextLength = Number(profile?.contextLength ?? saved.contextLength ?? 2048);
+  const batchSize = Number(profile?.batchSize ?? saved.batchSize ?? 128);
+  const temperature = Number(profile?.temperature ?? 0.7);
+  const maxOutputTokens = Number(profile?.maxOutputTokens ?? 512);
   if (!Number.isInteger(contextLength) || contextLength < 512 || contextLength > 32768) throw new Error("Context length must be between 512 and 32,768 tokens.");
-  if (!Number.isInteger(batchSize) || batchSize < 16 || batchSize > 2048) throw new Error("Batch size must be between 16 and 2,048 tokens.");
-  return { contextLength, batchSize: Math.min(batchSize, contextLength) };
+  if (!Number.isInteger(batchSize) || batchSize < 16 || batchSize > 2048 || batchSize > contextLength) throw new Error("Batch size must be between 16 and 2,048 tokens and cannot exceed the context length.");
+  if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) throw new Error("Model temperature must be between 0 and 2.");
+  if (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 16 || maxOutputTokens > 512) throw new Error("Maximum output must be between 16 and 512 tokens.");
+  return { contextLength, batchSize, temperature, maxOutputTokens, hasCustomProfile: Boolean(profile) };
 }
 function generationSummary(job, includeText = false) {
   return {
@@ -173,7 +178,7 @@ function failAllGenerations(error) {
 function resetRuntimeAfterWorkerExit() {
   runtimeState.isLoading = false; runtimeState.isLoaded = false; runtimeState.isGenerating = false;
   runtimeState.loadingModelId = null; runtimeState.loadedModelId = null; runtimeState.loadedModelName = null;
-  runtimeState.loadedAt = null; runtimeState.estimatedMemoryBytes = null; runtimeState.contextLength = null; runtimeState.batchSize = null;
+  runtimeState.loadedAt = null; runtimeState.estimatedMemoryBytes = null; runtimeState.contextLength = null; runtimeState.batchSize = null; runtimeState.temperature = null; runtimeState.maxOutputTokens = null;
   runtimeState.workerWorkingSetBytes = null; runtimeState.workerPrivateBytes = null;
   runtimeState.memoryLimitBytes = null; runtimeState.hardLimitSupported = false;
 }
@@ -191,6 +196,8 @@ function handleInferenceMessage(worker, event) {
       runtimeState.loadedAt = message.model.loadedAt;
       runtimeState.contextLength = message.model.contextLength;
       runtimeState.batchSize = message.model.batchSize;
+      runtimeState.temperature = message.model.temperature;
+      runtimeState.maxOutputTokens = message.model.maxOutputTokens;
       runtimeState.lastError = null;
       runtimeState.lastErrorCode = null;
       if (pendingLoad) { pendingLoad.resolve(runtimeStatus()); pendingLoad = null; }
@@ -518,7 +525,7 @@ async function forceStopGeneration() {
   if (!modelId || !inferenceWorker) throw new Error("No loaded inference worker is available to restart.");
   const model = database.list_models().find(item => item.id === modelId && item.isAvailable);
   if (!model) throw new Error("The loaded model file is no longer available. Re-register it before recovering the worker.");
-  const memoryLimitBytes = savedMemoryLimitBytes(), inference = getInferenceOptions();
+  const memoryLimitBytes = savedMemoryLimitBytes(), inference = getInferenceOptions(modelId);
   forceStoppingGeneration = true;
   const active = activeGeneration;
   if (active) settleActiveGeneration(active, generationFailureResult(active, null, "cancelled"), false);
@@ -591,8 +598,21 @@ const handlers = {
   list_memory_sources: args => database.list_memory_sources(args),
   add_memory_source: args => database.add_memory_source(args),
   get_conversation_summary: args => database.get_conversation_summary(args),
+  list_conversation_summaries: args => database.list_conversation_summaries(args),
+  list_conversation_summary_context: args => database.list_conversation_summary_context(args),
   save_conversation_summary: args => database.save_conversation_summary(args),
   delete_conversation_summary: args => database.delete_conversation_summary(args),
+  get_model_profile: ({ modelId }) => {
+    const model = database.list_models().find(item => item.id === modelId);
+    if (!model) throw new Error("Model not found.");
+    const saved = database.get_model_profile({ modelId });
+    return saved ? { ...saved, isCustomized: true } : { modelId, ...getInferenceOptions(), isCustomized: false };
+  },
+  save_model_profile: args => ({ ...database.save_model_profile(args), isCustomized: true }),
+  delete_model_profile: ({ modelId }) => {
+    database.delete_model_profile({ modelId });
+    return { modelId, ...getInferenceOptions(), isCustomized: false };
+  },
   list_memory_candidates: args => database.list_memory_candidates(args),
   create_memory_candidate: args => database.create_memory_candidate(args),
   review_memory_candidate: args => database.review_memory_candidate(args),
@@ -661,7 +681,7 @@ const handlers = {
     }
     const modelSizeBytes = model.sizeBytes;
     const estimatedPeakBytes = estimatePeakBytes(metadata, modelSizeBytes);
-    const inference = getInferenceOptions();
+    const inference = getInferenceOptions(modelId);
     return {
       modelSizeBytes, estimatedPeakBytes, availableRamBytes: os.freemem(),
       configuredLimitBytes: config.enabled ? Math.floor(config.limitGb * 1024 ** 3) : null,
@@ -678,7 +698,7 @@ const handlers = {
     if (!model.isAvailable) throw new Error("The original GGUF file is missing. Re-register it from its current location.");
     const metadata = readGgufMetadata(model.filePath);
     const memoryLimitBytes = savedMemoryLimitBytes();
-    const inference = getInferenceOptions();
+    const inference = getInferenceOptions(modelId);
     runtimeState.isLoading = true;
     runtimeState.loadingModelId = modelId;
     runtimeState.memoryLimitBytes = memoryLimitBytes;
@@ -703,7 +723,8 @@ const handlers = {
         type: "LOAD_MODEL",
         data: {
           modelId, modelName: model.name, modelPath: model.filePath,
-          memoryLimitBytes, contextLength: inference.contextLength, batchSize: inference.batchSize
+          memoryLimitBytes, contextLength: inference.contextLength, batchSize: inference.batchSize,
+          temperature: inference.temperature, maxOutputTokens: inference.maxOutputTokens
         }
       });
       await loadedPromise;
