@@ -405,3 +405,16 @@ None added. No frameworks, bundlers or animation libraries.
 - Syntax parsing passed for changed JavaScript files.
 - CI on `d8ab68d20c75414fc624fb3a64b5fa8de9847f99`: all database tests, including the newly added memory/provenance/summary tests, passed on Windows and Ubuntu. Overall workflows remain red because of five unrelated existing failures: file-action data protection, three Windows file-operation path checks, and an inference source-contract assertion.
 - No interactive Electron UI, real GGUF conversation or target-machine test has been performed.
+
+
+## Phase 1 progress — independent context retrieval (2026-11-26)
+
+- Added lightweight lexical retrieval ranking over normalized Unicode terms for Memory, Notes and Workspace artifacts. The query is bounded to 24 terms and 2,000 characters at the IPC boundary.
+- Memory, Notes and Workspace are retrieved independently with separate context budgets. Notes remain opt-in through the existing "Include in future chat context" flag; Workspace artifacts retain their own opt-in flag.
+- Chat generation passes the latest queued user message to each retrieval source.
+- Prompt assembly has separate Memory, user Notes, Workspace, conversation summary and recent transcript sections, with reference-only/untrusted context framing.
+- A saved conversation summary is now consumed by prompt assembly; transcript entries already covered by the summary cursor are skipped while the latest queued user message is retained.
+- No automatic summary generation or context compaction exists yet.
+- Added database tests for lexical matching, source separation and opt-in behavior, plus a contract test for independent IPC methods and prompt sections.
+- Source parsing passed for the current changed JavaScript files at the last check.
+- CI for commit 2209601e2487b8c37b59a23feba29788944be434 is pending/in progress. Previous run on 8b645c54b25ef21f5e52e92fd2ab566dddece6cf passed the newly added context database tests, while the whole Windows/Ubuntu suite remained red on known unrelated source-contract/file-operation assertions. Check the new run before treating validation as final.
