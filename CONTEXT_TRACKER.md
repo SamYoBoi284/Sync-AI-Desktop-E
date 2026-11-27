@@ -418,3 +418,14 @@ None added. No frameworks, bundlers or animation libraries.
 - Added database tests for lexical matching, source separation and opt-in behavior, plus a contract test for independent IPC methods and prompt sections.
 - Source parsing passed for the current changed JavaScript files at the last check.
 - CI for commit 2209601e2487b8c37b59a23feba29788944be434 is pending/in progress. Previous run on 8b645c54b25ef21f5e52e92fd2ab566dddece6cf passed the newly added context database tests, while the whole Windows/Ubuntu suite remained red on known unrelated source-contract/file-operation assertions. Check the new run before treating validation as final.
+
+
+## Phase 1 substep status — 2026-11-26
+
+- Step 1, data model and storage API: COMPLETE. Migration v8, Memory metadata/provenance, conversation-summary storage/invalidation, IPC/API wiring and populated v7 upgrade fixture are implemented. Database tests passed in source-validation CI.
+- Step 2, Memory Center: IN PROGRESS. Category, importance, pinning and provenance display are implemented. Search/filter, usage accounting and auto-learn candidate review remain.
+- Step 3, independent Notes retrieval: COMPLETE. Dedicated query, separate budget, opt-in enforcement and independent prompt section are implemented.
+- Step 4, context orchestration: IN PROGRESS. Lightweight lexical ranking and distinct source sections are wired. Overall context budget coordination/tuning remain.
+- Step 5, summaries: IN PROGRESS. Storage, invalidation and prompt consumption exist. Automatic generation/compaction and summary UI remain.
+- Step 6, Model Profiles: NOT STARTED.
+- CI for code commit 2209601e2487b8c37b59a23feba29788944be434: Ubuntu 48 pass, 1 fail, 1 skipped; Windows 45 pass, 5 fail. New database/context tests passed. Remaining failures are the existing inference source-contract test and four Windows file-operation/path tests. No target-device Electron/real-GGUF test performed.
