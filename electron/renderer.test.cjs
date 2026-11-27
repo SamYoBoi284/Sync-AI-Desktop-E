@@ -31,6 +31,9 @@ test("chat learning requires explicit evidence and does not turn greetings into 
   const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
   assert.match(chat, /function isLowSignalLearningMessage/);
   assert.match(chat, /if \(!raw \|\| isLowSignalLearningMessage\(raw\)\) return null/);
+  assert.match(chat, /const hasGenericAutoTitle =/);
+  assert.match(chat, /if \(hasGenericAutoTitle\)/);
+  assert.match(chat, /const title = buildChatTitle\(body\)/);
   assert.match(chat, /EVIDENCE_IDS/);
   assert.match(chat, /sourceMessages:\s*selectedSources\.map/);
   assert.match(chat, /for \(const sourceMessage of selectedSources\)/);
