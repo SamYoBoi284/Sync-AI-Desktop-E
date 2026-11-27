@@ -713,3 +713,48 @@
   .shell-back-button { min-height:30px; padding:0 8px; }
   .shell-back-button kbd { display:none; }
 }
+
+
+/* Phase 1: conversation summary management */
+.memory-summary-center { margin-top:18px; }
+.memory-summary-browser { display:grid; grid-template-columns:minmax(210px,.82fr) minmax(0,1.35fr); gap:12px; margin-top:12px; min-width:0; }
+.memory-summary-list { display:grid; align-content:start; gap:7px; max-height:520px; overflow:auto; min-width:0; }
+.memory-summary-item { display:grid; gap:6px; width:100%; min-width:0; padding:11px; border:1px solid var(--border); border-radius:9px; color:var(--text); background:rgba(16,17,30,.58); text-align:left; cursor:pointer; }
+.memory-summary-item.is-selected { border-color:color-mix(in srgb,var(--accent) 55%,transparent); background:color-mix(in srgb,var(--accent) 8%,transparent); }
+.memory-summary-item strong { overflow:hidden; color:#e8e3f5; font-size:9px; text-overflow:ellipsis; white-space:nowrap; }
+.memory-summary-item small { color:#85849f; font:7px var(--mono); }
+.memory-summary-item span { display:-webkit-box; overflow:hidden; color:#aaa7bd; font-size:8px; line-height:1.6; overflow-wrap:anywhere; -webkit-box-orient:vertical; -webkit-line-clamp:3; }
+.memory-summary-editor { display:grid; align-content:start; gap:11px; min-width:0; padding:14px; border:1px solid var(--border); border-radius:10px; background:rgba(16,17,30,.48); }
+.memory-summary-meta { display:grid; gap:6px; }
+.memory-summary-meta strong { color:#eee8ff; font-size:10px; overflow-wrap:anywhere; }
+.memory-summary-meta small { color:#85849f; font:7px var(--mono); line-height:1.6; }
+.memory-summary-draft-label { display:grid; gap:7px; color:#aaa6bf; font-size:8px; }
+.memory-summary-draft-label textarea { width:100%; min-width:0; box-sizing:border-box; resize:vertical; padding:10px; border:1px solid var(--border); border-radius:8px; color:#ddd8ed; background:rgba(7,8,17,.78); font:9px/1.7 var(--sans); }
+.memory-summary-actions { display:flex; flex-wrap:wrap; gap:7px; }
+.memory-summary-actions button { min-height:30px; padding:0 10px; border:1px solid rgba(168,121,255,.24); border-radius:7px; color:#cfc2ea; background:rgba(168,121,255,.06); font:7px var(--mono); cursor:pointer; }
+.memory-summary-actions button.is-primary { color:#eee7ff; border-color:rgba(168,121,255,.42); background:rgba(168,121,255,.15); }
+.memory-summary-actions button.is-danger { color:#d99aa7; border-color:rgba(255,120,140,.2); background:rgba(255,120,140,.04); }
+.memory-summary-actions button:disabled { opacity:.45; cursor:wait; }
+
+/* Per-model inference profiles */
+.shell-model-profile { flex:1 1 100%; min-width:0; margin-top:12px; border-top:1px solid var(--border); padding-top:10px; }
+.shell-model-profile>summary { display:flex; align-items:center; justify-content:space-between; gap:10px; color:#c7bbdf; font:8px var(--mono); cursor:pointer; list-style:none; }
+.shell-model-profile>summary::-webkit-details-marker { display:none; }
+.shell-model-profile>summary::after { content:"+"; color:var(--accent); }
+.shell-model-profile[open]>summary::after { content:"−"; }
+.shell-model-profile>summary span { margin-left:auto; color:#8d89a2; font-size:7px; }
+.shell-model-profile-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-top:11px; }
+.shell-model-profile-fields>label { display:grid; gap:5px; min-width:0; color:#aaa6bf; font-size:8px; }
+.shell-model-profile-fields input,.shell-model-profile-fields select { width:100%; min-width:0; box-sizing:border-box; min-height:31px; padding:5px 8px; border:1px solid var(--border); border-radius:7px; color:#e2dcf2; background:rgba(7,8,17,.8); font:8px var(--mono); }
+.shell-model-profile-actions { grid-column:1/-1; display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:7px; }
+.shell-model-profile-actions small { flex:1 1 100%; color:#777993; font:7px/1.5 var(--mono); }
+.shell-model-profile-actions button { min-height:29px; padding:0 9px; border:1px solid rgba(168,121,255,.24); border-radius:7px; color:#cfc2ea; background:rgba(168,121,255,.07); font:7px var(--mono); cursor:pointer; }
+.shell-model-profile-actions button.is-muted { color:#9994ad; border-color:var(--border); background:transparent; }
+.shell-model-profile-actions button:disabled { opacity:.45; cursor:wait; }
+@media(max-width:760px) {
+  .memory-summary-browser { grid-template-columns:1fr; }
+  .memory-summary-list { max-height:240px; }
+  .shell-model-profile-fields { grid-template-columns:1fr; }
+  .shell-model-profile-actions { align-items:stretch; }
+  .shell-model-profile-actions button { flex:1 1 auto; }
+}
