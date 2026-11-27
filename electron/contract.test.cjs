@@ -52,7 +52,9 @@ test("the native inference runtime and Windows process memory guard are wired in
 
 test("inference worker releases each chat sequence and reports failed generation IDs", () => {
   const worker = fs.readFileSync(path.join(__dirname, "inference-worker.mjs"), "utf8");
-  assert.match(worker, /session\.dispose\(\{\s*disposeSequence:\s*true\s*\}\)/);
+  assert.match(worker, /session\.dispose\(\{\s*disposeSequence:\s*false\s*\}\)/);
+  assert.match(worker, /await sequence\.dispose\(\)/);
+  assert.match(worker, /recoverContextSequences/);
   assert.match(worker, /context\.sequencesLeft\s*<=\s*0/);
   assert.match(worker, /message\.data\?\.generationId/);
   assert.match(main, /function settleActiveGeneration\(/);
@@ -146,6 +148,15 @@ test("Memory learning review modes have persistent candidate storage and explici
   assert.match(chat, /mode === "review"/);
   assert.match(chat, /api\.createMemoryCandidate\(/);
   assert.match(memoryPage, /api\.reviewMemoryCandidate/);
+});
+
+test("the learned profile is always included and Memory confirmations use Sync-themed dialogs", () => {
+  const database = fs.readFileSync(path.join(__dirname, "database.cjs"), "utf8");
+  const memoryPage = fs.readFileSync(path.join(root, "renderer", "pages", "memory.js"), "utf8");
+  assert.ok(database.includes('rows.filter(row=>row.source==="Auto-learned from conversations")'));
+  assert.ok(memoryPage.includes("function confirmationMarkup()"));
+  assert.ok(memoryPage.includes('role="dialog" aria-modal="true"'));
+  assert.equal(memoryPage.includes("window.confirm("), false);
 });
 
 test("overall prompt budgeting is bounded and leaves recent transcript context intact", () => {
