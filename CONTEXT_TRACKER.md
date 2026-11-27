@@ -134,7 +134,7 @@ Routes currently include New Chat, History, Archive, Folders, Local Models, Work
 
 ### Composer tools and file-operation safety
 
-- The chat composer currently displays a visible `@` button and supports typed `@` autocomplete/filtering independently.
+- The chat composer has no visible `@` button; typed `@` autocomplete/filtering remains available.
 - Current tool palette includes copy, move, rename, safe delete and create-folder operations.
 - Tool requests are prepared first and require explicit approval before execution.
 - Folder creation uses a themed in-app naming modal before native path selection.
@@ -338,7 +338,7 @@ None added. No frameworks, bundlers or animation libraries.
 
 ### Known limitations
 - Modal/menu CLOSE animations are not implemented: the approval and tool modals are removed from the DOM synchronously, and delaying removal could affect focus restoration and the approval safety boundary. Entrance only.
-- Streaming text is re-rendered as a whole per token, so there is no per-token fade; a blinking caret is used instead.
+- Streaming text is patched into the existing paragraph per token; a blinking caret is used instead of per-token fade.
 - Native `title` tooltips are not stylable. Appearance settings remain a preview route.
 - Visual output was not viewed in a running Electron window (see tests).
 
@@ -353,3 +353,15 @@ None added. No frameworks, bundlers or animation libraries.
 - Run `npm run build`, `npm test`, `npm run test:startup` locally and look through each page in Electron; tune splash constants if desired.
 - Optional: close animations for menus/modals (needs focus-safe teardown), per-page tweaks after visual review.
 - Separate backlog (intentionally NOT started): keyboard customization, global search, command palette, universal Escape, @ button removal, composer-based message editing.
+
+
+## Chat streaming and message-action stability fix (November 26, 2026)
+
+- Stream token events now update the existing `.shell-chat-streaming-text` node through `textContent`; they no longer call the full chat `render()` for every token.
+- Runtime polling compares the runtime/UI state before rendering and skips a full rebuild when the polled state has not materially changed. It still updates the active stream text in place.
+- User/assistant message action controls now render as sibling action rails beneath their message articles, aligned to the corresponding message.
+- User action is a pen SVG with delayed `Edit` tooltip. Assistant action is a document/upload-arrow SVG with delayed `Save to Workspace` tooltip. Existing delegated actions and save/edit handlers remain in use.
+- Removed the visible composer `@` button and its click handler. Typed `@` autocomplete and tool selection remain intact.
+- Removed the Stop button entrance animation and made the message action rail stable during streaming to prevent repeated opacity/entrance transitions.
+- Scope: `renderer/pages/chat.js`, `src/motion.css`. No API, IPC, database, inference, or file-operation safety contracts changed.
+- Validation: source-level checks confirmed the token event no longer invokes full render, the composer mention button/action are absent, sibling message action rails and streaming text target are present, and runtime polling is guarded. Full Electron build/tests and live visual verification still need to be run locally.
