@@ -68,7 +68,7 @@ test("background Memory and summary maintenance never inserts notices or re-rend
 test("small-talk lead-ins do not pollute conversation titles or durable Memory evidence", () => {
   const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
   assert.match(chat, /function stripSmallTalkLeadIn/);
-  assert.match(chat, /doing \)\?\(\?:good/);
+  assert.match(chat, /\\(\\?:doing \\)\\?\\(\\?:good/);
   assert.match(chat, /routineUtilityQuestion/);
   assert.match(chat, /what time is it/);
   assert.match(chat, /const raw = stripSmallTalkLeadIn/);
