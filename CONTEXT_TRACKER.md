@@ -6,7 +6,7 @@
 
 - Repository: `SamYoBoi284/Sync-AI-Desktop-E`
 - Branch: `main`
-- Latest inspected commit at this documentation checkpoint: `ed26ba2d8cc4107aca3bdb86664fc78192ce3279` — `docs: establish intelligence and memory architecture` (2026-11-26). The latest application-source commit reviewed before the documentation update is `363647adbd113b829307a6110b58a60988ab7bff`.
+- Latest Phase 1 implementation checkpoint: `d8ab68d20c75414fc624fb3a64b5fa8de9847f99` — database tests for Memory priority and summary invalidation (2026-11-26). Later documentation commits record this checkpoint.
 - Application version in `package.json`: `0.1.0`.
 - This checkpoint describes source present on GitHub. A source review does not equal an interactive Electron test or a real-model inference test.
 
@@ -19,7 +19,7 @@
 - **Main process:** `electron/main.cjs`; owns native lifecycle and privileged operations.
 - **Preload:** `electron/preload.cjs`; exposes a restricted `window.syncAI` bridge.
 - **Renderer API:** `renderer/api.js`; wraps bridge commands. Do not expose Node APIs to the renderer.
-- **Persistence:** SQLite via Electron's built-in `node:sqlite`, implemented in `electron/database.cjs`; schema migrations through version 7 (confirmed in `electron/database.cjs`; migration v7 adds chat folders and chat archive/pin metadata).
+- **Persistence:** SQLite via Electron's built-in `node:sqlite`, implemented in `electron/database.cjs`; schema migrations through version 8 (migration v8 adds Memory metadata/provenance and conversation-summary storage).
 - **Inference:** CPU llama.cpp via `node-llama-cpp` in an Electron UtilityProcess (`electron/inference-worker.mjs`).
 - **Windows memory isolation:** optional Job Object private-commit ceiling applies to the inference worker, not the main/UI process.
 - **Packaging:** Electron Builder / NSIS.
@@ -392,3 +392,16 @@ None added. No frameworks, bundlers or animation libraries.
 - `renderer/app.js` now routes the Appearance page to its real module and applies saved preferences during startup before the first page render. `renderer/shared.js` no longer advertises Appearance as coming soon.
 - No framework, dependency, IPC, database schema or native host changes.
 - Validation: source checks and syntax checks are still pending; live Electron appearance review and project build/tests must be run locally.
+
+
+## Phase 1 implementation update (2026-11-26)
+
+- Migration v8 adds Memory category, importance (1–5), pinned status, source provenance and per-conversation summary storage.
+- Database operations, main-process handlers and renderer API wrappers are connected.
+- Auto-learned profiles record source links to recent user messages.
+- Memory page has category, importance and pin controls plus source conversation/message excerpt display.
+- Bounded memory injection now prioritizes pinned, high-importance entries before recency. Relevance-based retrieval remains pending.
+- Summary storage has a coverage cursor and invalidation on edits/insertions into summarized history, but no summary generation/automatic compaction/prompt integration yet.
+- Syntax parsing passed for changed JavaScript files.
+- CI on `d8ab68d20c75414fc624fb3a64b5fa8de9847f99`: all database tests, including the newly added memory/provenance/summary tests, passed on Windows and Ubuntu. Overall workflows remain red because of five unrelated existing failures: file-action data protection, three Windows file-operation path checks, and an inference source-contract assertion.
+- No interactive Electron UI, real GGUF conversation or target-machine test has been performed.
