@@ -206,3 +206,52 @@ test("subpages provide a Back route and Escape closes nested UI before navigatin
   assert.match(motion, /shell-chat-message-wrap\.is-user[\s\S]*?right:0/);
   assert.match(motion, /shell-chat-message-wrap\.is-assistant[\s\S]*?left:0/);
 });
+
+
+test("conversation Summary Center supports inspection, editing, safe rebuild and deletion", () => {
+  const database = fs.readFileSync(path.join(__dirname, "database.cjs"), "utf8");
+  const memory = fs.readFileSync(path.join(root, "renderer", "pages", "memory.js"), "utf8");
+  assert.match(database, /list_conversation_summaries\(/);
+  assert.match(database, /get_conversation_summary\(/);
+  assert.match(memory, /conversationSummaryResults/);
+  assert.match(memory, /save-summary/);
+  assert.match(memory, /rebuild-summary/);
+  assert.match(memory, /delete-summary/);
+  assert.match(memory, /stop-summary-rebuild/);
+  assert.match(memory, /olderMessages = sourceMessages\.slice\(0, -8\)/);
+  assert.match(memory, /api\.saveConversationSummary\(id, workingSummary, cursor, 1\)/);
+  assert.match(memory, /The previously saved summary remains unchanged/);
+  assert.match(memory, /coverage through message position/i);
+});
+
+test("cross-chat summaries are opt-out, relevance-ranked, exclude the active chat and fit the shared prompt budget", () => {
+  const database = fs.readFileSync(path.join(__dirname, "database.cjs"), "utf8");
+  const chat = fs.readFileSync(path.join(root, "renderer", "pages", "chat.js"), "utf8");
+  const memory = fs.readFileSync(path.join(root, "renderer", "pages", "memory.js"), "utf8");
+  assert.match(database, /list_conversation_summary_context/);
+  assert.match(database, /WHERE s\.chat_id<>\?/);
+  assert.match(database, /rankContextRows\(rows,q\)\.filter\(r=>r\.relevanceScore>0\)/);
+  assert.match(chat, /cross_chat_summary_retrieval/);
+  assert.match(chat, /api\.listConversationSummaryContext\(retrievalQuery, job\.chatId, 4, 6000\)/);
+  assert.match(chat, /OTHER RELEVANT CONVERSATION SUMMARIES/);
+  assert.match(chat, /otherConversationBudget = Math\.floor\(payloadBudget \* 0\.12\)/);
+  assert.match(memory, /crossChatSummaries/);
+});
+
+test("model profiles persist per GGUF and drive worker inference options", () => {
+  const database = fs.readFileSync(path.join(__dirname, "database.cjs"), "utf8");
+  const models = fs.readFileSync(path.join(root, "renderer", "pages", "models.js"), "utf8");
+  const worker = fs.readFileSync(path.join(__dirname, "inference-worker.mjs"), "utf8");
+  assert.match(database, /if\(v<10\).*model_profiles/s);
+  assert.match(database, /get_model_profile\(/);
+  assert.match(database, /save_model_profile\(/);
+  assert.match(database, /delete_model_profile\(/);
+  assert.match(main, /getInferenceOptions\(modelId\)/);
+  assert.match(main, /temperature: inference\.temperature/);
+  assert.match(main, /maxOutputTokens: inference\.maxOutputTokens/);
+  assert.match(models, /api\.getModelProfile\(model\.id\)/);
+  assert.match(models, /api\.saveModelProfile\(id, profile\)/);
+  assert.match(models, /api\.deleteModelProfile\(id\)/);
+  assert.match(worker, /temperature: loaded\.temperature/);
+  assert.match(worker, /Math\.min\(loaded\.maxOutputTokens \|\| 512, availableOutputTokens\)/);
+});
