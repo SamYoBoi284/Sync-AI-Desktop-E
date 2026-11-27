@@ -303,6 +303,8 @@ test("conversation summaries are omitted from unrelated topic prompts but retain
   assert.equal(db.get_conversation_summary({ chatId: chat.id, query: "How do we adjust model profiles?" }).relevantForQuery, true);
   assert.equal(db.get_conversation_summary({ chatId: chat.id, query: "good morning" }).relevantForQuery, false);
   assert.equal(db.get_conversation_summary({ chatId: chat.id, query: "and then?" }).relevantForQuery, true);
+  assert.equal(db.get_conversation_summary({ chatId: chat.id, query: "hey bro" }).relevantForQuery, false);
+  assert.equal(db.get_conversation_summary({ chatId: chat.id, query: "Rocket League" }).relevantForQuery, false);
 }));
 
 test("retrieves opted-in Notes independently from Workspace artifacts", () => withDb(db => {
