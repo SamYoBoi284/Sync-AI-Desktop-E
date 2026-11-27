@@ -180,4 +180,10 @@ test("older conversation summaries are incrementally generated without summarizi
   assert.match(chat, /purpose: "summary"/);
   assert.match(chat, /saveConversationSummary\(chat\.id, updated\.slice\(0, 2200\), target\.position/);
   assert.match(chat, /conversation_summary_auto/);
+  assert.match(chat, /learningPromptBudget/);
+  assert.match(chat, /fitPromptText\(userTurns, userBudget, true\)/);
+  assert.match(chat, /summaryPromptBudget/);
+  assert.match(chat, /availablePayload/);
+  assert.match(chat, /batchEntries\.push\(entry\)/);
+  assert.match(chat, /saveConversationSummary\(chat\.id, updated\.slice\(0, 2200\), batchTarget\.position/);
 });
