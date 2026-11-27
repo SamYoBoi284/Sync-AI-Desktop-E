@@ -429,3 +429,16 @@ None added. No frameworks, bundlers or animation libraries.
 - Step 5, summaries: IN PROGRESS. Storage, invalidation and prompt consumption exist. Automatic generation/compaction and summary UI remain.
 - Step 6, Model Profiles: NOT STARTED.
 - CI for code commit 2209601e2487b8c37b59a23feba29788944be434: Ubuntu 48 pass, 1 fail, 1 skipped; Windows 45 pass, 5 fail. New database/context tests passed. Remaining failures are the existing inference source-contract test and four Windows file-operation/path tests. No target-device Electron/real-GGUF test performed.
+
+
+## Phase 1 completion checkpoint — 2026-11-26
+
+- Schema is now v9. The v9 migration adds a persistent pending/approved/rejected Memory candidate queue with source chat/message snapshots.
+- Memory Center search, category/status filtering, byte-based storage usage, learning modes (Off / Review first / Automatic), and candidate approve/reject workflow are implemented.
+- Legacy `memory_auto_learn` remains supported as a fallback; `memory_learning_mode` takes precedence when present.
+- Overall prompt budget control is implemented at 40–80% of the currently loaded model context (5% increments, default 65%), with a safety/output reserve. Memory keeps its own 128–512 estimated-token sub-budget.
+- Prompt builder clips source sections under the overall character estimate and preferentially retains the newest transcript text.
+- Automatic per-chat summarization is enabled by default and configurable. It updates incrementally after the old-history threshold is crossed, summarizes messages older than the newest eight, and stores a coverage cursor. Summary generation uses the already-loaded model and is not a second model worker.
+- Step 2 Memory Center: COMPLETE. Step 4 Context orchestration: COMPLETE for lexical retrieval/estimated character budgets. Step 5 Summaries: IN PROGRESS (generation and prompt compaction work; summary inspection/rebuild UI and cross-chat retrieval remain). Step 6 Model Profiles: NOT STARTED.
+- Latest source-validation at `1fd539ccbe213e50b75af9de658a29673ab5a2fc`: Ubuntu 56 pass, 1 fail, 1 skipped. New Memory, candidate review, context-budget and summary tests passed; one pre-existing inference source-contract assertion remains. Windows job and Electron CI were still in progress at the time of update.
+- Source parsing passed for the changed JS modules. No manual target-laptop Electron UI or real-GGUF conversation test was performed.
