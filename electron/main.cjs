@@ -62,11 +62,12 @@ function getInferenceOptions(modelId = null) {
   }
   const profile = modelId ? database.get_model_profile({ modelId }) : null;
   const contextLength = Number(profile?.contextLength ?? saved.contextLength ?? 2048);
-  const batchSize = Number(profile?.batchSize ?? saved.batchSize ?? 128);
+  const requestedBatchSize = Number(profile?.batchSize ?? saved.batchSize ?? 128);
+  const batchSize = Math.min(requestedBatchSize, contextLength);
   const temperature = Number(profile?.temperature ?? 0.7);
   const maxOutputTokens = Number(profile?.maxOutputTokens ?? 512);
   if (!Number.isInteger(contextLength) || contextLength < 512 || contextLength > 32768) throw new Error("Context length must be between 512 and 32,768 tokens.");
-  if (!Number.isInteger(batchSize) || batchSize < 16 || batchSize > 2048 || batchSize > contextLength) throw new Error("Batch size must be between 16 and 2,048 tokens and cannot exceed the context length.");
+  if (!Number.isInteger(requestedBatchSize) || requestedBatchSize < 16 || requestedBatchSize > 2048) throw new Error("Batch size must be between 16 and 2,048 tokens.");
   if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) throw new Error("Model temperature must be between 0 and 2.");
   if (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 16 || maxOutputTokens > 512) throw new Error("Maximum output must be between 16 and 512 tokens.");
   return { contextLength, batchSize, temperature, maxOutputTokens, hasCustomProfile: Boolean(profile) };
