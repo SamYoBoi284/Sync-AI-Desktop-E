@@ -210,3 +210,65 @@ test("upgrades a populated version-7 database to version 8 without losing user d
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+
+test("retrieves Memory by lexical relevance while keeping pinned context available", () => withDb(db => {
+  const unrelated = db.save_memory({ memory: {
+    title: "Cooking", content: "Enjoys experimenting with bread recipes.",
+    category: "interests", importance: 3
+  } });
+  const relevant = db.save_memory({ memory: {
+    title: "Gaming preferences", content: "Enjoys Rocket League and Sideswipe.",
+    category: "interests", importance: 3
+  } });
+  const pinned = db.save_memory({ memory: {
+    title: "Important background", content: "Prefers lightweight software.",
+    category: "preferences", importance: 4, pinned: true
+  } });
+  const selected = db.list_memory_context({ query: "Rocket League", maxCharacters: 12000 });
+  assert.equal(selected[0].id, relevant.id);
+  assert.ok(selected[0].relevanceScore > 0);
+  assert.ok(selected.some(item => item.id === pinned.id));
+  assert.ok(!selected.some(item => item.id === unrelated.id));
+}));
+
+test("retrieves opted-in Notes independently from Workspace artifacts", () => withDb(db => {
+  const note = db.save_note({ note: {
+    title: "Laptop upgrade", content: "Compare 512 GB SSD options.",
+    pinned: true, includeInContext: true
+  } });
+  db.save_note({ note: {
+    title: "Private note", content: "Do not include this in prompts.",
+    pinned: false, includeInContext: false
+  } });
+  const artifact = db.save_workspace_artifact({ artifact: {
+    title: "SSD research", kind: "document", content: "SATA SSD compatibility notes.",
+    includeInContext: true
+  } });
+  db.save_workspace_artifact({ artifact: {
+    title: "Unselected artifact", kind: "document", content: "Not selected for chat context.",
+    includeInContext: false
+  } });
+
+  const notes = db.list_note_context({ query: "512 GB SSD" });
+  const workspace = db.list_workspace_context({ query: "SATA SSD" });
+  assert.deepEqual(notes.map(item => item.id), [note.id]);
+  assert.equal(notes[0].relevanceScore > 0, true);
+  assert.deepEqual(workspace.map(item => item.id), [artifact.id]);
+  assert.equal(workspace[0].relevanceScore > 0, true);
+  assert.ok(!workspace.some(item => item.kind === "note"));
+  assert.ok(!notes.some(item => item.kind === "document"));
+}));
+
+test("empty retrieval queries preserve all enabled or opted-in context without cross-source mixing", () => withDb(db => {
+  const memory = db.save_memory({ memory: { title: "General", content: "General user context." } });
+  const note = db.save_note({ note: {
+    title: "Saved note", content: "Reference details.", includeInContext: true
+  } });
+  const artifact = db.save_workspace_artifact({ artifact: {
+    title: "Workspace report", kind: "report", content: "Project findings.", includeInContext: true
+  } });
+  assert.deepEqual(db.list_memory_context({ query: "" }).map(item => item.id), [memory.id]);
+  assert.deepEqual(db.list_note_context({ query: "" }).map(item => item.id), [note.id]);
+  assert.deepEqual(db.list_workspace_context({ query: "" }).map(item => item.id), [artifact.id]);
+}));
