@@ -163,3 +163,11 @@ Future interaction work (not yet implemented) includes a centralized customizabl
 - Automatic conversation summaries are enabled by default and configurable. Summaries are incremental, keep the newest eight messages verbatim, and use a through-position cursor.
 - No separate summarization model or embedding worker is used. Learning and summary generation consume extra inference only when their features run.
 - Step 2 Memory Center and Step 4 context orchestration are complete. Step 5 is in progress pending summary inspection/rebuild UI and cross-chat summary retrieval. Step 6 Model Profiles remains not started.
+
+
+## 15. Context-window enforcement refinement
+
+- The inference worker computes remaining generation capacity from the actual loaded context size, app prompt tokens and fixed Sync system-prompt tokens, then caps output tokens to that remaining capacity.
+- The global context policy reserves system prompt, safety and output space. The UI shows the effective prompt allowance after those reserves.
+- Automatic learning and summarization prompts obey the same estimated-character budget.
+- Summary backlog processing is incremental in bounded message-prefix batches; the stored cursor advances only through messages included in the summary request.
