@@ -5,7 +5,7 @@
 ## Current project
 
 - Repository: `SamYoBoi284/Sync-AI-Desktop-E`, branch `main`.
-- Latest reviewed application-source commit: `363647adbd113b829307a6110b58a60988ab7bff`. The intelligence/memory architecture baseline is documented at `ed26ba2d8cc4107aca3bdb86664fc78192ce3279`.
+- Phase 1 implementation checkpoint: `d8ab68d20c75414fc624fb3a64b5fa8de9847f99`. Architecture baseline and follow-up design: `docs/INTELLIGENCE_MEMORY_ARCHITECTURE.md`.
 - Electron application using root `index.html`, local CSS in `src/`, classic JavaScript renderer scripts in `renderer/`, restricted preload bridge, SQLite and isolated CPU llama.cpp UtilityProcess.
 - No React, Vue, Angular, TypeScript, Vite, TSX renderer or frontend development server.
 
@@ -79,3 +79,13 @@ Claude's task is a visual polish/animation overhaul only. Keep the Electron/clas
 ## Validation boundary
 
 The most recent review fetched and inspected GitHub source; it did not launch Electron or execute npm tests/builds. See `README.md`, `docs/ELECTRON_PORT_AUDIT.md` and `CONTEXT_TRACKER.md` for documented CI coverage and target-machine testing still required.
+
+
+## Phase 1 implementation update
+
+- Schema v8 and Memory metadata/provenance/summary storage are implemented.
+- Memory page metadata and provenance display are implemented.
+- Auto-learn source links and database/API wiring are implemented.
+- Metadata-priority ordering is in place; relevance ranking and independent Notes retrieval remain.
+- Summary generation/compaction/prompt consumption remain.
+- The current CI run passed the new database tests on both platforms but failed on five unrelated file-operation/source-contract assertions. Do not mark the whole CI suite green.
