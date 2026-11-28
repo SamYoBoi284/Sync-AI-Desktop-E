@@ -368,6 +368,10 @@ test("system tray exposes live model/runtime status and applies desktop close/ex
   assert.match(main, /getDesktopBehaviorPreferences\(\)\.closeToTray/);
   assert.match(main, /getDesktopBehaviorPreferences\(\)\.unloadModelOnExit/);
   assert.match(main, /Gracefully unloading the local model before application exit/);
+  const worker = fs.readFileSync(path.join(__dirname, "inference-worker.mjs"), "utf8");
+  assert.match(worker, /let activeGenerationPromise = null/);
+  assert.match(worker, /await activeGenerationPromise/);
+  assert.match(worker, /activeGenerationPromise = generate\(message\.data \?\? \{\}\)/);
   assert.match(behavior, /closeToTray: true/);
   assert.match(behavior, /unloadModelOnExit: true/);
 });
