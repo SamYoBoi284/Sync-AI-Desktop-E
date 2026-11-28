@@ -1237,14 +1237,6 @@ function trayRuntimeLabel() {
   return "Idle";
 }
 
-function trayBytesLabel(bytes) {
-  const value = Number(bytes);
-  if (!Number.isFinite(value) || value < 0) return null;
-  if (value >= 1024 ** 3) return (value / (1024 ** 3)).toFixed(1) + " GB";
-  if (value >= 1024 ** 2) return Math.round(value / (1024 ** 2)) + " MB";
-  return Math.round(value / 1024) + " KB";
-}
-
 function refreshTrayMenu() {
   if (!tray || tray.isDestroyed()) return;
   const modelName = trayModelName().replace(/\s+/g, " ").trim().slice(0, 64);
