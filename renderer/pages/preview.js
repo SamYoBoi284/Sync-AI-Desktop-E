@@ -55,7 +55,7 @@ async function mountAppearance(root) {
     root.innerHTML = `
       <section class="shell-page shell-standard-page appearance-page">
         ${pageEyebrow("PERSONALIZATION")}
-        <div class="shell-page-heading-row"><div><p class="shell-section-kicker">MAKE THE SPACE YOURS</p><h1>Appearance<span>.</span></h1><p class="shell-page-description">Tune Sync's colors, layout density, chat presentation and motion. Changes preview immediately and are saved locally.</p></div><span class="shell-large-status"><span></span>LIVE PREVIEW</span></div>
+        <div class="shell-page-heading-row"><div><p class="shell-section-kicker">MAKE THE SPACE YOURS</p><h1>Appearance<span>.</span></h1><p class="shell-page-description">Tune Sync's colors, layout density and chat presentation. Changes preview immediately and are saved locally.</p></div><span class="shell-large-status"><span></span>LIVE PREVIEW</span></div>
         ${loading ? '<section class="appearance-panel"><p class="shell-settings-footnote">Loading saved appearance…</p></section>' : `
         <section class="appearance-panel">
           <div class="appearance-section-head"><div><p class="shell-section-kicker">01 · THEME</p><h2>Color mode</h2><p>Choose how Sync adapts to your environment.</p></div></div>
@@ -92,16 +92,6 @@ async function mountAppearance(root) {
           </div>
           <div class="appearance-field-row"><div><strong>Message text size</strong><small class="appearance-font-size-value">Current size: ${prefs.fontSize}px</small></div><input class="appearance-range" id="appearanceFontSize" type="range" min="12" max="18" step="1" value="${prefs.fontSize}" aria-label="Message text size"></div>
           <div class="appearance-chat-preview"><span>PREVIEW · YOU</span><p style="font-size:${prefs.fontSize}px">Hey Sync, this is how your messages will look.</p><span>PREVIEW · SYNC AI</span><p class="is-assistant" style="font-size:${prefs.fontSize}px">Got it. Your conversation will use these settings.</p></div>
-        </section>
-        <section class="appearance-panel">
-          <div class="appearance-section-head"><div><p class="shell-section-kicker">05 · MOTION</p><h2>Animation preferences</h2><p>Keep the interface responsive and comfortable on your hardware.</p></div></div>
-          <div class="appearance-segment appearance-motion-options">
-            <button type="button" data-pref="motion" data-value="system" class="${prefs.motion==="system"?"is-selected":""}" aria-pressed="${prefs.motion==="system"}">System</button>
-            <button type="button" data-pref="motion" data-value="full" class="${prefs.motion==="full"?"is-selected":""}" aria-pressed="${prefs.motion==="full"}">Full</button>
-            <button type="button" data-pref="motion" data-value="reduced" class="${prefs.motion==="reduced"?"is-selected":""}" aria-pressed="${prefs.motion==="reduced"}">Reduced</button>
-            <button type="button" data-pref="motion" data-value="off" class="${prefs.motion==="off"?"is-selected":""}" aria-pressed="${prefs.motion==="off"}">Off</button>
-          </div>
-          <p class="appearance-hint">System follows Windows' reduced-motion preference. Reduced and Off minimize interface animation.</p>
         </section>
         <div class="appearance-footer"><button type="button" class="appearance-reset" data-appearance-action="reset" ${saving?"disabled":""}>Restore defaults</button><span class="appearance-feedback" role="status">${esc(feedback)}</span><button type="button" class="appearance-save" data-appearance-action="save" ${!dirty||saving?"disabled":""}>${saving?"Saving…":"Save preferences"}</button></div>
         `}
