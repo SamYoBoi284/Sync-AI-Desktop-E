@@ -13,7 +13,7 @@ test("the desktop renderer is plain HTML, CSS and ordered classic JavaScript", (
   assert.match(html, /<script defer src="\.\/renderer\/shared\.js"><\/script>/);
   assert.doesNotMatch(html, /type="module"|vite|tsx|src\/main/);
   assert.doesNotMatch(app, /react|createRoot|jsx|vite|^import |^export /im);
-  for (const page of ["chat","history","models","workspace","tasks","library","runtime","settings","preview"]) {
+  for (const page of ["chat","history","models","workspace","tasks","library","runtime","settings","performance","preview"]) {
     const code = fs.readFileSync(path.join(root, "renderer", "pages", page + ".js"), "utf8");
     assert.doesNotMatch(code, /^import |^export /m, page + " page must be a classic script");
   }
@@ -74,3 +74,21 @@ test("small-talk lead-ins do not pollute conversation titles or durable Memory e
   assert.match(chat, /const raw = stripSmallTalkLeadIn/);
 });
 
+
+
+test("Performance settings own Low-Memory, RAM limiter and motion controls", () => {
+  const settings = fs.readFileSync(path.join(root, "renderer", "pages", "settings.js"), "utf8");
+  const performance = fs.readFileSync(path.join(root, "renderer", "pages", "performance.js"), "utf8");
+  const appearance = fs.readFileSync(path.join(root, "renderer", "pages", "preview.js"), "utf8");
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const app = fs.readFileSync(path.join(root, "renderer", "app.js"), "utf8");
+  assert.match(settings, /data-settings="performance"/);
+  assert.match(performance, /Enable Low-Memory Mode/);
+  assert.match(performance, /Save Low-Memory Preference/);
+  assert.match(performance, /Worker memory ceiling/);
+  assert.match(performance, /data-motion="reduced"/);
+  assert.match(performance, /data-motion="off"/);
+  assert.doesNotMatch(appearance, /data-pref="motion"/);
+  assert.match(html, /renderer\/pages\/performance\.js/);
+  assert.match(app, /case "performance": cleanup = await mountPerformance/);
+});
