@@ -14,10 +14,13 @@ async function mountSettings(root, context) {
   let quickAskShortcutDraft = "CommandOrControl+Shift+Space";
   let quickAskModels = [];
   let quickAskMessage = "", quickAskSaving = false;
+  let lowMemoryStatus = null, lowMemoryPreferences = { enabled: false }, lowMemorySaving = false, lowMemoryMessage = "";
   let loading = true, saving = false, message = "";
   function render() {
     const maxGb = ram ? Math.max(1, Math.floor(toGb(ram.totalBytes) - 2)) : 1;
     const dirty = config.enabled !== saved.enabled || config.limitGb !== saved.limitGb;
+    const lowMemoryRecommendation = lowMemoryStatus?.recommendation || { tier: "Device profile unavailable", maxContextLength: 2048, maxBatchSize: 64, description: "Hardware-based recommendations are unavailable." };
+    const lowMemoryDevice = lowMemoryStatus?.deviceMemory || null;
     root.innerHTML = `
       <section class="shell-page shell-standard-page">
         <div class="shell-page-eyebrow"><span class="shell-eyebrow-line"></span>PREFERENCES AND CONTROL</div>
@@ -51,7 +54,18 @@ async function mountSettings(root, context) {
           <button type="button" data-settings="save-quick-ask" ${quickAskSaving ? "disabled" : ""}>${quickAskSaving ? "Saving…" : "Save Quick Ask settings"}</button>
           ${quickAskMessage ? '<p class="shell-settings-feedback" role="status">' + esc(quickAskMessage) + "</p>" : ""}
         </section>
-        <section class="shell-settings-panel"><div class="shell-panel-heading"><div><p class="shell-section-kicker">INFERENCE RESOURCE CONTROL</p><h2>RAM Limiter</h2></div><span class="shell-panel-tag">OPTIONAL · OFF BY DEFAULT</span></div>
+                 <section class="shell-settings-panel">
+           <div class="shell-panel-heading"><div><p class="shell-section-kicker">PHASE 2 · DESKTOP INTEGRATION</p><h2>Low-Memory Mode</h2></div><span class="shell-panel-tag">ADAPTIVE RESOURCE PROFILE</span></div>
+           <p class="shell-settings-intro">Use a more conservative inference allocation on memory-constrained devices. When enabled, Sync caps the context window and batch size using detected installed RAM. The preset only reduces your global or per-model values; it never edits those saved values.</p>
+           ${lowMemoryDevice ? `
+             <div class="shell-ram-stats"><div><small>INSTALLED RAM</small><strong>${toGb(lowMemoryDevice.totalBytes).toFixed(1)} GB</strong></div><div><small>AVAILABLE NOW</small><strong>${toGb(lowMemoryDevice.availableBytes).toFixed(1)} GB</strong></div><div><small>RECOMMENDED CAPS</small><strong>${lowMemoryRecommendation.maxContextLength.toLocaleString()} / ${lowMemoryRecommendation.maxBatchSize}</strong></div></div>
+             <label class="shell-ram-toggle"><span><strong>Enable Low-Memory Mode</strong><small>Apply the adaptive context and batch ceilings when the next model loads.</small></span><input id="lowMemoryEnabled" type="checkbox" ${lowMemoryPreferences.enabled ? "checked" : ""} ${lowMemorySaving ? "disabled" : ""}></label>
+             <p class="shell-settings-footnote">Detected tier: ${esc(lowMemoryRecommendation.tier)}. ${esc(lowMemoryRecommendation.description)} Current available RAM is shown for reference and is not treated as a guaranteed model-fit calculation.</p>
+             <button type="button" data-settings="save-low-memory" ${lowMemorySaving ? "disabled" : ""}>${lowMemorySaving ? "Saving…" : "Save Low-Memory Preference"}</button>
+           ` : '<p class="shell-settings-footnote">Hardware-based recommendations require the native desktop host.</p>'}
+           ${lowMemoryMessage ? '<p class="shell-settings-feedback" role="status">' + esc(lowMemoryMessage) + "</p>" : ""}
+         </section>
+         <section class="shell-settings-panel"><div class="shell-panel-heading"><div><p class="shell-section-kicker">INFERENCE RESOURCE CONTROL</p><h2>RAM Limiter</h2></div><span class="shell-panel-tag">OPTIONAL · OFF BY DEFAULT</span></div>
           <p class="shell-settings-intro">Places the isolated llama.cpp worker inside a Windows Job Object with a hard private-memory commit ceiling. The limit includes model allocations and inference context, so a model that needs more than the ceiling may fail to load. The main Sync AI desktop process stays outside that limit.</p>
           ${loading ? '<p class="shell-settings-footnote">Detecting system memory…</p>' : ram ? `
             <div class="shell-ram-stats"><div><small>INSTALLED RAM</small><strong>${toGb(ram.totalBytes).toFixed(1)} GB</strong></div><div><small>CURRENTLY AVAILABLE</small><strong>${toGb(ram.availableBytes).toFixed(1)} GB</strong></div><div><small>MAXIMUM CEILING</small><strong>${maxGb} GB</strong></div></div>
@@ -72,13 +86,15 @@ async function mountSettings(root, context) {
       </section>`;
   }
   try {
-    const [info, raw, quickAskSaved, modelList] = await Promise.all([
-      api.getHostRamInfo(), api.getSetting(KEY), api.getQuickAskPreferences(), api.listModels()
+    const [info, raw, quickAskSaved, modelList, lowMemorySavedStatus] = await Promise.all([
+      api.getHostRamInfo(), api.getSetting(KEY), api.getQuickAskPreferences(), api.listModels(), api.getLowMemoryPreferences()
     ]);
     ram = info;
     quickAskPreferences = quickAskSaved || quickAskPreferences;
     quickAskShortcutDraft = quickAskPreferences.shortcut;
     quickAskModels = Array.isArray(modelList) ? modelList : [];
+    lowMemoryStatus = lowMemorySavedStatus;
+    lowMemoryPreferences = { ...(lowMemoryStatus?.preferences || { enabled: false }) };
     let parsed;
     try { parsed = raw ? JSON.parse(raw) : undefined; } catch {}
     const max = Math.max(1, Math.floor(toGb(info.totalBytes) - 2));
@@ -92,6 +108,7 @@ async function mountSettings(root, context) {
   });
   root.addEventListener("change", event => {
     if (event.target.id === "ramEnabled") { config.enabled = event.target.checked; render(); }
+    if (event.target.id === "lowMemoryEnabled") { lowMemoryPreferences.enabled = event.target.checked; render(); }
     if (event.target.id === "ram-limit") { config.limitGb = Number(event.target.value); render(); }
     if (event.target.id === "quickAskModelMode") {
       quickAskPreferences.modelSelection.mode = event.target.value;
@@ -123,6 +140,16 @@ async function mountSettings(root, context) {
         quickAskMessage = "Saved. Quick Ask is available from the global shortcut or system tray.";
       } catch (cause) { quickAskMessage = "Could not save Quick Ask settings: " + errorText(cause); }
       finally { quickAskSaving = false; render(); }
+    }
+    if (action === "save-low-memory" && !lowMemorySaving) {
+      lowMemorySaving = true; lowMemoryMessage = ""; render();
+      try {
+        lowMemoryStatus = await api.setLowMemoryPreferences({ enabled: root.querySelector("#lowMemoryEnabled")?.checked === true });
+        lowMemoryPreferences = { ...lowMemoryStatus.preferences };
+        lowMemoryMessage = "Saved. The reduced context and batch ceilings apply the next time a model loads. Your saved model profiles remain unchanged.";
+      } catch (cause) {
+        lowMemoryMessage = "Could not save Low-Memory settings: " + errorText(cause);
+      } finally { lowMemorySaving = false; render(); }
     }
     if (action === "save" && !saving) {
       saving = true; message = ""; render();
