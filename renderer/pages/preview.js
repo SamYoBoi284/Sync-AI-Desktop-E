@@ -127,7 +127,7 @@ async function mountAppearance(root) {
     }
     const action = event.target.closest("[data-appearance-action]")?.dataset.appearanceAction;
     if (!action) return;
-    if (action === "reset") { feedback = "Defaults restored in the preview. Save to keep them."; update({ ...DEFAULTS }); return; }
+    if (action === "reset") { feedback = "Appearance defaults restored in the preview. Motion preference is managed separately in Performance."; update({ ...DEFAULTS, motion: prefs.motion }); return; }
     if (action === "save" && !saving) {
       saving = true; feedback = ""; render();
       try {
