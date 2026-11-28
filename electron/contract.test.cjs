@@ -355,3 +355,19 @@ test("Low-Memory preference is optional, persistent and applied as a non-destruc
   assert.match(settings, /lowPreferences\.enabled/);
   assert.match(settings, /never changes your saved global settings or per-model profiles/);
 });
+
+test("system tray exposes live model/runtime status and applies desktop close/exit preferences", () => {
+  const behavior = fs.readFileSync(path.join(__dirname, "desktop-behavior.cjs"), "utf8");
+  assert.match(main, /function refreshTrayMenu\\(/);
+  assert.match(main, /label: "Model: " \\+ modelName/);
+  assert.match(main, /label: "Runtime: " \\+ runtimeLabel/);
+  assert.match(main, /Worker memory: /);
+  assert.match(main, /setInterval\\(refreshTrayMenu, 2000\\)/);
+  assert.match(main, /get_desktop_behavior_preferences:/);
+  assert.match(main, /set_desktop_behavior_preferences:/);
+  assert.match(main, /getDesktopBehaviorPreferences\\(\\)\\.closeToTray/);
+  assert.match(main, /getDesktopBehaviorPreferences\\(\\)\\.unloadModelOnExit/);
+  assert.match(main, /Gracefully unloading the local model before application exit/);
+  assert.match(behavior, /closeToTray: true/);
+  assert.match(behavior, /unloadModelOnExit: true/);
+});
