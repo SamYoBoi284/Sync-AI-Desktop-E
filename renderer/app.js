@@ -1,7 +1,7 @@
 (() => {
 const { api, onAppAction } = window.SyncAI;
 const { pageTitles, navigationSections, esc, errorText } = window.SyncAI.shared;
-const { mountChat, mountHistory, mountFolders, mountModels, mountWorkspace, mountTasks, mountLibrary, mountRuntime, mountSettings, mountPrivacyTools, mountMemory, mountPreview, mountAppearance } = window.SyncAI.pages;
+const { mountChat, mountHistory, mountFolders, mountModels, mountWorkspace, mountTasks, mountLibrary, mountRuntime, mountSettings, mountPerformance, mountPrivacyTools, mountMemory, mountPreview, mountAppearance } = window.SyncAI.pages;
 
 const root = document.getElementById("root");
 if (!root) throw new Error("The Sync AI Desktop root element is missing.");
@@ -229,6 +229,7 @@ async function renderPage() {
       case "library": cleanup = await mountLibrary(pageHost, context); break;
       case "runtime": cleanup = await mountRuntime(pageHost, context); break;
       case "settings": cleanup = await mountSettings(pageHost, context); break;
+      case "performance": cleanup = await mountPerformance(pageHost, context); break;
       case "appearance": cleanup = await mountAppearance(pageHost, context); break;
       case "memory": cleanup = await mountMemory(pageHost, context); break;
       case "privacy-tools": cleanup = await mountPrivacyTools(pageHost, context); break;
