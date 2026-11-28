@@ -13,7 +13,7 @@ test("the desktop renderer is plain HTML, CSS and ordered classic JavaScript", (
   assert.match(html, /<script defer src="\.\/renderer\/shared\.js"><\/script>/);
   assert.doesNotMatch(html, /type="module"|vite|tsx|src\/main/);
   assert.doesNotMatch(app, /react|createRoot|jsx|vite|^import |^export /im);
-  for (const page of ["chat","history","models","workspace","tasks","library","runtime","settings","performance","preview"]) {
+  for (const page of ["chat","history","models","workspace","tasks","library","runtime","settings","performance","desktop","preview"]) {
     const code = fs.readFileSync(path.join(root, "renderer", "pages", page + ".js"), "utf8");
     assert.doesNotMatch(code, /^import |^export /m, page + " page must be a classic script");
   }
@@ -94,4 +94,19 @@ test("Performance settings own Low-Memory, RAM limiter and motion controls", () 
   assert.doesNotMatch(appearance, /data-pref="motion"/);
   assert.match(html, /renderer\/pages\/performance\.js/);
   assert.match(app, /case "performance": cleanup = await mountPerformance/);
+});
+
+test("Desktop settings expose close-to-tray and graceful model-exit preferences", () => {
+  const settings = fs.readFileSync(path.join(root, "renderer", "pages", "settings.js"), "utf8");
+  const desktop = fs.readFileSync(path.join(root, "renderer", "pages", "desktop.js"), "utf8");
+  const api = fs.readFileSync(path.join(root, "renderer", "api.js"), "utf8");
+  const app = fs.readFileSync(path.join(root, "renderer", "app.js"), "utf8");
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  assert.match(settings, /data-settings="desktop"/);
+  assert.match(desktop, /id="closeToTray"/);
+  assert.match(desktop, /id="unloadModelOnExit"/);
+  assert.match(api, /getDesktopBehaviorPreferences/);
+  assert.match(api, /setDesktopBehaviorPreferences/);
+  assert.match(app, /case "desktop": cleanup = await mountDesktop/);
+  assert.match(html, /renderer\\/pages\\/desktop\\.js/);
 });
