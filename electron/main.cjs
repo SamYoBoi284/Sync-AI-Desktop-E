@@ -18,6 +18,7 @@ const { SyncDatabase } = require("./database.cjs");
 const { FileOperationManager } = require("./file-operation-manager.cjs");
 const { readGgufMetadata, estimatePeakBytes } = require("./gguf.cjs");
 const { normalizeLowMemoryPreferences, getLowMemoryRecommendation, applyLowMemoryPolicy } = require("./low-memory-policy.cjs");
+const { DEFAULT_DESKTOP_BEHAVIOR_PREFERENCES, normalizeDesktopBehaviorPreferences } = require("./desktop-behavior.cjs");
 
 const isDevelopment = process.argv.slice(1).some(arg => arg === "." || arg === "./") || process.env.SYNC_AI_DEV === "1";
 const startupLogPath = path.join(os.tmpdir(), "sync-ai-desktop-startup.log");
@@ -35,6 +36,8 @@ process.on("unhandledRejection", error => logStartup("Unhandled rejection: " + (
 let splashAvailable = true;
 let mainWindow = null;
 let tray = null;
+let trayStatusTimer = null;
+let waitingForWorkerShutdown = false;
 
 function restoreRendererKeyboardFocus() {
   const target = mainWindow;
@@ -128,6 +131,22 @@ function saveLowMemoryPreferences({ preferences } = {}) {
   const normalized = normalizeLowMemoryPreferences(preferences);
   database.set_setting({ key: "low_memory_preferences", valueJson: JSON.stringify(normalized) });
   return getLowMemoryPreferencesStatus();
+}
+
+function getDesktopBehaviorPreferences() {
+  const raw = database?.get_setting({ key: "desktop_behavior_preferences" });
+  if (raw == null) return normalizeDesktopBehaviorPreferences(null);
+  let parsed;
+  try { parsed = JSON.parse(raw); }
+  catch { throw new Error("Saved desktop behavior preferences are invalid JSON. Open Settings and save them again."); }
+  return normalizeDesktopBehaviorPreferences(parsed);
+}
+
+function saveDesktopBehaviorPreferences({ preferences } = {}) {
+  const normalized = normalizeDesktopBehaviorPreferences(preferences);
+  database.set_setting({ key: "desktop_behavior_preferences", valueJson: JSON.stringify(normalized) });
+  refreshTrayMenu();
+  return normalized;
 }
 
 function getQuickAskPreferences() {
@@ -364,15 +383,19 @@ function generationSummary(job, includeText = false) {
     ...(includeText ? { text: job.text } : {})
   };
 }
-const runtimeStatus = () => ({
-  ...runtimeState,
-  workerPid: inferenceWorker?.pid ?? null,
-  isForceStoppingGeneration: forceStoppingGeneration,
-  activeGeneration: activeGeneration ? generationSummary(activeGeneration, true) : null,
-  queuedGenerations: generationQueue.map(job => generationSummary(job)),
-  queuedGenerationCount: generationQueue.length,
-  backend: runtimeState.isLoaded ? "llama.cpp · CPU · isolated utility process" : "llama.cpp · CPU · worker idle"
-});
+const runtimeStatus = () => {
+  const status = {
+    ...runtimeState,
+    workerPid: inferenceWorker?.pid ?? null,
+    isForceStoppingGeneration: forceStoppingGeneration,
+    activeGeneration: activeGeneration ? generationSummary(activeGeneration, true) : null,
+    queuedGenerations: generationQueue.map(job => generationSummary(job)),
+    queuedGenerationCount: generationQueue.length,
+    backend: runtimeState.isLoaded ? "llama.cpp · CPU · isolated utility process" : "llama.cpp · CPU · worker idle"
+  };
+  refreshTrayMenu();
+  return status;
+};
 
 function sendGenerationEvent(event) {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -865,6 +888,8 @@ const handlers = {
   get_host_ram_info: () => ({ totalBytes: os.totalmem(), availableBytes: os.freemem() }),
   get_low_memory_preferences: () => getLowMemoryPreferencesStatus(),
   set_low_memory_preferences: args => saveLowMemoryPreferences(args),
+  get_desktop_behavior_preferences: () => getDesktopBehaviorPreferences(),
+  set_desktop_behavior_preferences: args => saveDesktopBehaviorPreferences(args),
   get_device_context: () => getDeviceContext(),
   get_quick_ask_preferences: () => getQuickAskPreferences(),
   set_quick_ask_preferences: args => saveQuickAskPreferences(args),
@@ -1185,6 +1210,66 @@ async function restoreMainWindow() {
   mainWindow.focus();
 }
 
+function trayModelName() {
+  if (runtimeState.isLoaded && runtimeState.loadedModelName) return String(runtimeState.loadedModelName);
+  if (runtimeState.isLoading && runtimeState.loadingModelId) {
+    try {
+      const model = database?.list_models().find(item => item.id === runtimeState.loadingModelId);
+      if (model?.name) return "Loading " + model.name;
+    } catch {}
+    return "Loading model…";
+  }
+  return "No model loaded";
+}
+
+function trayRuntimeLabel() {
+  if (forceStoppingGeneration) return "Recovering worker";
+  if (runtimeState.isLoading) return "Loading model";
+  if (runtimeState.isGenerating) return "Generating";
+  if (runtimeState.isLoaded) return "Ready";
+  if (runtimeState.lastError) return "Worker error";
+  return "Idle";
+}
+
+function trayBytesLabel(bytes) {
+  const value = Number(bytes);
+  if (!Number.isFinite(value) || value < 0) return null;
+  if (value >= 1024 ** 3) return (value / (1024 ** 3)).toFixed(1) + " GB";
+  if (value >= 1024 ** 2) return Math.round(value / (1024 ** 2)) + " MB";
+  return Math.round(value / 1024) + " KB";
+}
+
+function refreshTrayMenu() {
+  if (!tray || tray.isDestroyed()) return;
+  const modelName = trayModelName().replace(/\s+/g, " ").trim().slice(0, 64);
+  const runtimeLabel = trayRuntimeLabel();
+  const memoryLabel = trayBytesLabel(runtimeState.workerPrivateBytes);
+  const queueCount = generationQueue.length;
+  const closeBehavior = (() => {
+    try { return getDesktopBehaviorPreferences().closeToTray ? "Close button: Hide to tray" : "Close button: Exit"; }
+    catch { return "Close behavior: Default"; }
+  })();
+  tray.setToolTip(("Sync AI Desktop · " + runtimeLabel + " · " + modelName).slice(0, 127));
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: "SYNC AI · RUNTIME", enabled: false },
+    { label: "Model: " + modelName, enabled: false },
+    { label: "Runtime: " + runtimeLabel, enabled: false },
+    ...(memoryLabel ? [{ label: "Worker memory: " + memoryLabel, enabled: false }] : []),
+    ...(queueCount ? [{ label: "Queued generations: " + queueCount, enabled: false }] : []),
+    { type: "separator" },
+    { label: "Open Sync AI", click: () => void restoreMainWindow() },
+    { label: "New conversation", click: () => {
+      void restoreMainWindow().then(() => mainWindow?.webContents.send("sync:app-action", { action: "new-chat" }));
+    } },
+    { label: "Quick Ask", click: () => void openQuickAskOverlay() },
+    { type: "separator" },
+    { label: "Hide Sync AI", click: () => mainWindow?.hide() },
+    { label: closeBehavior, enabled: false },
+    { type: "separator" },
+    { label: "Exit Sync AI", click: () => { isQuitting = true; app.quit(); } }
+  ]));
+}
+
 async function createTray() {
   if (tray) return;
   let icon = nativeImage.createFromPath(trayIconPath);
@@ -1199,19 +1284,11 @@ async function createTray() {
   if (icon.isEmpty()) logStartup("WARNING: Electron returned an empty tray icon.");
   else logStartup("Loaded Sync tray artwork from " + (icon.isEmpty() ? "fallback" : trayIconPath));
   tray = new Tray(icon);
-  tray.setToolTip("Sync AI Desktop");
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: "Open Sync AI", click: () => void restoreMainWindow() },
-    { label: "New conversation", click: () => {
-      void restoreMainWindow().then(() => mainWindow?.webContents.send("sync:app-action", { action: "new-chat" }));
-    } },
-    { label: "Quick Ask", click: () => void openQuickAskOverlay() },
-    { type: "separator" },
-    { label: "Hide Sync AI", click: () => mainWindow?.hide() },
-    { type: "separator" },
-    { label: "Exit Sync AI", click: () => { isQuitting = true; app.quit(); } }
-  ]));
+  refreshTrayMenu();
   tray.on("click", () => void restoreMainWindow());
+  tray.on("right-click", () => refreshTrayMenu());
+  if (trayStatusTimer) clearInterval(trayStatusTimer);
+  trayStatusTimer = setInterval(refreshTrayMenu, 2000);
 }
 
 async function createWindow() {
@@ -1243,7 +1320,19 @@ async function createWindow() {
     if (!trusted) event.preventDefault();
   });
   mainWindow.on("close", event => {
-    if (!isQuitting) { event.preventDefault(); mainWindow?.hide(); }
+    if (isQuitting) return;
+    let closeToTray = true;
+    try { closeToTray = getDesktopBehaviorPreferences().closeToTray; }
+    catch (error) { logStartup("Could not read close-to-tray preference; using the safe hide-to-tray default: " + error.message); }
+    if (closeToTray) {
+      event.preventDefault();
+      mainWindow?.hide();
+      logStartup("Main window hidden to the system tray.");
+      return;
+    }
+    isQuitting = true;
+    logStartup("Main window close is configured to exit Sync AI.");
+    setImmediate(() => app.quit());
   });
   mainWindow.on("closed", () => { mainWindow = null; });
   mainWindow.webContents.on("did-fail-load", (_event, code, description, failedUrl, isMainFrame) => {
@@ -1301,6 +1390,7 @@ app.whenReady().then(async () => {
 
 app.on("before-quit", event => {
   isQuitting = true;
+  if (trayStatusTimer) { clearInterval(trayStatusTimer); trayStatusTimer = null; }
   if (waitingForActionShutdown) {
     event.preventDefault();
     return;
@@ -1313,6 +1403,21 @@ app.on("before-quit", event => {
       logStartup("Action shutdown recovery reported: " + (error instanceof Error ? error.message : String(error)));
     }).finally(() => {
       waitingForActionShutdown = false;
+      app.quit();
+    });
+    return;
+  }
+  let unloadModelOnExit = true;
+  try { unloadModelOnExit = getDesktopBehaviorPreferences().unloadModelOnExit; }
+  catch (error) { logStartup("Could not read model-unload preference; using graceful unload: " + error.message); }
+  if (unloadModelOnExit && inferenceWorker && !waitingForWorkerShutdown) {
+    event.preventDefault();
+    waitingForWorkerShutdown = true;
+    logStartup("Gracefully unloading the local model before application exit.");
+    void stopInferenceWorker().catch(error => {
+      logStartup("Graceful inference-worker shutdown reported: " + (error instanceof Error ? error.message : String(error)));
+    }).finally(() => {
+      waitingForWorkerShutdown = false;
       app.quit();
     });
     return;
