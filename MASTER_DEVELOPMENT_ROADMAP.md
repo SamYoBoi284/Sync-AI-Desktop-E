@@ -214,6 +214,9 @@ Remaining:
 
 ### System Tray Companion — IMPLEMENTED FIRST SLICE; RUNTIME VALIDATION PENDING
 
+**Automated validation snapshot (code commit `9c9b4326`):** Ubuntu source syntax and the complete database/contract/renderer/action-safety test suite passed. Windows source syntax passed; the Windows test run reported **86 passed and 4 failed**. The four failures are the recurring file-operation cases (protected application-data/Recovery Vault rejection and symbolic-link destination handling for copy/rename/move). The new tray-status contract test, Desktop settings renderer test, desktop preference tests, Low-Memory tests and graceful worker-shutdown contract all passed in that run. Windows native Electron runtime/startup/renderer/installer checks remain gated by the Windows test-step failure. Manual app/model verification is still pending.
+
+
 Implemented:
 - Tray icon with application-icon fallback.
 - Open/restore Sync AI and Hide Sync AI.
