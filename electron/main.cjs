@@ -18,7 +18,7 @@ const { SyncDatabase } = require("./database.cjs");
 const { FileOperationManager } = require("./file-operation-manager.cjs");
 const { readGgufMetadata, estimatePeakBytes } = require("./gguf.cjs");
 const { normalizeLowMemoryPreferences, getLowMemoryRecommendation, applyLowMemoryPolicy } = require("./low-memory-policy.cjs");
-const { DEFAULT_DESKTOP_BEHAVIOR_PREFERENCES, normalizeDesktopBehaviorPreferences } = require("./desktop-behavior.cjs");
+const { normalizeDesktopBehaviorPreferences } = require("./desktop-behavior.cjs");
 
 const isDevelopment = process.argv.slice(1).some(arg => arg === "." || arg === "./") || process.env.SYNC_AI_DEV === "1";
 const startupLogPath = path.join(os.tmpdir(), "sync-ai-desktop-startup.log");
@@ -36,7 +36,6 @@ process.on("unhandledRejection", error => logStartup("Unhandled rejection: " + (
 let splashAvailable = true;
 let mainWindow = null;
 let tray = null;
-let trayStatusTimer = null;
 let waitingForWorkerShutdown = false;
 
 function restoreRendererKeyboardFocus() {
@@ -398,6 +397,7 @@ const runtimeStatus = () => {
 };
 
 function sendGenerationEvent(event) {
+  if (event?.event !== "token") refreshTrayMenu();
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) window.webContents.send("sync:generation-event", event);
   }
@@ -490,6 +490,7 @@ function resetRuntimeAfterWorkerExit() {
   runtimeState.workerWorkingSetBytes = null; runtimeState.workerPrivateBytes = null;
   runtimeState.memoryLimitBytes = null; runtimeState.hardLimitSupported = false;
   runtimeState.lowMemoryMode = false; runtimeState.requestedContextLength = null; runtimeState.requestedBatchSize = null;
+  refreshTrayMenu();
 }
 
 function handleInferenceMessage(worker, event) {
@@ -509,12 +510,14 @@ function handleInferenceMessage(worker, event) {
       runtimeState.maxOutputTokens = message.model.maxOutputTokens;
       runtimeState.lastError = null;
       runtimeState.lastErrorCode = null;
+      refreshTrayMenu();
       if (pendingLoad) { pendingLoad.resolve(runtimeStatus()); pendingLoad = null; }
       break;
     case "LOAD_ERROR":
       runtimeState.isLoading = false;
       runtimeState.lastErrorCode = "model_load_failed";
       runtimeState.lastError = String(message.error || "The inference worker could not load the selected model.");
+      refreshTrayMenu();
       if (pendingLoad) { pendingLoad.reject(new Error(runtimeState.lastError)); pendingLoad = null; }
       break;
     case "GENERATION_EVENT": {
@@ -652,6 +655,7 @@ async function startInferenceWorker(memoryLimitBytes) {
     }
     if (!expectedWorkerExit && (activeGeneration || generationQueue.length)) failAllGenerations(new Error(runtimeState.lastError || "The inference worker exited before generation completed."));
     resetRuntimeAfterWorkerExit();
+    refreshTrayMenu();
   });
 
   if (process.platform === "win32") {
@@ -1034,6 +1038,7 @@ const handlers = {
     const inference = getInferenceOptions(modelId);
     runtimeState.isLoading = true;
     runtimeState.loadingModelId = modelId;
+    refreshTrayMenu();
     runtimeState.memoryLimitBytes = memoryLimitBytes;
     runtimeState.lowMemoryMode = inference.lowMemoryMode;
     runtimeState.requestedContextLength = inference.requestedContextLength;
@@ -1287,8 +1292,6 @@ async function createTray() {
   refreshTrayMenu();
   tray.on("click", () => void restoreMainWindow());
   tray.on("right-click", () => refreshTrayMenu());
-  if (trayStatusTimer) clearInterval(trayStatusTimer);
-  trayStatusTimer = setInterval(refreshTrayMenu, 2000);
 }
 
 async function createWindow() {
@@ -1390,7 +1393,6 @@ app.whenReady().then(async () => {
 
 app.on("before-quit", event => {
   isQuitting = true;
-  if (trayStatusTimer) { clearInterval(trayStatusTimer); trayStatusTimer = null; }
   if (waitingForActionShutdown) {
     event.preventDefault();
     return;
