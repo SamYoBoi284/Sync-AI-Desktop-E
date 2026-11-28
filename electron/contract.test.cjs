@@ -336,3 +336,22 @@ test("tray New conversation action is handled by the main renderer", () => {
   assert.match(app, /payload\?\.action === "new-chat"/);
 });
 
+
+
+test("Low-Memory preference is optional, persistent and applied as a non-destructive inference ceiling", () => {
+  const policy = fs.readFileSync(path.join(__dirname, "low-memory-policy.cjs"), "utf8");
+  const settings = fs.readFileSync(path.join(root, "renderer", "pages", "performance.js"), "utf8");
+  assert.match(main, /get_low_memory_preferences:/);
+  assert.match(main, /set_low_memory_preferences:/);
+  assert.match(main, /low_memory_preferences/);
+  assert.match(main, /applyLowMemoryPolicy/);
+  assert.match(main, /os\.totalmem\(\)/);
+  assert.match(main, /requestedContextLength/);
+  assert.match(bridge, /getLowMemoryPreferences/);
+  assert.match(bridge, /setLowMemoryPreferences/);
+  assert.match(policy, /DEFAULT_LOW_MEMORY_PREFERENCES = Object\.freeze\(\{ enabled: false \}\)/);
+  assert.match(policy, /Math\.min\(contextLength, recommendation\.maxContextLength\)/);
+  assert.match(policy, /Math\.min\(batchSize, recommendation\.maxBatchSize/);
+  assert.match(settings, /lowPreferences\.enabled/);
+  assert.match(settings, /The preset only reduces your global or per-model values/);
+});
