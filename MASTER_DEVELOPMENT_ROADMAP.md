@@ -212,20 +212,23 @@ Remaining:
 
 **Automated validation snapshot (code commit `27b12591`):** the Ubuntu source/action-safety workflow passed the build and full test suite. Windows JavaScript source syntax passed; the Low-Memory policy tests, Performance page placement test and Windows Job Object memory guard test also passed. The overall Windows source/action-safety suite still fails four unrelated file-operation cases: protected application-data/Recovery Vault rejection and the copy, rename and move symbolic-link destination cases. Manual testing with a real GGUF on the 8 GB target laptop remains outstanding. The Windows Electron CI job was blocked at its persistence/contract test gate; native runtime verification, full Electron startup, renderer automation and installer packaging were skipped.
 
-### System Tray Companion — PARTIAL; TRAY ACTIONS EXPANDED
+### System Tray Companion — IMPLEMENTED FIRST SLICE; RUNTIME VALIDATION PENDING
 
-Already present:
+Implemented:
 - Tray icon with application-icon fallback.
 - Open/restore Sync AI and Hide Sync AI.
-- Exit Sync AI.
-- New conversation from the tray.
-- Quick Ask from the tray.
-- Closing the main window hides it to the tray instead of quitting the application.
+- New conversation and Quick Ask actions.
+- Live model name and runtime state (loading, generating, ready, idle, recovery or error) in the tray context menu.
+- Queue count appears while generations are waiting; the tray tooltip includes current runtime and model status.
+- Tray status refreshes on model and generation state transitions without a polling timer that rebuilds the menu while it is open.
+- **Settings → Desktop** includes a persisted Close to tray preference (enabled by default). When disabled, closing the main window exits Sync AI.
+- **Settings → Desktop** includes a persisted Gracefully unload the active model on exit preference (enabled by default).
+- Graceful exit waits for an active generation to abort and release its sequence before disposing the model/context and closing the worker.
 
 Remaining:
-- Runtime/model status in the tray menu.
-- Configurable close-to-tray and exit behavior.
-- Explicit model-unload behavior when the user exits or closes the application, according to the chosen preference.
+- Manual Windows verification of tray model/runtime labels during idle, load, generation, queue, error, unload and worker recovery.
+- Verify close-to-tray on/off behavior, tray Exit behavior and graceful model cleanup during an active generation on Windows.
+- Verify both Desktop preferences persist across application restarts and behave correctly in the packaged build.
 
 Voice Mode remains deferred to Phase 7.
 
@@ -492,8 +495,10 @@ Further refinements can be scheduled as needed without blocking the Command Pale
 - Tray New conversation and Quick Ask actions: **IMPLEMENTED**.
 - Optional Low-Memory Mode: **IMPLEMENTED — opt-in, off by default; installed-RAM tiers cap effective context/batch values without changing saved profiles; Runtime reports requested/effective allocations; automated and target-device validation pending**.
 - Settings organization: **IMPLEMENTED — Appearance, Performance, Runtime and Memory categories; Low-Memory Mode, separate RAM Limiter and System/Full/Reduced/Off motion preferences are under Settings → Performance**.
-- Runtime/model tray status, configurable close-to-tray and exit behavior, and explicit exit-time model-unload preference: **PENDING**.
+- Runtime/model tray status: **IMPLEMENTED — live model name, runtime state and waiting generation count; Windows manual verification pending**.
+- Desktop behavior: **IMPLEMENTED — persisted Close to tray and graceful model unload on exit preferences under Settings → Desktop; both enabled by default; runtime verification pending**.
+- Quick Ask edge-case verification, packaged-build testing, real-GGUF Low-Memory validation and the Phase 1 validation gate: **PENDING**.
 
-**Immediate next task:** Validate the new Low-Memory preference through automated CI and manual Windows/real-GGUF testing on the intended low-RAM laptop. Then continue Phase 2 with Runtime/model tray status, configurable close/exit behavior and Quick Ask edge-case verification. Keep Phase 1, item 7 as a separate validation task: verify v7-to-v14 migration and topic-learning/context-compaction regressions, then manually test chat scrolling, native-dialog focus, device-local time, Quick Ask and real-GGUF behavior on Windows. Phase 1 implementation is complete; validation must not be misreported as passed.
+**Immediate next task:** Run automated CI for the integrated Performance, Desktop and tray changes, then manually verify the tray status transitions and Desktop close/exit preferences in the Windows Electron app. Also test graceful exit during an active real-GGUF generation and validate Low-Memory behavior on the intended 8 GB laptop. Keep Phase 1, item 7 as a separate validation task: verify v7-to-v14 migration and topic-learning/context-compaction regressions, then manually test chat scrolling, native-dialog focus, device-local time, Quick Ask and real-GGUF behavior on Windows. Phase 1 implementation is complete; validation must not be misreported.
 
 **Continuity requirement:** Every future development session must inspect the current repository and this roadmap before starting new work. The implementation on the current branch takes precedence over this document if they disagree.
