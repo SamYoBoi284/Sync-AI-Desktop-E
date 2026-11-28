@@ -17,6 +17,7 @@ if (process.platform === "win32") {
 const { SyncDatabase } = require("./database.cjs");
 const { FileOperationManager } = require("./file-operation-manager.cjs");
 const { readGgufMetadata, estimatePeakBytes } = require("./gguf.cjs");
+const { normalizeLowMemoryPreferences, getLowMemoryRecommendation, applyLowMemoryPolicy } = require("./low-memory-policy.cjs");
 
 const isDevelopment = process.argv.slice(1).some(arg => arg === "." || arg === "./") || process.env.SYNC_AI_DEV === "1";
 const startupLogPath = path.join(os.tmpdir(), "sync-ai-desktop-startup.log");
@@ -83,7 +84,8 @@ let runtimeState = {
   loadingModelId: null, loadedModelId: null, loadedModelName: null, loadedAt: null,
   estimatedMemoryBytes: null, contextLength: null, batchSize: null, temperature: null, maxOutputTokens: null,
   memoryLimitBytes: null, workerWorkingSetBytes: null, workerPrivateBytes: null,
-  hardLimitSupported: false, lastErrorCode: null, lastError: null
+  hardLimitSupported: false, lowMemoryMode: false, requestedContextLength: null, requestedBatchSize: null,
+  lastErrorCode: null, lastError: null
 };
 
 function getDeviceContext() {
@@ -102,6 +104,30 @@ function getDeviceContext() {
   const utcOffset = "UTC" + sign + String(Math.floor(absoluteOffset / 60)).padStart(2, "0") +
     ":" + String(absoluteOffset % 60).padStart(2, "0");
   return { iso: now.toISOString(), localDate, localTime, timeZone, utcOffset };
+}
+
+function getLowMemoryPreferences() {
+  const raw = database?.get_setting({ key: "low_memory_preferences" });
+  if (raw == null) return normalizeLowMemoryPreferences(null);
+  let parsed;
+  try { parsed = JSON.parse(raw); }
+  catch { throw new Error("Saved Low-Memory preferences are invalid JSON. Open Settings and save them again."); }
+  return normalizeLowMemoryPreferences(parsed);
+}
+
+function getLowMemoryPreferencesStatus() {
+  const totalBytes = os.totalmem();
+  return {
+    preferences: getLowMemoryPreferences(),
+    deviceMemory: { totalBytes, availableBytes: os.freemem() },
+    recommendation: getLowMemoryRecommendation(totalBytes)
+  };
+}
+
+function saveLowMemoryPreferences({ preferences } = {}) {
+  const normalized = normalizeLowMemoryPreferences(preferences);
+  database.set_setting({ key: "low_memory_preferences", valueJson: JSON.stringify(normalized) });
+  return getLowMemoryPreferencesStatus();
 }
 
 function getQuickAskPreferences() {
@@ -317,7 +343,18 @@ function getInferenceOptions(modelId = null) {
   if (!Number.isInteger(requestedBatchSize) || requestedBatchSize < 16 || requestedBatchSize > 2048) throw new Error("Batch size must be between 16 and 2,048 tokens.");
   if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) throw new Error("Model temperature must be between 0 and 2.");
   if (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 16 || maxOutputTokens > 512) throw new Error("Maximum output must be between 16 and 512 tokens.");
-  return { contextLength, batchSize, temperature, maxOutputTokens, hasCustomProfile: Boolean(profile) };
+  const resourcePolicy = applyLowMemoryPolicy(
+    { contextLength, batchSize }, os.totalmem(), getLowMemoryPreferences().enabled
+  );
+  return {
+    contextLength: resourcePolicy.contextLength,
+    batchSize: resourcePolicy.batchSize,
+    requestedContextLength: resourcePolicy.requestedContextLength,
+    requestedBatchSize: resourcePolicy.requestedBatchSize,
+    lowMemoryMode: resourcePolicy.lowMemoryMode,
+    lowMemoryRecommendation: resourcePolicy.recommendation,
+    temperature, maxOutputTokens, hasCustomProfile: Boolean(profile)
+  };
 }
 function generationSummary(job, includeText = false) {
   return {
@@ -429,6 +466,7 @@ function resetRuntimeAfterWorkerExit() {
   runtimeState.loadedAt = null; runtimeState.estimatedMemoryBytes = null; runtimeState.contextLength = null; runtimeState.batchSize = null; runtimeState.temperature = null; runtimeState.maxOutputTokens = null;
   runtimeState.workerWorkingSetBytes = null; runtimeState.workerPrivateBytes = null;
   runtimeState.memoryLimitBytes = null; runtimeState.hardLimitSupported = false;
+  runtimeState.lowMemoryMode = false; runtimeState.requestedContextLength = null; runtimeState.requestedBatchSize = null;
 }
 
 function handleInferenceMessage(worker, event) {
@@ -794,6 +832,9 @@ async function forceStopGeneration() {
 
   try {
     runtimeState.isLoading = true; runtimeState.loadingModelId = modelId; runtimeState.memoryLimitBytes = memoryLimitBytes;
+    runtimeState.lowMemoryMode = inference.lowMemoryMode;
+    runtimeState.requestedContextLength = inference.requestedContextLength;
+    runtimeState.requestedBatchSize = inference.requestedBatchSize;
     const worker = await startInferenceWorker(memoryLimitBytes);
     runtimeState.estimatedMemoryBytes = estimatePeakBytes(readGgufMetadata(model.filePath), model.sizeBytes);
     const loadedPromise = new Promise((resolve, reject) => {
@@ -822,6 +863,8 @@ const handlers = {
   get_app_info: () => ({ appName: "Sync AI Desktop", version: app.getVersion(), operatingSystem: process.platform, architecture: process.arch }),
   consume_startup_splash: () => { const show = splashAvailable; splashAvailable = false; return show; },
   get_host_ram_info: () => ({ totalBytes: os.totalmem(), availableBytes: os.freemem() }),
+  get_low_memory_preferences: () => getLowMemoryPreferencesStatus(),
+  set_low_memory_preferences: args => saveLowMemoryPreferences(args),
   get_device_context: () => getDeviceContext(),
   get_quick_ask_preferences: () => getQuickAskPreferences(),
   set_quick_ask_preferences: args => saveQuickAskPreferences(args),
@@ -949,7 +992,9 @@ const handlers = {
       modelSizeBytes, estimatedPeakBytes, availableRamBytes: os.freemem(),
       configuredLimitBytes: config.enabled ? Math.floor(config.limitGb * 1024 ** 3) : null,
       contextLength: inference.contextLength, batchSize: inference.batchSize,
-      estimateKind: "GGUF metadata-based informational estimate. The Windows Job Object enforces the configured worker private-memory ceiling."
+      requestedContextLength: inference.requestedContextLength, requestedBatchSize: inference.requestedBatchSize,
+      lowMemoryMode: inference.lowMemoryMode,
+      estimateKind: "GGUF metadata-based informational estimate. Low-Memory Mode may reduce context and batch ceilings; the Windows Job Object remains a separate optional hard private-memory limit."
     };
   },
   load_model: async ({ modelId }) => {
@@ -965,6 +1010,9 @@ const handlers = {
     runtimeState.isLoading = true;
     runtimeState.loadingModelId = modelId;
     runtimeState.memoryLimitBytes = memoryLimitBytes;
+    runtimeState.lowMemoryMode = inference.lowMemoryMode;
+    runtimeState.requestedContextLength = inference.requestedContextLength;
+    runtimeState.requestedBatchSize = inference.requestedBatchSize;
     runtimeState.lastError = null;
     runtimeState.lastErrorCode = null;
     try {
