@@ -799,3 +799,54 @@
   .quick-ask-setting-field { grid-template-columns:1fr; }
   .shell-chat-notice { top: 112px; }
 }
+
+
+/* Performance page readability: lift small utility text above the mono-heavy shell scale. */
+.performance-page {
+  font-family: "Segoe UI Variable", "Segoe UI", Inter, system-ui, sans-serif;
+  font-weight: 500;
+}
+.performance-page .shell-page-description {
+  color: #b7b9d0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.75;
+}
+.performance-page .shell-settings-intro,
+.performance-page .shell-details-note {
+  color: #b9bbd1;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.75;
+}
+.performance-page .shell-settings-footnote,
+.performance-page .shell-settings-feedback,
+.performance-page .shell-ram-toggle small,
+.performance-page .shell-ram-slider > small,
+.performance-page .appearance-hint {
+  color: #b0b2ca;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.7;
+}
+.performance-page .shell-panel-heading h2 {
+  font-weight: 650;
+}
+.performance-page .shell-ram-toggle strong {
+  font-size: 13px;
+  font-weight: 650;
+}
+.performance-page .shell-ram-stats small {
+  color: #aeb0c8;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .1em;
+}
+.performance-page .shell-ram-stats strong {
+  font-size: 17px;
+  font-weight: 650;
+}
+.performance-page .shell-settings-panel > button {
+  font-size: 11px;
+  font-weight: 600;
+}
