@@ -86,8 +86,7 @@ test("Performance settings own Low-Memory, RAM limiter and motion controls", () 
   assert.match(performance, /Enable Low-Memory Mode/);
   assert.match(performance, /Save Low-Memory Preference/);
   assert.match(performance, /Worker memory ceiling/);
-  assert.match(performance, /data-motion="reduced"/);
-  assert.match(performance, /data-motion="off"/);
+  assert.match(performance, /\[\[\x27system\x27,\x27System\x27\],\[\x27full\x27,\x27Full\x27\],\[\x27reduced\x27,\x27Reduced\x27\],\[\x27off\x27,\x27Off\x27\]\]/);
   assert.doesNotMatch(appearance, /data-pref="motion"/);
   assert.match(html, /renderer\/pages\/performance\.js/);
   assert.match(app, /case "performance": cleanup = await mountPerformance/);
