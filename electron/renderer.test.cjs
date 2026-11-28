@@ -85,6 +85,10 @@ test("Performance settings own Low-Memory, RAM limiter and motion controls", () 
   assert.match(settings, /data-settings="performance"/);
   assert.match(performance, /Enable Low-Memory Mode/);
   assert.match(performance, /Save Low-Memory Preference/);
+  const shell = fs.readFileSync(path.join(root, "src", "shell.css"), "utf8");
+  assert.match(performance, /performance-page/);
+  assert.match(shell, /\.performance-page \.shell-settings-intro[\s\S]*?font-size: 13px/);
+  assert.match(shell, /\.performance-page \.shell-settings-footnote,[\s\S]*?font-size: 12px[\s\S]*?font-weight: 500/);
   assert.match(performance, /Worker memory ceiling/);
   assert.match(performance, /\[\[\x27system\x27,\x27System\x27\],\[\x27full\x27,\x27Full\x27\],\[\x27reduced\x27,\x27Reduced\x27\],\[\x27off\x27,\x27Off\x27\]\]/);
   assert.doesNotMatch(appearance, /data-pref="motion"/);
