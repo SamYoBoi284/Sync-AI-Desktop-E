@@ -15,6 +15,7 @@ async function mountSettings(root, context) {
         <div class="shell-page-heading-row"><div><p class="shell-section-kicker">SYNC AI CONFIGURATION</p><h1>Settings<span>.</span></h1><p class="shell-page-description">Choose a settings category, then adjust the parts of Sync you want to personalize.</p></div><span class="shell-large-status"><span></span>SETTINGS</span></div>
         <div class="shell-settings-grid">
           <button class="shell-settings-card" type="button" data-settings="appearance"><span class="shell-settings-card-icon">◐</span><span><strong>Appearance</strong><small>Theme, colors, interface density and chat style</small></span><span class="shell-settings-card-arrow">›</span></button>
+          <button class="shell-settings-card" type="button" data-settings="desktop"><span class="shell-settings-card-icon">▣</span><span><strong>Desktop</strong><small>Close-to-tray and model cleanup when exiting</small></span><span class="shell-settings-card-arrow">›</span></button>
           <button class="shell-settings-card" type="button" data-settings="performance"><span class="shell-settings-card-icon">⌁</span><span><strong>Performance</strong><small>Low-Memory Mode, RAM limits and motion preferences</small></span><span class="shell-settings-card-arrow">›</span></button>
           <button class="shell-settings-card" type="button" data-settings="runtime"><span class="shell-settings-card-icon">◫</span><span><strong>Runtime</strong><small>Worker status, context allocation and diagnostics</small></span><span class="shell-settings-card-arrow">›</span></button>
           <button class="shell-settings-card" type="button" data-settings="memory"><span class="shell-settings-card-icon">✧</span><span><strong>Memory</strong><small>Manage durable context and what Sync retrieves</small></span><span class="shell-settings-card-arrow">›</span></button>
@@ -82,7 +83,7 @@ async function mountSettings(root, context) {
     const button = event.target.closest("[data-settings]");
     if (!button) return;
     const action = button.dataset.settings;
-    if (["appearance","performance","runtime","memory","models","privacy-tools"].includes(action)) {
+    if (["appearance","desktop","performance","runtime","memory","models","privacy-tools"].includes(action)) {
       context.navigate(action);
       return;
     }
