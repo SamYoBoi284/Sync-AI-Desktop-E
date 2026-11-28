@@ -108,5 +108,5 @@ test("Desktop settings expose close-to-tray and graceful model-exit preferences"
   assert.match(api, /getDesktopBehaviorPreferences/);
   assert.match(api, /setDesktopBehaviorPreferences/);
   assert.match(app, /case "desktop": cleanup = await mountDesktop/);
-  assert.match(html, /renderer\\/pages\\/desktop\\.js/);
+  assert.ok(html.includes("renderer/pages/desktop.js"));
 });
