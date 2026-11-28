@@ -31,7 +31,7 @@ async function mountPerformance(root) {
     const profile = recommendation();
 
     root.innerHTML =
-      '<section class="shell-page shell-standard-page">' +
+      '<section class="shell-page shell-standard-page performance-page">' +
         pageEyebrow("SYSTEM PREFERENCES") +
         '<div class="shell-page-heading-row"><div><p class="shell-section-kicker">RESOURCE &amp; INTERFACE BEHAVIOR</p><h1>Performance<span>.</span></h1><p class="shell-page-description">Choose how Sync balances local inference resources and interface motion. Every optimization here is optional.</p></div><span class="shell-large-status"><span></span>USER CONTROL</span></div>' +
 
