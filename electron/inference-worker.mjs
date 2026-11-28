@@ -9,6 +9,7 @@ let llama = null;
 let model = null;
 let context = null;
 let activeGeneration = null;
+let activeGenerationPromise = null;
 let loaded = null;
 
 const SYSTEM_PROMPT = [
@@ -153,6 +154,10 @@ async function generate(data) {
 }
 async function shutdown() {
   if (activeGeneration) activeGeneration.controller.abort();
+  // Let the active generation finish its sequence cleanup before disposing the model/context.
+  if (activeGenerationPromise) {
+    try { await activeGenerationPromise; } catch {}
+  }
   await disposeModel();
   try { await llama?.dispose(); } catch {}
   llama = null;
@@ -166,7 +171,11 @@ parentPort.on("message", async event => {
   try {
     switch (message.type) {
       case "LOAD_MODEL": await loadModel(message.data ?? {}); break;
-      case "GENERATE": await generate(message.data ?? {}); break;
+      case "GENERATE":
+        activeGenerationPromise = generate(message.data ?? {});
+        try { await activeGenerationPromise; }
+        finally { activeGenerationPromise = null; }
+        break;
       case "CANCEL_GENERATION":
         if (activeGeneration && activeGeneration.generationId === message.generationId) activeGeneration.controller.abort();
         break;
