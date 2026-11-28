@@ -850,3 +850,26 @@
   font-size: 11px;
   font-weight: 600;
 }
+
+.desktop-page {
+  font-family: "Segoe UI Variable", "Segoe UI", Inter, system-ui, sans-serif;
+  font-weight: 500;
+}
+.desktop-page .shell-page-description,
+.desktop-page .shell-settings-intro {
+  color: #b7b9d0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.75;
+}
+.desktop-page .shell-settings-footnote,
+.desktop-page .shell-ram-toggle small {
+  color: #b0b2ca;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.7;
+}
+.desktop-page .shell-ram-toggle strong {
+  font-size: 13px;
+  font-weight: 650;
+}
