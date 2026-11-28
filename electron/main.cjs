@@ -1282,7 +1282,6 @@ async function createTray() {
   tray = new Tray(icon);
   refreshTrayMenu();
   tray.on("click", () => void restoreMainWindow());
-  tray.on("right-click", () => refreshTrayMenu());
 }
 
 async function createWindow() {
