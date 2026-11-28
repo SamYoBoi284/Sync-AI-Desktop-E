@@ -392,7 +392,6 @@ const runtimeStatus = () => {
     queuedGenerationCount: generationQueue.length,
     backend: runtimeState.isLoaded ? "llama.cpp · CPU · isolated utility process" : "llama.cpp · CPU · worker idle"
   };
-  refreshTrayMenu();
   return status;
 };
 
@@ -546,6 +545,7 @@ function handleInferenceMessage(worker, event) {
     case "STOPPED":
       break;
   }
+  if (message.type !== "GENERATION_EVENT" || message.event?.event !== "token") refreshTrayMenu();
 }
 
 function attachWindowsJob(workerPid, memoryLimitBytes) {
@@ -840,6 +840,7 @@ async function forceStopGeneration() {
   if (!model) throw new Error("The loaded model file is no longer available. Re-register it before recovering the worker.");
   const memoryLimitBytes = savedMemoryLimitBytes(), inference = getInferenceOptions(modelId);
   forceStoppingGeneration = true;
+  refreshTrayMenu();
   const active = activeGeneration;
   if (active) settleActiveGeneration(active, generationFailureResult(active, null, "cancelled"), false);
   runtimeState.isGenerating = false;
@@ -1248,7 +1249,6 @@ function refreshTrayMenu() {
   if (!tray || tray.isDestroyed()) return;
   const modelName = trayModelName().replace(/\s+/g, " ").trim().slice(0, 64);
   const runtimeLabel = trayRuntimeLabel();
-  const memoryLabel = trayBytesLabel(runtimeState.workerPrivateBytes);
   const queueCount = generationQueue.length;
   const closeBehavior = (() => {
     try { return getDesktopBehaviorPreferences().closeToTray ? "Close button: Hide to tray" : "Close button: Exit"; }
@@ -1259,7 +1259,6 @@ function refreshTrayMenu() {
     { label: "SYNC AI · RUNTIME", enabled: false },
     { label: "Model: " + modelName, enabled: false },
     { label: "Runtime: " + runtimeLabel, enabled: false },
-    ...(memoryLabel ? [{ label: "Worker memory: " + memoryLabel, enabled: false }] : []),
     ...(queueCount ? [{ label: "Queued generations: " + queueCount, enabled: false }] : []),
     { type: "separator" },
     { label: "Open Sync AI", click: () => void restoreMainWindow() },
