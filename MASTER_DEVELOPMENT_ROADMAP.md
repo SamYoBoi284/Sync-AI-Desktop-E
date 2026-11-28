@@ -189,19 +189,26 @@ Remaining:
 - Runtime tests for model-resolution fallbacks, missing files, load failures, close-during-load, cancellation and unload behavior on Windows.
 - Resource-aware compatibility checks beyond registered-file availability and the existing worker/RAM-limit enforcement.
 
-### Low-Memory Loading Preference — PARTIAL FOUNDATION
+### Low-Memory Loading Preference — FIRST IMPLEMENTATION SLICE COMPLETE; VALIDATION PENDING
 
-Already present:
-- Configurable worker private-memory ceiling.
-- Windows Job Object enforcement when the RAM limiter is enabled.
-- Existing context and batch controls.
-- Per-model context/batch profiles.
+Implemented:
+- A persistent, explicitly optional **Low-Memory Mode**, disabled by default and exposed under **Settings → Performance**.
+- Installed-RAM-based recommendation tiers:
+  - 4 GB RAM or less: context ceiling 1,024 tokens; batch ceiling 32.
+  - More than 4 GB up to 8 GB: context ceiling 2,048 tokens; batch ceiling 64.
+  - More than 8 GB up to 16 GB: context ceiling 4,096 tokens; batch ceiling 128.
+  - More than 16 GB: context ceiling 8,192 tokens; batch ceiling 256.
+- When enabled, the policy only reduces the effective context and batch values for the next model load. It does not overwrite global inference settings or saved per-GGUF profiles.
+- Requested and effective context/batch values plus the active loading profile are exposed in Runtime diagnostics.
+- Settings shows installed and currently available RAM. Installed RAM selects the recommendation tier; currently available RAM is informational and is not treated as a guarantee that a specific GGUF will fit.
+- The Windows Job Object RAM Limiter remains a separate optional hard private-memory ceiling; Low-Memory Mode does not silently enable it.
+- A pure policy module and unit tests cover the disabled default, input validation, hardware tiers, non-destructive clamping and preservation of already-small profiles.
 
 Remaining:
-- A persistent, user-facing Low-Memory loading preference/preset.
-- A coordinated reduced-resource configuration for model loading and inference.
-- Clear recommendations based on detected device capacity.
-- Validation on the target low-RAM laptop.
+- Run the complete automated suite and Windows CI against the new implementation.
+- Manually verify enabling/disabling the preference, persistence across restarts, model reload application, force-stop worker recovery, per-model profiles and interaction with the separate RAM Limiter.
+- Test real GGUF loading and inference on the intended 8 GB laptop and on at least one lower-memory configuration.
+- Improve model-fit guidance with real GGUF metadata estimates and current available-memory awareness; current tier caps are conservative heuristics, not a guarantee that any specific model will load.
 
 ### System Tray Companion — PARTIAL; TRAY ACTIONS EXPANDED
 
@@ -382,7 +389,8 @@ Notes remain separate from Memory. Memory is for durable user context; Notes are
 
 Already present:
 - System/Dark/Light appearance modes.
-- Accent, density, chat style, font-size and motion settings.
+- Accent, density, chat style and font-size settings.
+- Motion preferences (System / Full / Reduced / Off) are grouped under **Settings → Performance** rather than Appearance.
 - Chat archive, pin and folder organization.
 - User-message edit-from-turn flow.
 - In-app Back navigation and Escape handling for supported nested UI.
@@ -480,8 +488,10 @@ Further refinements can be scheduled as needed without blocking the Command Pale
 - Quick Ask overlay, configurable shortcut, tray launch and live response display: **IMPLEMENTED; Windows runtime validation pending**.
 - Temporary model policy: **IMPLEMENTED for Quick Ask — Default / Smallest / Most Recent / Custom; reuse existing model, unload temporary model when overlay closes**.
 - Tray New conversation and Quick Ask actions: **IMPLEMENTED**.
-- Low-Memory loading preference and remaining tray/runtime refinements: **IN PROGRESS / NOT STARTED AS INDICATED IN PHASE 2 SECTIONS**.
+- Optional Low-Memory Mode: **IMPLEMENTED — opt-in, off by default; installed-RAM tiers cap effective context/batch values without changing saved profiles; Runtime reports requested/effective allocations; automated and target-device validation pending**.
+- Settings organization: **IMPLEMENTED — Appearance, Performance, Runtime and Memory categories; Low-Memory Mode, separate RAM Limiter and System/Full/Reduced/Off motion preferences are under Settings → Performance**.
+- Runtime/model tray status, configurable close-to-tray and exit behavior, and explicit exit-time model-unload preference: **PENDING**.
 
-**Immediate next task:** Continue Phase 2 — complete the user-facing Low-Memory loading preference and remaining tray behavior, then extend Quick Ask settings and runtime diagnostics. Keep Phase 1, item 7 as a separate validation task: run the updated test suite/build, verify v7-to-v14 migration and topic-learning/context-compaction regressions, then manually test chat scrolling, the native-dialog focus fix, device-local time, Quick Ask and real-GGUF behavior on Windows. Phase 1 implementation is complete; validation must not be misreported as passed.
+**Immediate next task:** Validate the new Low-Memory preference through automated CI and manual Windows/real-GGUF testing on the intended low-RAM laptop. Then continue Phase 2 with Runtime/model tray status, configurable close/exit behavior and Quick Ask edge-case verification. Keep Phase 1, item 7 as a separate validation task: verify v7-to-v14 migration and topic-learning/context-compaction regressions, then manually test chat scrolling, native-dialog focus, device-local time, Quick Ask and real-GGUF behavior on Windows. Phase 1 implementation is complete; validation must not be misreported as passed.
 
 **Continuity requirement:** Every future development session must inspect the current repository and this roadmap before starting new work. The implementation on the current branch takes precedence over this document if they disagree.
