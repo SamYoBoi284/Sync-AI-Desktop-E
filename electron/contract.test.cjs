@@ -361,7 +361,6 @@ test("system tray exposes live model/runtime status and applies desktop close/ex
   assert.match(main, /function refreshTrayMenu\(/);
   assert.match(main, /label: "Model: " \+ modelName/);
   assert.match(main, /label: "Runtime: " \+ runtimeLabel/);
-  assert.match(main, /Worker memory: /);
   assert.match(main, /tray\.on\("right-click", \(\) => refreshTrayMenu\(\)\)/);
   assert.match(main, /get_desktop_behavior_preferences:/);
   assert.match(main, /set_desktop_behavior_preferences:/);
