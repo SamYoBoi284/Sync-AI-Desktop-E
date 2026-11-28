@@ -42,7 +42,9 @@ async function mountRuntime(root, context) {
               <div><dt>Generation state</dt><dd>${runtime.isGenerating ? "Generating" : "Idle"}</dd></div>
               <div><dt>Force stop generation</dt><dd>${runtime.isGenerating ? '<button class="shell-runtime-danger" type="button" data-runtime="force-stop" ' + (recovering || runtime.isForceStoppingGeneration ? "disabled" : "") + '>' + (recovering || runtime.isForceStoppingGeneration ? "Restarting worker…" : "Force Stop Generation") + "</button>" : "No active generation"}</dd></div>
               <div><dt>Loaded model</dt><dd>${esc(runtime.loadedModelName ?? "None")}</dd></div>
-              <div><dt>Context / batch</dt><dd>${runtime.contextLength ? Number(runtime.contextLength).toLocaleString() + " / " + esc(runtime.batchSize) : "—"}</dd></div>
+              <div><dt>Loading profile</dt><dd>${runtime.lowMemoryMode ? "Low-Memory Mode" : "Standard"}</dd></div>
+              <div><dt>Requested context / batch</dt><dd>${runtime.requestedContextLength ? Number(runtime.requestedContextLength).toLocaleString() + " / " + esc(runtime.requestedBatchSize) : "—"}</dd></div>
+              <div><dt>Effective context / batch</dt><dd>${runtime.contextLength ? Number(runtime.contextLength).toLocaleString() + " / " + esc(runtime.batchSize) : "—"}</dd></div>
               <div><dt>Active generation</dt><dd>${esc(runtime.activeGeneration?.generationId ?? "None")}</dd></div>
               <div><dt>Queued generations</dt><dd>${Number(runtime.queuedGenerationCount || 0)}</dd></div>
             </dl>
