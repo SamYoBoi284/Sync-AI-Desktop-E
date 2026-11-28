@@ -353,5 +353,5 @@ test("Low-Memory preference is optional, persistent and applied as a non-destruc
   assert.match(policy, /Math\.min\(contextLength, recommendation\.maxContextLength\)/);
   assert.match(policy, /Math\.min\(batchSize, recommendation\.maxBatchSize/);
   assert.match(settings, /lowPreferences\.enabled/);
-  assert.match(settings, /The preset only reduces your global or per-model values/);
+  assert.match(settings, /never changes your saved global settings or per-model profiles/);
 });
